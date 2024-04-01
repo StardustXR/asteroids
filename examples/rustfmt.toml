@@ -1,0 +1,4 @@
+reorder_imports = false
+array_width = 20
+chain_width = 10
+# overflow_delimited_expr = true
