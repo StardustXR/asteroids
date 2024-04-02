@@ -1,15 +1,16 @@
 use std::f32::consts::PI;
 use asteroids::{
     make_stardust_client, Element, ElementTrait, Lines, Model, Root, Spatial, Text, Transformable,
+    Button,
 };
-use color::rgba_linear;
+use color::ToRgba;
 use glam::Quat;
-use mint::Vector3;
-use stardust_xr_fusion::{
-    core::values::Color,
-    drawable::{XAlign, YAlign},
+use map_range::MapRange;
+use stardust_xr_fusion::drawable::{XAlign, YAlign};
+use stardust_xr_molecules::{
+    lines::{self, LineExt},
+    DebugSettings,
 };
-use stardust_xr_molecules::lines::{self, LineExt};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -18,38 +19,47 @@ async fn main() {
             // dbg!(frame_info);
         },
     }
-    .with_children([
-        Model::namespaced("asteroids", "grabbable").build(),
-        Spatial::default()
-            .pos([0.0, 0.0, 0.04])
-            .with_children([
-                make_triangle(0.5, [0.0, 0.0, -0.0], rgba_linear!(1.0, 1.0, 1.0, 1.0)),
-                make_triangle(0.5, [0.0, 0.0, -0.02], rgba_linear!(1.0, 1.0, 1.0, 0.8)),
-                make_triangle(0.5, [0.0, 0.0, -0.04], rgba_linear!(1.0, 1.0, 1.0, 0.6)),
-                make_triangle(0.5, [0.0, 0.0, -0.06], rgba_linear!(1.0, 1.0, 1.0, 0.4)),
-                make_triangle(0.5, [0.0, 0.0, -0.08], rgba_linear!(1.0, 1.0, 1.0, 0.2)),
-            ]),
-        // yummy text nom nom nom
-        Text::default()
-            .pos([0.0, -0.4, 0.0])
-            .rot(Quat::from_rotation_y(PI))
-            .text("THE TRI")
-            .text_align_x(XAlign::Center)
-            .text_align_y(YAlign::Top)
-            .character_height(0.1)
-            .build(),
-    ]);
+    .with_children([Spatial::default()
+        .zoneable(true)
+        .with_children([
+            Model::namespaced("asteroids", "grabbable").build(),
+            Button::default()
+                .size([0.15, 0.3])
+                .debug(DebugSettings::default())
+                .build(),
+            Spatial::default().with_children(make_triangles(0.3, 25, 0.01)),
+            // yummy text nom nom nom
+            Text::default()
+                .pos([0.0, -0.2, 0.0])
+                .rot(Quat::from_rotation_y(PI))
+                .text("triangle :D")
+                .text_align_x(XAlign::Center)
+                .text_align_y(YAlign::Top)
+                .character_height(0.1)
+                .build(),
+        ])]);
 
     make_stardust_client(root).await
 }
 
-fn make_triangle(size: f32, offset: impl Into<Vector3<f32>>, color: Color) -> Element {
-    Lines::default()
-        .pos(offset)
-        .lines([
-            lines::circle(3, 0.0, size)
-                .thickness(0.01)
-                .color(color),
-        ])
-        .build()
+fn make_triangles(
+    size: f32,
+    triangle_count: usize,
+    spacing: f32,
+) -> impl IntoIterator<Item = Element> {
+    let half_spacing = triangle_count as f32 * spacing * 0.5;
+    (0..triangle_count).map(move |n| {
+        let f = n as f32;
+        let offset = f * spacing - half_spacing;
+        let turns = f / triangle_count as f32;
+        let color = turns.map_range(0.0..1.0, 130.0..180.0);
+        Lines::default()
+            .pos([0.0, 0.0, offset])
+            .lines([
+                lines::circle(3, 0.0, size)
+                    .thickness(0.01)
+                    .color(color::Hsv::new(color::Deg(color), 1.0, 1.0).to_rgba()),
+            ])
+            .build()
+    })
 }

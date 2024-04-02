@@ -1,12 +1,14 @@
 use crate::{ElementTrait, SpatialHack};
 use color::rgba_linear;
 use derive_setters::Setters;
+use mint::Vector2;
 use stardust_xr_fusion::{
     core::values::{Color, ResourceID},
     drawable::{Line, TextAspect, TextBounds, TextStyle, XAlign, YAlign},
     node::{NodeError, NodeType},
     spatial::{SpatialAspect, Transform},
 };
+use stardust_xr_molecules::{DebugSettings, VisualDebug};
 
 pub trait Transformable: Sized {
     fn transform(&self) -> &Transform;
@@ -35,7 +37,7 @@ pub trait Transformable: Sized {
 }
 
 #[derive(Debug, Setters, Clone)]
-#[setters(into)]
+#[setters(into, strip_option)]
 pub struct Spatial {
     transform: Transform,
     zoneable: bool,
@@ -54,7 +56,7 @@ impl ElementTrait for Spatial {
             self.zoneable,
         )
     }
-    fn update_inner(&self, old_decl: &Self, inner: &mut Self::Inner) {
+    fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
         if self.zoneable != old_decl.zoneable {
             let _ = inner.set_zoneable(self.zoneable);
         }
@@ -84,8 +86,12 @@ pub struct ModelInner {
     model: stardust_xr_fusion::drawable::Model,
     parent: SpatialHack,
 }
-#[derive(Debug, Clone)]
-pub struct Model(Transform, pub ResourceID);
+#[derive(Debug, Setters, Clone)]
+#[setters(into, strip_option)]
+pub struct Model {
+    transform: Transform,
+    pub resource: ResourceID,
+}
 impl ElementTrait for Model {
     type Inner = ModelInner;
     type Error = NodeError;
@@ -97,45 +103,43 @@ impl ElementTrait for Model {
         Ok(ModelInner {
             model: stardust_xr_fusion::drawable::Model::create(
                 spatial_parent,
-                self.0.clone(),
-                &self.1,
+                self.transform.clone(),
+                &self.resource,
             )?,
             parent: SpatialHack(spatial_parent.node().alias()),
         })
     }
-
-    fn update_inner(&self, old_decl: &Self, inner: &mut Self::Inner) {
+    fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
         self.apply_transform(old_decl, &inner.model);
-        if self.1 != old_decl.1 {
+        if self.resource != old_decl.resource {
             if let Ok(new_inner) = self.create_inner(&inner.parent) {
                 *inner = new_inner;
             }
         }
     }
-
     fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
         Some(&inner.model)
     }
 }
 impl Transformable for Model {
     fn transform(&self) -> &Transform {
-        &self.0
+        &self.transform
     }
     fn transform_mut(&mut self) -> &mut Transform {
-        &mut self.0
+        &mut self.transform
     }
 }
 impl Model {
     pub fn namespaced(namespace: &str, path: &str) -> Self {
-        Model(
-            Transform::none(),
-            ResourceID::new_namespaced(namespace, path),
-        )
+        Model {
+            transform: Transform::none(),
+            resource: ResourceID::new_namespaced(namespace, path),
+        }
     }
 }
 
 #[derive(Debug, Setters, Clone)]
-#[setters(into)]
+#[setters(into, strip_option)]
 pub struct Lines {
     transform: Transform,
     lines: Vec<Line>,
@@ -153,13 +157,12 @@ impl ElementTrait for Lines {
     }
 
     // figure out why the lines can't be compared
-    fn update_inner(&self, old_decl: &Self, inner: &mut Self::Inner) {
+    fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
         self.apply_transform(old_decl, inner)
         // if self.lines != old_decl.lines {
         //     let _ = inner.set_lines(&self.lines);
         // }
     }
-
     fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
         Some(inner)
     }
@@ -182,7 +185,7 @@ impl Transformable for Lines {
 }
 
 #[derive(Debug, Setters, Clone)]
-#[setters(into)]
+#[setters(into, strip_option)]
 pub struct Text {
     transform: Transform,
     text: String,
@@ -215,7 +218,7 @@ impl ElementTrait for Text {
             },
         )
     }
-    fn update_inner(&self, old_decl: &Self, inner: &mut Self::Inner) {
+    fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
         self.apply_transform(old_decl, inner);
         if self.text != old_decl.text {
             let _ = inner.set_text(&self.text);
@@ -250,3 +253,100 @@ impl Transformable for Text {
         &mut self.transform
     }
 }
+
+#[derive(Debug, Setters, Clone)]
+#[setters(into, strip_option)]
+pub struct Button {
+    transform: Transform,
+    size: Vector2<f32>,
+    max_hover_distance: f32,
+    line_thickness: f32,
+    accent_color: Color,
+    debug: Option<DebugSettings>,
+}
+impl Default for Button {
+    fn default() -> Self {
+        Button {
+            transform: Transform::none(),
+            size: [0.1; 2].into(),
+            max_hover_distance: 0.025,
+            line_thickness: 0.005,
+            accent_color: rgba_linear!(0.0, 1.0, 0.75, 1.0),
+            debug: None,
+        }
+    }
+}
+impl ElementTrait for Button {
+    type Inner = stardust_xr_molecules::button::Button;
+    type Error = NodeError;
+
+    fn create_inner(&self, parent_space: &impl SpatialAspect) -> Result<Self::Inner, Self::Error> {
+        let mut button = stardust_xr_molecules::button::Button::create(
+            parent_space,
+            self.transform.clone(),
+            self.size,
+            stardust_xr_molecules::button::ButtonSettings {
+                max_hover_distance: self.max_hover_distance,
+                line_thickness: self.line_thickness,
+                accent_color: self.accent_color,
+            },
+        )?;
+        button.set_debug(self.debug);
+        Ok(button)
+    }
+
+    fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
+        self.apply_transform(old_decl, inner.touch_plane().root());
+        // if self.size != old_decl.size {
+        //     inner.touch_plane().set_size(self.size);
+        // }
+        inner.update();
+    }
+
+    fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
+        Some(inner.touch_plane().root())
+    }
+}
+impl Transformable for Button {
+    fn transform(&self) -> &Transform {
+        &self.transform
+    }
+    fn transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
+}
+
+// #[derive(Debug, Setters, Clone)]
+// #[setters(into, strip_option)]
+// pub struct Grabbable {
+//     transform: Transform,
+// }
+// impl ElementTrait for Grabbable {
+//     type Inner = stardust_xr_molecules::Grabbable;
+//     type Error = NodeError;
+
+//     fn create_inner(&self, parent_space: &impl SpatialAspect) -> Result<Self::Inner, Self::Error> {
+//         stardust_xr_molecules::Grabbable::create(
+//             parent_space,
+//             self.transform.clone(),
+//             field,
+//             GrabbableSettings::default(),
+//         )
+//     }
+
+//     fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
+//         self.apply_transform(old_decl, inner.content_parent())
+//     }
+
+//     fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
+//         Some(inner.content_parent())
+//     }
+// }
+// impl Transformable for Grabbable {
+//     fn transform(&self) -> &Transform {
+//         &self.transform
+//     }
+//     fn transform_mut(&mut self) -> &mut Transform {
+//         &mut self.transform
+//     }
+// }

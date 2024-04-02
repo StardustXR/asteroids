@@ -102,7 +102,7 @@ impl<State: ValidState> StardustClient<State> {
 }
 impl<State: ValidState> RootHandler for StardustClient<State> {
     fn frame(&mut self, info: FrameInfo) {
-        self.root.update_inner(&mut self.inner_map);
+        self.root.update(&mut self.inner_map);
         (self.root.decl.on_frame)(&mut self.state, &info)
     }
     fn save_state(&mut self) -> ClientState {
@@ -155,7 +155,7 @@ trait GenericElement: Any + Send + Sync {
         parent: &SpatialHack,
         inner_map: &mut ElementInnerMap,
     ) -> Result<(), String>;
-    fn update_inner(&mut self, inner_map: &mut ElementInnerMap);
+    fn update(&mut self, inner_map: &mut ElementInnerMap);
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> Option<SpatialHack>;
 }
 impl<E: ElementTrait> GenericElement for ElementWrapper<E> {
@@ -175,15 +175,15 @@ impl<E: ElementTrait> GenericElement for ElementWrapper<E> {
         }
         Ok(())
     }
-    fn update_inner(&mut self, inner_map: &mut ElementInnerMap) {
+    fn update(&mut self, inner_map: &mut ElementInnerMap) {
         let Some(inner) = inner_map.get_mut::<E>(self.inner_key) else {
             return;
         };
-        self.decl.update_inner(&self.decl_old, inner);
+        self.decl.update(&self.decl_old, inner);
         self.decl_old = self.decl.clone();
 
         for child in &mut self.children {
-            child.update_inner(inner_map);
+            child.update(inner_map);
         }
     }
 
@@ -204,8 +204,8 @@ impl GenericElement for Element {
     ) -> Result<(), String> {
         self.0.create_inner(parent, inner_map)
     }
-    fn update_inner(&mut self, inner_map: &mut ElementInnerMap) {
-        self.0.update_inner(inner_map)
+    fn update(&mut self, inner_map: &mut ElementInnerMap) {
+        self.0.update(inner_map)
     }
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> Option<SpatialHack> {
         self.0.spatial_aspect(inner_map)
@@ -216,7 +216,7 @@ pub trait ElementTrait: Debug + Send + Sync + Clone + 'static {
     type Inner: Send + Sync + 'static;
     type Error: ToString;
     fn create_inner(&self, parent_space: &impl SpatialAspect) -> Result<Self::Inner, Self::Error>;
-    fn update_inner(&self, old_decl: &Self, inner: &mut Self::Inner);
+    fn update(&self, old_decl: &Self, inner: &mut Self::Inner);
     fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect>;
     fn build(self) -> Element {
         self.with_children([])
@@ -249,7 +249,7 @@ impl<State: ValidState> ElementTrait for Root<State> {
     fn create_inner(&self, parent: &impl SpatialAspect) -> Result<Self::Inner, Self::Error> {
         parent.client()
     }
-    fn update_inner(&self, _old_decl: &Self, _inner: &mut Self::Inner) {}
+    fn update(&self, _old_decl: &Self, _inner: &mut Self::Inner) {}
     fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
         Some(inner.get_root())
     }

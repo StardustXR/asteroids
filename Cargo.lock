@@ -38,6 +38,7 @@ dependencies = [
  "input-event-codes",
  "lazy_static",
  "manifest-dir-macros",
+ "map-range",
  "mint",
  "rustc-hash",
  "serde",
