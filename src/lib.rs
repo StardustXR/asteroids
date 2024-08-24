@@ -1,10 +1,10 @@
 use manifest_dir_macros::directory_relative_path;
 use rustc_hash::{FxHashMap, FxHashSet};
-use serde::{de::DeserializeOwned, Deserialize, Serialize, Serializer};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use stardust_xr_fusion::{
     client::Client,
     core::schemas::flex::flexbuffers,
-    node::{MethodResult, NodeError, NodeType},
+    node::{MethodResult, NodeType},
     root::{ClientState, FrameInfo, RootAspect, RootHandler},
     spatial::{SpatialRef, SpatialRefAspect},
 };
@@ -41,13 +41,16 @@ impl<T: Default + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'stat
 
 pub type ElementGenerator<State> = fn(&State) -> Element;
 
-pub async fn make_stardust_client<State: ValidState>(root: ElementGenerator<State>) {
+pub async fn make_stardust_client<State: ValidState>(
+    on_frame: fn(&mut State, &FrameInfo),
+    root: ElementGenerator<State>,
+) {
     let (client, event_loop) = Client::connect_with_async_loop().await.unwrap();
     client
         .set_base_prefixes(&[directory_relative_path!("res")])
         .unwrap();
 
-    let asteroids = StardustClient::new(client.clone(), root);
+    let asteroids = StardustClient::new(client.clone(), on_frame, root);
     let _root = client.get_root().alias().wrap(asteroids).unwrap();
 
     tokio::select! {
@@ -67,13 +70,18 @@ impl<S: SpatialRefAspect> SpatialRefExt for S {
 
 pub struct StardustClient<State: ValidState> {
     client: Arc<Client>,
+    on_frame: fn(&mut State, &FrameInfo),
     root_view: ElementGenerator<State>,
     state: State,
     vdom_root: Element,
     inner_map: ElementInnerMap,
 }
 impl<State: ValidState> StardustClient<State> {
-    pub fn new(client: Arc<Client>, root_view: ElementGenerator<State>) -> StardustClient<State> {
+    pub fn new(
+        client: Arc<Client>,
+        on_frame: fn(&mut State, &FrameInfo),
+        root_view: ElementGenerator<State>,
+    ) -> StardustClient<State> {
         let mut inner_map = ElementInnerMap::default();
         let state = client
             .get_state()
@@ -88,6 +96,7 @@ impl<State: ValidState> StardustClient<State> {
             .unwrap();
         StardustClient {
             client,
+            on_frame,
             root_view,
             state,
             vdom_root,
@@ -160,9 +169,7 @@ impl<State: ValidState> StardustClient<State> {
 impl<State: ValidState> RootHandler for StardustClient<State> {
     fn frame(&mut self, info: FrameInfo) {
         self.update();
-        if let Some(root_decl) = self.vdom_root.params::<Root<State>>() {
-            (root_decl.on_frame)(&mut self.state, &info);
-        }
+        (self.on_frame)(&mut self.state, &info);
     }
     fn save_state(&mut self) -> MethodResult<ClientState> {
         ClientState::from_data_root(
@@ -363,41 +370,5 @@ pub trait ElementTrait: Debug + Clone + PartialEq + Send + Sync + Sized + 'stati
             inner_key: OnceLock::new(),
             children: children.into_iter().collect(),
         }))
-    }
-}
-
-#[derive(PartialEq)]
-pub struct Root<State: ValidState> {
-    pub on_frame: fn(&mut State, &FrameInfo),
-}
-impl<State: ValidState> Clone for Root<State> {
-    fn clone(&self) -> Self {
-        Self {
-            on_frame: self.on_frame,
-        }
-    }
-}
-impl<State: ValidState> Default for Root<State> {
-    fn default() -> Self {
-        Root {
-            on_frame: |_, _| (),
-        }
-    }
-}
-impl<State: ValidState> Debug for Root<State> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.serialize_unit_struct("Root")
-    }
-}
-impl<State: ValidState> ElementTrait for Root<State> {
-    type Inner = Arc<Client>;
-    type Error = NodeError;
-
-    fn create_inner(&self, parent: &SpatialRef) -> Result<Self::Inner, Self::Error> {
-        parent.client()
-    }
-    fn update(&self, _old_decl: &Self, _inner: &mut Self::Inner) {}
-    fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-        inner.get_root().spatial_ref()
     }
 }
