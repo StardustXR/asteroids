@@ -1,24 +1,25 @@
-use crate::{ElementTrait, SpatialHack};
-use color::rgba_linear;
+use crate::{ElementTrait, SpatialRefExt, ValidState};
 use derive_setters::Setters;
 use mint::Vector2;
 use stardust_xr_fusion::{
     core::values::{Color, ResourceID},
     drawable::{Line, TextAspect, TextBounds, TextStyle, XAlign, YAlign},
     node::{NodeError, NodeType},
-    spatial::{SpatialAspect, Transform},
+    spatial::{SpatialAspect, SpatialRef, Transform},
+    values::color::rgba_linear,
 };
-use stardust_xr_molecules::{DebugSettings, VisualDebug};
+use stardust_xr_molecules::{button::ButtonVisualSettings, DebugSettings, VisualDebug};
+use std::fmt::Debug;
 
 pub trait Transformable: Sized {
     fn transform(&self) -> &Transform;
     fn transform_mut(&mut self) -> &mut Transform;
     fn apply_transform(&self, other: &Self, spatial: &impl SpatialAspect) {
         if self.transform().translation != other.transform().translation
-            && self.transform().rotation != other.transform().rotation
-            && self.transform().scale != other.transform().scale
+            || self.transform().rotation != other.transform().rotation
+            || self.transform().scale != other.transform().scale
         {
-            let _ = spatial.set_local_transform(self.transform().clone());
+            let _ = spatial.set_local_transform(*self.transform());
         }
     }
 
@@ -36,7 +37,7 @@ pub trait Transformable: Sized {
     }
 }
 
-#[derive(Debug, Setters, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct Spatial {
     transform: Transform,
@@ -46,23 +47,19 @@ impl ElementTrait for Spatial {
     type Inner = stardust_xr_fusion::spatial::Spatial;
     type Error = NodeError;
 
-    fn create_inner(
-        &self,
-        spatial_parent: &impl SpatialAspect,
-    ) -> Result<Self::Inner, Self::Error> {
-        stardust_xr_fusion::spatial::Spatial::create(
-            spatial_parent,
-            self.transform.clone(),
-            self.zoneable,
-        )
+    fn create_inner(&self, spatial_parent: &SpatialRef) -> Result<Self::Inner, Self::Error> {
+        stardust_xr_fusion::spatial::Spatial::create(spatial_parent, self.transform, self.zoneable)
     }
     fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
+        // dbg!(self.transform.translation);
+        // dbg!(old_decl.transform.translation);
+        self.apply_transform(old_decl, inner);
         if self.zoneable != old_decl.zoneable {
             let _ = inner.set_zoneable(self.zoneable);
         }
     }
-    fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
-        Some(inner)
+    fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
+        inner.spatial_ref()
     }
 }
 impl Default for Spatial {
@@ -84,9 +81,9 @@ impl Transformable for Spatial {
 
 pub struct ModelInner {
     model: stardust_xr_fusion::drawable::Model,
-    parent: SpatialHack,
+    parent: SpatialRef,
 }
-#[derive(Debug, Setters, Clone)]
+#[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct Model {
     transform: Transform,
@@ -96,17 +93,14 @@ impl ElementTrait for Model {
     type Inner = ModelInner;
     type Error = NodeError;
 
-    fn create_inner(
-        &self,
-        spatial_parent: &impl SpatialAspect,
-    ) -> Result<Self::Inner, Self::Error> {
+    fn create_inner(&self, spatial_parent: &SpatialRef) -> Result<Self::Inner, Self::Error> {
         Ok(ModelInner {
             model: stardust_xr_fusion::drawable::Model::create(
                 spatial_parent,
-                self.transform.clone(),
+                self.transform,
                 &self.resource,
             )?,
-            parent: SpatialHack(spatial_parent.node().alias()),
+            parent: spatial_parent.alias(),
         })
     }
     fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
@@ -117,8 +111,8 @@ impl ElementTrait for Model {
             }
         }
     }
-    fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
-        Some(&inner.model)
+    fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
+        inner.model.spatial_ref()
     }
 }
 impl Transformable for Model {
@@ -138,7 +132,7 @@ impl Model {
     }
 }
 
-#[derive(Debug, Setters, Clone)]
+#[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct Lines {
     transform: Transform,
@@ -148,12 +142,8 @@ impl ElementTrait for Lines {
     type Inner = stardust_xr_fusion::drawable::Lines;
     type Error = NodeError;
 
-    fn create_inner(&self, parent_space: &impl SpatialAspect) -> Result<Self::Inner, Self::Error> {
-        stardust_xr_fusion::drawable::Lines::create(
-            parent_space,
-            self.transform.clone(),
-            &self.lines,
-        )
+    fn create_inner(&self, parent_space: &SpatialRef) -> Result<Self::Inner, Self::Error> {
+        stardust_xr_fusion::drawable::Lines::create(parent_space, self.transform, &self.lines)
     }
 
     // figure out why the lines can't be compared
@@ -163,8 +153,8 @@ impl ElementTrait for Lines {
         //     let _ = inner.set_lines(&self.lines);
         // }
     }
-    fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
-        Some(inner)
+    fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
+        inner.spatial_ref()
     }
 }
 impl Default for Lines {
@@ -184,7 +174,7 @@ impl Transformable for Lines {
     }
 }
 
-#[derive(Debug, Setters, Clone)]
+#[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct Text {
     transform: Transform,
@@ -200,13 +190,10 @@ impl ElementTrait for Text {
     type Inner = stardust_xr_fusion::drawable::Text;
     type Error = NodeError;
 
-    fn create_inner(
-        &self,
-        spatial_parent: &impl SpatialAspect,
-    ) -> Result<Self::Inner, Self::Error> {
+    fn create_inner(&self, spatial_parent: &SpatialRef) -> Result<Self::Inner, Self::Error> {
         stardust_xr_fusion::drawable::Text::create(
             spatial_parent,
-            self.transform.clone(),
+            self.transform,
             &self.text,
             TextStyle {
                 character_height: self.character_height,
@@ -227,8 +214,8 @@ impl ElementTrait for Text {
             let _ = inner.set_character_height(self.character_height);
         }
     }
-    fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
-        Some(inner)
+    fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
+        inner.spatial_ref()
     }
 }
 impl Default for Text {
@@ -254,20 +241,22 @@ impl Transformable for Text {
     }
 }
 
-#[derive(Debug, Setters, Clone)]
+#[derive(PartialEq, Setters)]
 #[setters(into, strip_option)]
-pub struct Button {
+pub struct Button<State: ValidState> {
     transform: Transform,
+    on_press: fn(&mut State),
     size: Vector2<f32>,
     max_hover_distance: f32,
     line_thickness: f32,
     accent_color: Color,
     debug: Option<DebugSettings>,
 }
-impl Default for Button {
+impl<State: ValidState> Default for Button<State> {
     fn default() -> Self {
         Button {
             transform: Transform::none(),
+            on_press: |_| {},
             size: [0.1; 2].into(),
             max_hover_distance: 0.025,
             line_thickness: 0.005,
@@ -276,38 +265,64 @@ impl Default for Button {
         }
     }
 }
-impl ElementTrait for Button {
+impl<State: ValidState> Debug for Button<State> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Button")
+            .field("transform", &self.transform)
+            .field("size", &self.size)
+            .field("max_hover_distance", &self.max_hover_distance)
+            .field("line_thickness", &self.accent_color)
+            .field("debug", &self.debug)
+            .finish_non_exhaustive()
+    }
+}
+impl<State: ValidState> Clone for Button<State> {
+    fn clone(&self) -> Self {
+        Self {
+            transform: self.transform,
+            on_press: self.on_press,
+            size: self.size,
+            max_hover_distance: self.max_hover_distance,
+            line_thickness: self.line_thickness,
+            accent_color: self.accent_color,
+            debug: self.debug,
+        }
+    }
+}
+impl<State: ValidState> ElementTrait for Button<State> {
     type Inner = stardust_xr_molecules::button::Button;
     type Error = NodeError;
 
-    fn create_inner(&self, parent_space: &impl SpatialAspect) -> Result<Self::Inner, Self::Error> {
+    fn create_inner(&self, parent_space: &SpatialRef) -> Result<Self::Inner, Self::Error> {
         let mut button = stardust_xr_molecules::button::Button::create(
             parent_space,
-            self.transform.clone(),
+            self.transform,
             self.size,
             stardust_xr_molecules::button::ButtonSettings {
                 max_hover_distance: self.max_hover_distance,
-                line_thickness: self.line_thickness,
-                accent_color: self.accent_color,
+                visuals: Some(ButtonVisualSettings {
+                    line_thickness: self.line_thickness,
+                    accent_color: self.accent_color,
+                }),
             },
         )?;
         button.set_debug(self.debug);
         Ok(button)
     }
 
-    fn update(&self, old_decl: &Self, inner: &mut Self::Inner) {
-        self.apply_transform(old_decl, inner.touch_plane().root());
-        // if self.size != old_decl.size {
+    fn update(&self, old: &Self, inner: &mut Self::Inner) {
+        self.apply_transform(old, inner.touch_plane().root());
+        // if self.size != old.size {
         //     inner.touch_plane().set_size(self.size);
         // }
         inner.update();
     }
 
-    fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
-        Some(inner.touch_plane().root())
+    fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
+        inner.touch_plane().root().spatial_ref()
     }
 }
-impl Transformable for Button {
+impl<State: ValidState> Transformable for Button<State> {
     fn transform(&self) -> &Transform {
         &self.transform
     }
@@ -316,7 +331,7 @@ impl Transformable for Button {
     }
 }
 
-// #[derive(Debug, Setters, Clone)]
+// #[derive(Debug, Clone, PartialEq, Setters)]
 // #[setters(into, strip_option)]
 // pub struct Grabbable {
 //     transform: Transform,
@@ -325,7 +340,7 @@ impl Transformable for Button {
 //     type Inner = stardust_xr_molecules::Grabbable;
 //     type Error = NodeError;
 
-//     fn create_inner(&self, parent_space: &impl SpatialAspect) -> Result<Self::Inner, Self::Error> {
+//     fn create_inner(&self, parent_space: &SpatialRef) -> Result<Self::Inner, Self::Error> {
 //         stardust_xr_molecules::Grabbable::create(
 //             parent_space,
 //             self.transform.clone(),
@@ -338,7 +353,7 @@ impl Transformable for Button {
 //         self.apply_transform(old_decl, inner.content_parent())
 //     }
 
-//     fn spatial_aspect<'a>(&self, inner: &'a Self::Inner) -> Option<&'a impl SpatialAspect> {
+//     fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
 //         Some(inner.content_parent())
 //     }
 // }
