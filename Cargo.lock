@@ -41,6 +41,7 @@ dependencies = [
 name = "asteroids"
 version = "2.0.0"
 dependencies = [
+ "derive-where",
  "derive_setters",
  "glam 0.28.0",
  "input-event-codes",
@@ -405,6 +406,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d336a2a514f6ccccaa3e09b02d41d35330c07ddf03a62165fcec10bb561c7806"
 dependencies = [
  "darling_core",
+ "quote",
+ "syn 2.0.76",
+]
+
+[[package]]
+name = "derive-where"
+version = "1.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62d671cc41a825ebabc75757b62d3d168c577f9149b2d49ece1dad1f72119d25"
+dependencies = [
+ "proc-macro2",
  "quote",
  "syn 2.0.76",
 ]
@@ -1467,7 +1479,7 @@ checksum = "2f2b15926089e5526bb2dd738a2eb0e59034356e06eb71e1cd912358c0e62c4d"
 [[package]]
 name = "stardust-xr"
 version = "0.45.0"
-source = "git+https://github.com/StardustXR/core.git?branch=dev#207c75c2f00c79a39370846905ac020204f0ff1e"
+source = "git+https://github.com/StardustXR/core.git?branch=dev#c5591c713e85cc2df9c63583fb3026e6c93ccef7"
 dependencies = [
  "cluFlock",
  "dirs",
@@ -1487,7 +1499,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.45.0"
-source = "git+https://github.com/StardustXR/core.git?branch=dev#207c75c2f00c79a39370846905ac020204f0ff1e"
+source = "git+https://github.com/StardustXR/core.git?branch=dev#c5591c713e85cc2df9c63583fb3026e6c93ccef7"
 dependencies = [
  "color-eyre",
  "glam 0.24.2",
@@ -1507,7 +1519,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion-codegen"
 version = "0.1.0"
-source = "git+https://github.com/StardustXR/core.git?branch=dev#207c75c2f00c79a39370846905ac020204f0ff1e"
+source = "git+https://github.com/StardustXR/core.git?branch=dev#c5591c713e85cc2df9c63583fb3026e6c93ccef7"
 dependencies = [
  "convert_case",
  "mint",
@@ -1520,7 +1532,6 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.45.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=dev#002e736385a45ead2bdb8ba474284fb65c2bc91a"
 dependencies = [
  "glam 0.27.0",
  "lazy_static",
@@ -1536,7 +1547,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-schemas"
 version = "1.5.3"
-source = "git+https://github.com/StardustXR/core.git?branch=dev#207c75c2f00c79a39370846905ac020204f0ff1e"
+source = "git+https://github.com/StardustXR/core.git?branch=dev#c5591c713e85cc2df9c63583fb3026e6c93ccef7"
 dependencies = [
  "flatbuffers",
  "flexbuffers",

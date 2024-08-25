@@ -19,14 +19,16 @@ rustc-hash = "2.0.0"
 serde = { version = "1.0.197", features = ["serde_derive"] }
 derive_setters = "0.1.6"
 tracing-subscriber = "0.3.18"
+derive-where = "1.2.7"
 
 [dependencies.stardust-xr-fusion]
 git = "https://github.com/StardustXR/core.git"
 branch = "dev"
 
 [dependencies.stardust-xr-molecules]
-git = "https://github.com/StardustXR/molecules.git"
-branch = "dev"
+path = "../molecules"
+# git = "https://github.com/StardustXR/molecules.git"
+# branch = "dev"
 
 [dev-dependencies]
 map-range = "0.1.2"

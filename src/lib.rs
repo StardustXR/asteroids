@@ -39,7 +39,7 @@ impl<T: Default + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'stat
 {
 }
 
-pub type ElementGenerator<State> = fn(&State) -> Element;
+pub type ElementGenerator<State> = fn(&State) -> Element<State>;
 
 pub async fn make_stardust_client<State: ValidState>(
     on_frame: fn(&mut State, &FrameInfo),
@@ -73,7 +73,7 @@ pub struct StardustClient<State: ValidState> {
     on_frame: fn(&mut State, &FrameInfo),
     root_view: ElementGenerator<State>,
     state: State,
-    vdom_root: Element,
+    vdom_root: Element<State>,
     inner_map: ElementInnerMap,
 }
 impl<State: ValidState> StardustClient<State> {
@@ -112,12 +112,13 @@ impl<State: ValidState> StardustClient<State> {
             self.client.get_root().spatial_ref(),
             &self.vdom_root,
             &new_vdom,
+            &mut self.state,
             &mut self.inner_map,
         );
         self.vdom_root = new_vdom;
     }
 
-    fn apply_element_keys(path: Vec<(TypeId, usize)>, element: &Element) {
+    fn apply_element_keys(path: Vec<(TypeId, usize)>, element: &Element<State>) {
         let key = {
             let mut hasher = DefaultHasher::new();
             path.hash(&mut hasher);
@@ -132,12 +133,13 @@ impl<State: ValidState> StardustClient<State> {
     }
     fn diff_and_apply(
         parent_spatial: SpatialRef,
-        old: &Element,
-        new: &Element,
+        old: &Element<State>,
+        new: &Element<State>,
+        state: &mut State,
         inner_map: &mut ElementInnerMap,
     ) {
         if old.inner_key() == new.inner_key() {
-            new.update(old, inner_map);
+            new.update(old, state, inner_map);
 
             let old_children = FxHashSet::from_iter(old.children().iter());
             let new_children = FxHashSet::from_iter(new.children().iter());
@@ -153,6 +155,7 @@ impl<State: ValidState> StardustClient<State> {
                     old_child.spatial_aspect(inner_map),
                     old_child,
                     child,
+                    state,
                     inner_map,
                 )
             }
@@ -179,7 +182,7 @@ impl<State: ValidState> RootHandler for StardustClient<State> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 struct ElementInnerKey(u64);
 impl ElementInnerKey {
     pub fn from_identifiable<I: Identify>(i: &I) -> Self {
@@ -197,73 +200,101 @@ impl ElementInnerKey {
 #[derive(Debug, Default)]
 struct ElementInnerMap(FxHashMap<ElementInnerKey, Box<dyn Any + Send + Sync>>);
 impl ElementInnerMap {
-    fn insert<E: ElementTrait>(&mut self, key: ElementInnerKey, inner: E::Inner) {
+    fn insert<State: ValidState, E: ElementTrait<State>>(
+        &mut self,
+        key: ElementInnerKey,
+        inner: E::Inner,
+    ) {
         self.0.insert(key, Box::new(inner));
     }
-    fn get<E: ElementTrait>(&self, key: ElementInnerKey) -> Option<&E::Inner> {
+    fn get<State: ValidState, E: ElementTrait<State>>(
+        &self,
+        key: ElementInnerKey,
+    ) -> Option<&E::Inner> {
         self.0.get(&key)?.downcast_ref()
     }
-    fn get_mut<E: ElementTrait>(&mut self, key: ElementInnerKey) -> Option<&mut E::Inner> {
+    fn get_mut<State: ValidState, E: ElementTrait<State>>(
+        &mut self,
+        key: ElementInnerKey,
+    ) -> Option<&mut E::Inner> {
         self.0.get_mut(&key)?.downcast_mut()
     }
 }
 
-#[derive(Debug)]
-pub struct Element(Box<dyn GenericElement>);
-impl Element {
-    fn wrapper<E: ElementTrait>(&self) -> Option<&ElementWrapper<E>> {
+#[derive_where::derive_where(Debug)]
+pub struct Element<State: ValidState>(Box<dyn GenericElement<State>>);
+impl<State: ValidState> Element<State> {
+    fn wrapper<E: ElementTrait<State>>(&self) -> Option<&ElementWrapper<State, E>> {
         self.0.as_any().downcast_ref()
     }
-    fn params<E: ElementTrait>(&self) -> Option<&E> {
+    fn params<E: ElementTrait<State>>(&self) -> Option<&E> {
         Some(&self.wrapper::<E>()?.params)
     }
     // fn inner<'a, E: ElementTrait>(&self, inner_map: &'a ElementInnerMap) -> Option<&'a E::Inner> {
     //     inner_map.get::<E>(self.wrapper::<E>()?.inner_key)
     // }
-    fn children(&self) -> &[Element] {
+    fn children(&self) -> &[Element<State>] {
         self.0.children()
     }
 }
-impl Clone for Element {
+impl<State: ValidState> Clone for Element<State> {
     fn clone(&self) -> Self {
         Element(self.0.clone_box())
     }
 }
-impl Hash for Element {
+impl<State: ValidState> Hash for Element<State> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.inner_key().hash(state);
     }
 }
-impl PartialEq for Element {
+impl<State: ValidState> PartialEq for Element<State> {
     fn eq(&self, other: &Self) -> bool {
         self.inner_key() == other.inner_key()
     }
 }
-impl Eq for Element {}
+impl<State: ValidState> Eq for Element<State> {}
 
-#[derive(Debug, Clone)]
-struct ElementWrapper<E: ElementTrait> {
+#[derive_where::derive_where(Debug, Clone)]
+struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
     params: E,
     inner_key: OnceLock<ElementInnerKey>,
-    children: Vec<Element>,
+    children: Vec<Element<State>>,
 }
-trait GenericElement: Any + Debug + Send + Sync {
+// impl<State: ValidState, E: ElementTrait<State>> Debug for ElementWrapper<E, State> {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.debug_struct("ElementWrapper")
+//             .field("params", &self.params)
+//             .field("inner_key", &self.inner_key)
+//             .field("children", &self.children)
+//             .finish()
+//     }
+// }
+// impl<State: ValidState, E: ElementTrait<State>> Clone for ElementWrapper<E, State> {
+//     fn clone(&self) -> Self {
+//         ElementWrapper {
+//             params: self.params.clone(),
+//             inner_key: self.inner_key.clone(),
+//             children: self.children.clone(),
+//         }
+//     }
+// }
+trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
     fn type_id(&self) -> TypeId;
     fn create_inner_recursive(
         &self,
         parent: &SpatialRef,
         inner_map: &mut ElementInnerMap,
     ) -> Result<(), String>;
-    fn update(&self, old: &Element, inner_map: &mut ElementInnerMap);
+    fn update(&self, old: &Element<State>, state: &mut State, inner_map: &mut ElementInnerMap);
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
     fn as_any(&self) -> &dyn Any;
     fn inner_key(&self) -> Option<ElementInnerKey>;
     fn apply_inner_key(&self, key: ElementInnerKey);
-    fn children(&self) -> &[Element];
-    fn clone_box(&self) -> Box<dyn GenericElement>;
+    fn children(&self) -> &[Element<State>];
+    fn clone_box(&self) -> Box<dyn GenericElement<State>>;
 }
-impl<E: ElementTrait> GenericElement for ElementWrapper<E> {
+impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
     fn type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
@@ -273,7 +304,7 @@ impl<E: ElementTrait> GenericElement for ElementWrapper<E> {
         inner_map: &mut ElementInnerMap,
     ) -> Result<(), String> {
         let inner = E::create_inner(&self.params, parent).map_err(|e| e.to_string())?;
-        inner_map.insert::<E>(self.inner_key().unwrap(), inner);
+        inner_map.insert::<State, E>(self.inner_key().unwrap(), inner);
 
         let spatial = self.spatial_aspect(inner_map);
         for child in &self.children {
@@ -281,10 +312,10 @@ impl<E: ElementTrait> GenericElement for ElementWrapper<E> {
         }
         Ok(())
     }
-    fn update(&self, old: &Element, inner_map: &mut ElementInnerMap) {
+    fn update(&self, old: &Element<State>, state: &mut State, inner_map: &mut ElementInnerMap) {
         let inner_key = *self.inner_key.get().unwrap();
-        let inner = inner_map.get_mut::<E>(inner_key).unwrap();
-        self.params.update(old.params::<E>().unwrap(), inner);
+        let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
+        self.params.update(old.params::<E>().unwrap(), state, inner);
     }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
         for child in self.children() {
@@ -295,7 +326,7 @@ impl<E: ElementTrait> GenericElement for ElementWrapper<E> {
 
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
         let inner_key = *self.inner_key.get().unwrap();
-        let inner = inner_map.get::<E>(inner_key).unwrap();
+        let inner = inner_map.get::<State, E>(inner_key).unwrap();
         self.params.spatial_aspect(inner)
     }
 
@@ -310,15 +341,15 @@ impl<E: ElementTrait> GenericElement for ElementWrapper<E> {
         let _ = self.inner_key.set(key);
     }
 
-    fn children(&self) -> &[Element] {
+    fn children(&self) -> &[Element<State>] {
         &self.children
     }
 
-    fn clone_box(&self) -> Box<dyn GenericElement> {
+    fn clone_box(&self) -> Box<dyn GenericElement<State>> {
         Box::new(self.clone())
     }
 }
-impl GenericElement for Element {
+impl<State: ValidState> GenericElement<State> for Element<State> {
     fn type_id(&self) -> TypeId {
         self.0.type_id()
     }
@@ -329,8 +360,8 @@ impl GenericElement for Element {
     ) -> Result<(), String> {
         self.0.create_inner_recursive(parent, inner_map)
     }
-    fn update(&self, old: &Element, inner_map: &mut ElementInnerMap) {
-        self.0.update(old, inner_map)
+    fn update(&self, old: &Element<State>, state: &mut State, inner_map: &mut ElementInnerMap) {
+        self.0.update(old, state, inner_map)
     }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
         self.0.destroy_inner_recursive(inner_map)
@@ -347,25 +378,27 @@ impl GenericElement for Element {
     fn apply_inner_key(&self, key: ElementInnerKey) {
         self.0.apply_inner_key(key)
     }
-    fn children(&self) -> &[Element] {
+    fn children(&self) -> &[Element<State>] {
         self.0.children()
     }
-    fn clone_box(&self) -> Box<dyn GenericElement> {
+    fn clone_box(&self) -> Box<dyn GenericElement<State>> {
         self.0.clone_box()
     }
 }
 
-pub trait ElementTrait: Debug + Clone + PartialEq + Send + Sync + Sized + 'static {
+pub trait ElementTrait<State: ValidState>:
+    Debug + Clone + PartialEq + Send + Sync + Sized + 'static
+{
     type Inner: Send + Sync + 'static;
     type Error: ToString;
     fn create_inner(&self, parent_space: &SpatialRef) -> Result<Self::Inner, Self::Error>;
-    fn update(&self, old_decl: &Self, inner: &mut Self::Inner);
+    fn update(&self, old_decl: &Self, state: &mut State, inner: &mut Self::Inner);
     fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef;
-    fn build(self) -> Element {
+    fn build(self) -> Element<State> {
         self.with_children([])
     }
-    fn with_children(self, children: impl IntoIterator<Item = Element>) -> Element {
-        Element(Box::new(ElementWrapper {
+    fn with_children(self, children: impl IntoIterator<Item = Element<State>>) -> Element<State> {
+        Element(Box::new(ElementWrapper::<State, Self> {
             params: self,
             inner_key: OnceLock::new(),
             children: children.into_iter().collect(),
