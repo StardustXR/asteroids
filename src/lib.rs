@@ -131,7 +131,7 @@ impl<State: ValidState> StardustClient<State> {
             .and_then(|m| flexbuffers::from_slice(m).ok())
             .unwrap_or_default();
         let vdom_root = root_view(&state);
-        Self::apply_element_keys(Vec::new(), &vdom_root);
+        Self::apply_element_keys(vec![(GenericElement::type_id(&vdom_root), 0)], &vdom_root);
         vdom_root
             .create_inner_recursive(&client.get_root().spatial_ref(), &mut inner_map)
             .unwrap();
@@ -148,6 +148,8 @@ impl<State: ValidState> StardustClient<State> {
     pub fn update(&mut self) {
         let new_vdom = (self.root_view)(&self.state);
         Self::apply_element_keys(vec![(GenericElement::type_id(&new_vdom), 0)], &new_vdom);
+        // dbg!(&self.vdom_root);
+        // dbg!(&new_vdom);
         Self::diff_and_apply(
             self.client.get_root().spatial_ref(),
             [&self.vdom_root].into_iter(),
@@ -159,7 +161,6 @@ impl<State: ValidState> StardustClient<State> {
     }
 
     fn apply_element_keys(path: Vec<(TypeId, usize)>, element: &Element<State>) {
-        dbg!(&path);
         let key = {
             let mut hasher = DefaultHasher::new();
             path.hash(&mut hasher);
@@ -204,6 +205,9 @@ impl<State: ValidState> StardustClient<State> {
         }
         // just removed
         for child in delta_set.removed() {
+            // println!("removing element:");
+            // println!("\told: {:?}", old_children.get(child).unwrap().inner_key());
+            // println!("\tnew: {:?}", child.inner_key());
             child.destroy_inner_recursive(inner_map);
         }
     }
