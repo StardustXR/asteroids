@@ -4,7 +4,7 @@ use derive_where::derive_where;
 use mint::Vector2;
 use stardust_xr_fusion::{
     core::values::{Color, ResourceID},
-    drawable::{Line, TextAspect, TextBounds, TextStyle, XAlign, YAlign},
+    drawable::{Line, LinesAspect, TextAspect, TextBounds, TextStyle, XAlign, YAlign},
     node::{NodeError, NodeType},
     spatial::{SpatialAspect, SpatialRef, Transform},
     values::color::rgba_linear,
@@ -146,12 +146,11 @@ impl<State: ValidState> ElementTrait<State> for Lines {
         stardust_xr_fusion::drawable::Lines::create(parent_space, self.transform, &self.lines)
     }
 
-    // figure out why the lines can't be compared
     fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
-        self.apply_transform(old_decl, inner)
-        // if self.lines != old_decl.lines {
-        //     let _ = inner.set_lines(&self.lines);
-        // }
+        self.apply_transform(old_decl, inner);
+        if self.lines != old_decl.lines {
+            let _ = inner.set_lines(&self.lines);
+        }
     }
     fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
         inner.spatial_ref()
