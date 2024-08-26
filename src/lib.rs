@@ -131,7 +131,7 @@ impl<State: ValidState> StardustClient<State> {
             .and_then(|m| flexbuffers::from_slice(m).ok())
             .unwrap_or_default();
         let vdom_root = root_view(&state);
-        Self::apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))], &vdom_root);
+        vdom_root.apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))]);
         vdom_root
             .create_inner_recursive(&client.get_root().spatial_ref(), &mut inner_map)
             .unwrap();
@@ -147,71 +147,16 @@ impl<State: ValidState> StardustClient<State> {
 
     pub fn update(&mut self) {
         let new_vdom = (self.root_view)(&self.state);
-        Self::apply_element_keys(vec![(0, GenericElement::type_id(&new_vdom))], &new_vdom);
+        new_vdom.apply_element_keys(vec![(0, GenericElement::type_id(&new_vdom))]);
         // dbg!(&self.vdom_root);
         // dbg!(&new_vdom);
-        Self::diff_and_apply(
+        new_vdom.diff_and_apply(
             self.client.get_root().spatial_ref(),
-            [&self.vdom_root].into_iter(),
-            [&new_vdom].into_iter(),
+            &self.vdom_root,
             &mut self.state,
             &mut self.inner_map,
         );
         self.vdom_root = new_vdom;
-    }
-
-    fn apply_element_keys(path: Vec<(usize, TypeId)>, element: &Element<State>) {
-        let key = {
-            let mut hasher = DefaultHasher::new();
-            path.hash(&mut hasher);
-            ElementInnerKey(hasher.finish())
-        };
-        element.apply_inner_key(key);
-        // println!("{path:?}: {element:?}");
-        for (i, child) in element.children().iter().enumerate() {
-            let mut path = path.clone();
-            path.push((i, GenericElement::type_id(child)));
-            Self::apply_element_keys(path, child);
-        }
-    }
-    fn diff_and_apply<'a>(
-        parent_spatial: SpatialRef,
-        old: impl Iterator<Item = &'a Element<State>>,
-        new: impl Iterator<Item = &'a Element<State>>,
-        state: &mut State,
-        inner_map: &mut ElementInnerMap,
-    ) {
-        let mut delta_set = DeltaSet::default();
-        delta_set.push_new(old);
-        let old_children: FxHashSet<_> = delta_set.current.iter().cloned().collect();
-        delta_set.push_new(new);
-
-        // modified possibly
-        for new_child in delta_set.current().difference(delta_set.added()) {
-            let old_child = old_children.get(new_child).unwrap();
-            new_child.update(old_child, state, inner_map);
-            Self::diff_and_apply(
-                old_child.spatial_aspect(inner_map),
-                old_child.children().iter(),
-                new_child.children().iter(),
-                state,
-                inner_map,
-            )
-        }
-        // just removed
-        for child in delta_set.removed() {
-            // println!("removing element:");
-            // println!("\t{:?}", child.inner_key().unwrap());
-            child.destroy_inner_recursive(inner_map);
-        }
-        // just added (put after so the inner map's capacity can remain the same on swaps)
-        for child in delta_set.added() {
-            // println!("adding element:");
-            // println!("\t{:?}", child.inner_key().unwrap());
-            child
-                .create_inner_recursive(&parent_spatial, inner_map)
-                .unwrap();
-        }
     }
 }
 impl<State: ValidState> RootHandler for StardustClient<State> {
@@ -305,24 +250,6 @@ struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
     inner_key: OnceLock<ElementInnerKey>,
     children: Vec<Element<State>>,
 }
-// impl<State: ValidState, E: ElementTrait<State>> Debug for ElementWrapper<E, State> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         f.debug_struct("ElementWrapper")
-//             .field("params", &self.params)
-//             .field("inner_key", &self.inner_key)
-//             .field("children", &self.children)
-//             .finish()
-//     }
-// }
-// impl<State: ValidState, E: ElementTrait<State>> Clone for ElementWrapper<E, State> {
-//     fn clone(&self) -> Self {
-//         ElementWrapper {
-//             params: self.params.clone(),
-//             inner_key: self.inner_key.clone(),
-//             children: self.children.clone(),
-//         }
-//     }
-// }
 trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
     fn type_id(&self) -> TypeId;
     fn create_inner_recursive(
@@ -335,9 +262,16 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
     fn as_any(&self) -> &dyn Any;
     fn inner_key(&self) -> Option<ElementInnerKey>;
-    fn apply_inner_key(&self, key: ElementInnerKey);
     fn children(&self) -> &[Element<State>];
     fn clone_box(&self) -> Box<dyn GenericElement<State>>;
+    fn apply_element_keys(&self, path: Vec<(usize, TypeId)>);
+    fn diff_and_apply(
+        &self,
+        parent_spatial: SpatialRef,
+        old: &Element<State>,
+        state: &mut State,
+        inner_map: &mut ElementInnerMap,
+    );
 }
 impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
     fn type_id(&self) -> TypeId {
@@ -384,9 +318,6 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
     fn inner_key(&self) -> Option<ElementInnerKey> {
         self.inner_key.get().cloned()
     }
-    fn apply_inner_key(&self, key: ElementInnerKey) {
-        let _ = self.inner_key.set(key);
-    }
 
     fn children(&self) -> &[Element<State>] {
         &self.children
@@ -394,6 +325,56 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 
     fn clone_box(&self) -> Box<dyn GenericElement<State>> {
         Box::new(self.clone())
+    }
+
+    fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
+        let key = {
+            let mut hasher = DefaultHasher::new();
+            path.hash(&mut hasher);
+            ElementInnerKey(hasher.finish())
+        };
+        let _ = self.inner_key.set(key);
+
+        for (i, child) in self.children.iter().enumerate() {
+            let mut child_path = path.clone();
+            child_path.push((i, GenericElement::type_id(child)));
+            child.apply_element_keys(child_path);
+        }
+    }
+
+    fn diff_and_apply(
+        &self,
+        parent_spatial: SpatialRef,
+        old: &Element<State>,
+        state: &mut State,
+        inner_map: &mut ElementInnerMap,
+    ) {
+        let mut delta_set = DeltaSet::default();
+        delta_set.push_new(old.children().iter());
+        let old_children: FxHashSet<_> = delta_set.current.iter().cloned().collect();
+        delta_set.push_new(self.children.iter());
+
+        // modified possibly
+        for new_child in delta_set.current().difference(delta_set.added()) {
+            let old_child = old_children.get(new_child).unwrap();
+            new_child.update(old_child, state, inner_map);
+            new_child.diff_and_apply(
+                old_child.spatial_aspect(inner_map),
+                old_child,
+                state,
+                inner_map,
+            );
+        }
+        // just removed
+        for child in delta_set.removed() {
+            child.destroy_inner_recursive(inner_map);
+        }
+        // just added
+        for child in delta_set.added() {
+            child
+                .create_inner_recursive(&parent_spatial, inner_map)
+                .unwrap();
+        }
     }
 }
 impl<State: ValidState> GenericElement<State> for Element<State> {
@@ -422,14 +403,23 @@ impl<State: ValidState> GenericElement<State> for Element<State> {
     fn inner_key(&self) -> Option<ElementInnerKey> {
         self.0.inner_key()
     }
-    fn apply_inner_key(&self, key: ElementInnerKey) {
-        self.0.apply_inner_key(key)
-    }
     fn children(&self) -> &[Element<State>] {
         self.0.children()
     }
     fn clone_box(&self) -> Box<dyn GenericElement<State>> {
         self.0.clone_box()
+    }
+    fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
+        self.0.apply_element_keys(path)
+    }
+    fn diff_and_apply(
+        &self,
+        parent_spatial: SpatialRef,
+        old: &Element<State>,
+        state: &mut State,
+        inner_map: &mut ElementInnerMap,
+    ) {
+        self.0.diff_and_apply(parent_spatial, old, state, inner_map)
     }
 }
 
