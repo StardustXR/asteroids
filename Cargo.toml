@@ -26,9 +26,8 @@ git = "https://github.com/StardustXR/core.git"
 branch = "dev"
 
 [dependencies.stardust-xr-molecules]
-path = "../molecules"
-# git = "https://github.com/StardustXR/molecules.git"
-# branch = "dev"
+git = "https://github.com/StardustXR/molecules.git"
+branch = "main"
 
 [dev-dependencies]
 map-range = "0.1.2"

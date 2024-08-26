@@ -1532,6 +1532,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.45.0"
+source = "git+https://github.com/StardustXR/molecules.git?branch=main#c69db9f1bff5087fdcae1c8f1d2d9111e56ec799"
 dependencies = [
  "glam 0.27.0",
  "lazy_static",
