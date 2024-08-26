@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
 use asteroids::{make_stardust_client, Button, Element, ElementTrait, Spatial, Text, Transformable};
+use derive_setters::Setters;
 use glam::Quat;
 use mint::Vector2;
 use serde::{Deserialize, Serialize};
@@ -31,22 +32,48 @@ async fn main() {
     make_stardust_client::<State>(|_, _| (), make_internals).await
 }
 
-fn make_button(
+#[derive(Setters)]
+#[setters(into)]
+struct LabeledButton {
     on_click: fn(&mut State),
-    size: impl Into<Vector2<f32>>,
-    text: &str,
+    padding: f32,
+    height: f32,
+    label: String,
     transform: Transform,
-) -> Element<State> {
-    let size = size.into();
-    Button::new(on_click)
-        .transform(transform)
-        .size(size)
-        .with_children([Text::default()
-            .text(text)
-            .character_height(size.y)
-            .text_align_x(XAlign::Center)
-            .text_align_y(YAlign::Center)
-            .build()])
+}
+impl LabeledButton {
+    fn new(on_click: fn(&mut State)) -> Self {
+        LabeledButton {
+            on_click,
+            padding: 0.001,
+            height: 0.0,
+            label: String::new(),
+            transform: Transform::identity(),
+        }
+    }
+    fn build(self) -> Element<State> {
+        let padding = self.padding * 2.0;
+        Button::new(self.on_click)
+            .transform(self.transform)
+            .size([
+                padding + (self.label.len() as f32 * self.height),
+                padding + self.height,
+            ])
+            .with_children([Text::default()
+                .text(&self.label)
+                .character_height(self.height)
+                .text_align_x(XAlign::Center)
+                .text_align_y(YAlign::Center)
+                .build()])
+    }
+}
+impl Transformable for LabeledButton {
+    fn transform(&self) -> &Transform {
+        &self.transform
+    }
+    fn transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
 }
 
 fn make_internals(state: &State) -> Element<State> {
@@ -58,24 +85,22 @@ fn make_internals(state: &State) -> Element<State> {
                 .enumerate()
                 .map(|(i, t)| make_list_item(i, t)),
         ),
-        make_button(
-            |state: &mut State| {
-                state
-                    .list
-                    .push(format!("List item {}", state.list.len()));
-            },
-            [0.01, 0.01],
-            "+",
-            Transform::from_translation([0.0, 0.02, 0.0]),
-        ),
-        make_button(
-            |state: &mut State| {
-                state.list.pop();
-            },
-            [0.01, 0.01],
-            "-",
-            Transform::from_translation([0.02, 0.02, 0.0]),
-        ),
+        LabeledButton::new(|state: &mut State| {
+            state
+                .list
+                .push(format!("List item {}", state.list.len()));
+        })
+        .height(0.01)
+        .label("+")
+        .pos([0.0, 0.02, 0.0])
+        .build(),
+        LabeledButton::new(|state: &mut State| {
+            state.list.pop();
+        })
+        .height(0.01)
+        .label("-")
+        .pos([0.02, 0.02, 0.0])
+        .build(),
     ])
 }
 
