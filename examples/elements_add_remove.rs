@@ -3,7 +3,6 @@ use std::f32::consts::PI;
 use asteroids::{make_stardust_client, Button, Element, ElementTrait, Spatial, Text, Transformable};
 use derive_setters::Setters;
 use glam::Quat;
-use mint::Vector2;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
     drawable::{XAlign, YAlign},
@@ -64,6 +63,7 @@ impl LabeledButton {
                 .character_height(self.height)
                 .text_align_x(XAlign::Center)
                 .text_align_y(YAlign::Center)
+                .rot(Quat::from_rotation_y(PI))
                 .build()])
     }
 }
@@ -91,15 +91,15 @@ fn make_internals(state: &State) -> Element<State> {
                 .push(format!("List item {}", state.list.len()));
         })
         .height(0.01)
-        .label("+")
-        .pos([0.0, 0.02, 0.0])
+        .label("add")
+        .pos([-0.03, 0.02, 0.0])
         .build(),
         LabeledButton::new(|state: &mut State| {
             state.list.pop();
         })
         .height(0.01)
-        .label("-")
-        .pos([0.02, 0.02, 0.0])
+        .label("remove")
+        .pos([0.03, 0.02, 0.0])
         .build(),
     ])
 }
