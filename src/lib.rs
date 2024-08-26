@@ -131,7 +131,7 @@ impl<State: ValidState> StardustClient<State> {
             .and_then(|m| flexbuffers::from_slice(m).ok())
             .unwrap_or_default();
         let vdom_root = root_view(&state);
-        Self::apply_element_keys(vec![(GenericElement::type_id(&vdom_root), 0)], &vdom_root);
+        Self::apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))], &vdom_root);
         vdom_root
             .create_inner_recursive(&client.get_root().spatial_ref(), &mut inner_map)
             .unwrap();
@@ -147,7 +147,7 @@ impl<State: ValidState> StardustClient<State> {
 
     pub fn update(&mut self) {
         let new_vdom = (self.root_view)(&self.state);
-        Self::apply_element_keys(vec![(GenericElement::type_id(&new_vdom), 0)], &new_vdom);
+        Self::apply_element_keys(vec![(0, GenericElement::type_id(&new_vdom))], &new_vdom);
         // dbg!(&self.vdom_root);
         // dbg!(&new_vdom);
         Self::diff_and_apply(
@@ -160,16 +160,17 @@ impl<State: ValidState> StardustClient<State> {
         self.vdom_root = new_vdom;
     }
 
-    fn apply_element_keys(path: Vec<(TypeId, usize)>, element: &Element<State>) {
+    fn apply_element_keys(path: Vec<(usize, TypeId)>, element: &Element<State>) {
         let key = {
             let mut hasher = DefaultHasher::new();
             path.hash(&mut hasher);
             ElementInnerKey(hasher.finish())
         };
         element.apply_inner_key(key);
+        // println!("{path:?}: {element:?}");
         for (i, child) in element.children().iter().enumerate() {
             let mut path = path.clone();
-            path.push((GenericElement::type_id(element), i));
+            path.push((i, GenericElement::type_id(child)));
             Self::apply_element_keys(path, child);
         }
     }
@@ -185,12 +186,6 @@ impl<State: ValidState> StardustClient<State> {
         let old_children: FxHashSet<_> = delta_set.current.iter().cloned().collect();
         delta_set.push_new(new);
 
-        // just added
-        for child in delta_set.added() {
-            child
-                .create_inner_recursive(&parent_spatial, inner_map)
-                .unwrap();
-        }
         // modified possibly
         for new_child in delta_set.current().difference(delta_set.added()) {
             let old_child = old_children.get(new_child).unwrap();
@@ -206,9 +201,16 @@ impl<State: ValidState> StardustClient<State> {
         // just removed
         for child in delta_set.removed() {
             // println!("removing element:");
-            // println!("\told: {:?}", old_children.get(child).unwrap().inner_key());
-            // println!("\tnew: {:?}", child.inner_key());
+            // println!("\t{:?}", child.inner_key().unwrap());
             child.destroy_inner_recursive(inner_map);
+        }
+        // just added (put after so the inner map's capacity can remain the same on swaps)
+        for child in delta_set.added() {
+            // println!("adding element:");
+            // println!("\t{:?}", child.inner_key().unwrap());
+            child
+                .create_inner_recursive(&parent_spatial, inner_map)
+                .unwrap();
         }
     }
 }
@@ -339,7 +341,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 }
 impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
     fn type_id(&self) -> TypeId {
-        TypeId::of::<E>()
+        self.params.type_id()
     }
     fn create_inner_recursive(
         &self,
@@ -357,7 +359,9 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
     }
     fn update(&self, old: &Element<State>, state: &mut State, inner_map: &mut ElementInnerMap) {
         let inner_key = *self.inner_key.get().unwrap();
-        let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
+        let inner = inner_map
+            .get_mut::<State, E>(inner_key)
+            .unwrap_or_else(|| panic!("old:{old:?}\nnew:{self:?}\n"));
         self.params.update(old.params::<E>().unwrap(), state, inner);
     }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
@@ -430,7 +434,7 @@ impl<State: ValidState> GenericElement<State> for Element<State> {
 }
 
 pub trait ElementTrait<State: ValidState>:
-    Debug + Clone + PartialEq + Send + Sync + Sized + 'static
+    Any + Debug + Clone + PartialEq + Send + Sync + Sized + 'static
 {
     type Inner: Send + Sync + 'static;
     type Error: ToString;
