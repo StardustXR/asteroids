@@ -91,6 +91,7 @@ fn make_internals(state: &State) -> Element<State> {
                 .push(format!("List item {}", state.list.len()));
         })
         .height(0.01)
+        .padding(0.0025)
         .label("add")
         .pos([-0.03, 0.02, 0.0])
         .build(),
@@ -98,6 +99,7 @@ fn make_internals(state: &State) -> Element<State> {
             state.list.pop();
         })
         .height(0.01)
+        .padding(0.0025)
         .label("remove")
         .pos([0.03, 0.02, 0.0])
         .build(),
