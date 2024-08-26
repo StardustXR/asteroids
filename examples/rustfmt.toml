@@ -1,4 +1,4 @@
 reorder_imports = false
-array_width = 16
-chain_width = 10
+array_width = 20
+chain_width = 50
 # overflow_delimited_expr = true

@@ -19,12 +19,14 @@ use tracing_subscriber::EnvFilter;
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct State {
     elapsed: f32,
+    pressed_time: f32,
     text: String,
 }
 impl Default for State {
     fn default() -> Self {
         State {
             elapsed: 0.0,
+            pressed_time: -10000.0,
             text: "triangle :D".to_string(),
         }
     }
@@ -66,12 +68,17 @@ async fn main() {
 fn make_internals(state: &State) -> Vec<Element<State>> {
     vec![
         Model::namespaced("asteroids", "grabbable").build(),
-        Button::new(|state: &mut State| {
-            state.text = "button press".to_string();
-        })
-        .size([0.15, 0.3])
-        .debug(DebugSettings::default())
-        .build(),
+        if state.elapsed - state.pressed_time > 1.0 {
+            Button::new(|state: &mut State| {
+                state.text = "button press".to_string();
+                state.pressed_time = state.elapsed;
+            })
+            .size([0.15, 0.3])
+            .debug(DebugSettings::default())
+            .build()
+        } else {
+            Spatial::default().build()
+        },
         Spatial::default().with_children(make_triangles(0.3, 25, 0.01)),
         // yummy text nom nom nom
         Text::default()

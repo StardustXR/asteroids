@@ -68,6 +68,47 @@ impl<S: SpatialRefAspect> SpatialRefExt for S {
     }
 }
 
+pub struct DeltaSet<T: Clone + Hash + Eq> {
+    added: FxHashSet<T>,
+    current: FxHashSet<T>,
+    removed: FxHashSet<T>,
+}
+impl<T: Clone + Hash + Eq> Default for DeltaSet<T> {
+    fn default() -> Self {
+        DeltaSet {
+            added: Default::default(),
+            current: Default::default(),
+            removed: Default::default(),
+        }
+    }
+}
+impl<T: Clone + Hash + Eq + Debug> Debug for DeltaSet<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeltaSet")
+            .field("added", &self.added)
+            .field("current", &self.current)
+            .field("removed", &self.removed)
+            .finish()
+    }
+}
+impl<T: Clone + Hash + Eq> DeltaSet<T> {
+    pub fn push_new(&mut self, new: impl Iterator<Item = T>) {
+        let new = FxHashSet::from_iter(new);
+        self.added = FxHashSet::from_iter(new.difference(&self.current).cloned());
+        self.removed = FxHashSet::from_iter(self.current.difference(&new).cloned());
+        self.current = new;
+    }
+    pub fn added(&self) -> &FxHashSet<T> {
+        &self.added
+    }
+    pub fn current(&self) -> &FxHashSet<T> {
+        &self.current
+    }
+    pub fn removed(&self) -> &FxHashSet<T> {
+        &self.removed
+    }
+}
+
 pub struct StardustClient<State: ValidState> {
     client: Arc<Client>,
     on_frame: fn(&mut State, &FrameInfo),
@@ -108,10 +149,12 @@ impl<State: ValidState> StardustClient<State> {
         let new_vdom = (self.root_view)(&self.state);
         // dbg!(&new_vdom);
         Self::apply_element_keys(Vec::new(), &new_vdom);
+        // dbg!(self.vdom_root.inner_key());
+        // dbg!(new_vdom.inner_key());
         Self::diff_and_apply(
             self.client.get_root().spatial_ref(),
-            &self.vdom_root,
-            &new_vdom,
+            [&self.vdom_root].into_iter(),
+            [&new_vdom].into_iter(),
             &mut self.state,
             &mut self.inner_map,
         );
@@ -131,41 +174,41 @@ impl<State: ValidState> StardustClient<State> {
             Self::apply_element_keys(path, child);
         }
     }
-    fn diff_and_apply(
+    fn diff_and_apply<'a>(
         parent_spatial: SpatialRef,
-        old: &Element<State>,
-        new: &Element<State>,
+        old: impl Iterator<Item = &'a Element<State>>,
+        new: impl Iterator<Item = &'a Element<State>>,
         state: &mut State,
         inner_map: &mut ElementInnerMap,
     ) {
-        if old.inner_key() == new.inner_key() {
-            new.update(old, state, inner_map);
+        let mut delta_set = DeltaSet::default();
+        delta_set.push_new(old);
+        let old_children: FxHashSet<_> = delta_set.current.iter().cloned().collect();
+        delta_set.push_new(new);
 
-            let old_children = FxHashSet::from_iter(old.children().iter());
-            let new_children = FxHashSet::from_iter(new.children().iter());
+        // dbg!(delta_set.added());
 
-            // just removed
-            for child in old_children.difference(&new_children) {
-                child.destroy_inner_recursive(inner_map);
-            }
-            // modified possibly
-            for child in new_children.intersection(&old_children) {
-                let old_child = old_children.get(child).unwrap();
-                Self::diff_and_apply(
-                    old_child.spatial_aspect(inner_map),
-                    old_child,
-                    child,
-                    state,
-                    inner_map,
-                )
-            }
-            // just added
-            for child in new_children.difference(&old_children) {
-                let _ = child.create_inner_recursive(&parent_spatial, inner_map);
-            }
-        } else {
-            old.destroy_inner_recursive(inner_map);
-            let _ = new.create_inner_recursive(&parent_spatial, inner_map);
+        // just added
+        for child in delta_set.added() {
+            child
+                .create_inner_recursive(&parent_spatial, inner_map)
+                .unwrap();
+        }
+        // modified possibly
+        for new_child in delta_set.current().difference(delta_set.added()) {
+            let old_child = old_children.get(new_child).unwrap();
+            new_child.update(old_child, state, inner_map);
+            Self::diff_and_apply(
+                old_child.spatial_aspect(inner_map),
+                old_child.children().iter(),
+                new_child.children().iter(),
+                state,
+                inner_map,
+            )
+        }
+        // just removed
+        for child in delta_set.removed() {
+            child.destroy_inner_recursive(inner_map);
         }
     }
 }
@@ -296,7 +339,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 }
 impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
     fn type_id(&self) -> TypeId {
-        TypeId::of::<Self>()
+        TypeId::of::<E>()
     }
     fn create_inner_recursive(
         &self,
