@@ -52,8 +52,6 @@ impl<State: ValidState> ElementTrait<State> for Spatial {
         stardust_xr_fusion::spatial::Spatial::create(spatial_parent, self.transform, self.zoneable)
     }
     fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
-        // dbg!(self.transform.translation);
-        // dbg!(old_decl.transform.translation);
         self.apply_transform(old_decl, inner);
         if self.zoneable != old_decl.zoneable {
             let _ = inner.set_zoneable(self.zoneable);

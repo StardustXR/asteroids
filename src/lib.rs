@@ -147,10 +147,7 @@ impl<State: ValidState> StardustClient<State> {
 
     pub fn update(&mut self) {
         let new_vdom = (self.root_view)(&self.state);
-        // dbg!(&new_vdom);
-        Self::apply_element_keys(Vec::new(), &new_vdom);
-        // dbg!(self.vdom_root.inner_key());
-        // dbg!(new_vdom.inner_key());
+        Self::apply_element_keys(vec![(GenericElement::type_id(&new_vdom), 0)], &new_vdom);
         Self::diff_and_apply(
             self.client.get_root().spatial_ref(),
             [&self.vdom_root].into_iter(),
@@ -162,6 +159,7 @@ impl<State: ValidState> StardustClient<State> {
     }
 
     fn apply_element_keys(path: Vec<(TypeId, usize)>, element: &Element<State>) {
+        dbg!(&path);
         let key = {
             let mut hasher = DefaultHasher::new();
             path.hash(&mut hasher);
@@ -185,8 +183,6 @@ impl<State: ValidState> StardustClient<State> {
         delta_set.push_new(old);
         let old_children: FxHashSet<_> = delta_set.current.iter().cloned().collect();
         delta_set.push_new(new);
-
-        // dbg!(delta_set.added());
 
         // just added
         for child in delta_set.added() {
@@ -394,7 +390,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 }
 impl<State: ValidState> GenericElement<State> for Element<State> {
     fn type_id(&self) -> TypeId {
-        self.0.type_id()
+        GenericElement::type_id(self.0.as_ref())
     }
     fn create_inner_recursive(
         &self,

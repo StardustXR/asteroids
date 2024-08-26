@@ -17,7 +17,7 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         State {
-            list: vec!["List Item 1".to_string()],
+            list: vec!["List Item 0".to_string()],
         }
     }
 }
@@ -62,7 +62,7 @@ fn make_internals(state: &State) -> Element<State> {
             |state: &mut State| {
                 state
                     .list
-                    .push(format!("List item {}", state.list.len() + 1));
+                    .push(format!("List item {}", state.list.len()));
             },
             [0.01, 0.01],
             "+",
