@@ -1,4 +1,9 @@
-use asteroids::{ElementTrait, Spatial, StardustClient, Text, ValidState};
+use asteroids::{
+    client::StardustClient,
+    custom::ElementTrait,
+    elements::{Spatial, Text},
+    ValidState,
+};
 use manifest_dir_macros::directory_relative_path;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::client::Client;

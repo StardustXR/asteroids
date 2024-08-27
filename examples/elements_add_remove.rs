@@ -1,6 +1,9 @@
 use std::f32::consts::PI;
 use asteroids::{
-    Button, Element, ElementTrait, Spatial, StardustClient, Text, Transformable, ValidState,
+    client::StardustClient,
+    custom::{ElementTrait, Transformable},
+    elements::{Button, Spatial, Text},
+    Element, ValidState,
 };
 use derive_setters::Setters;
 use glam::Quat;

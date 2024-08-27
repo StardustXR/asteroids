@@ -1,3 +1,4 @@
+use custom::ElementTrait;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use stardust_xr_fusion::{
@@ -12,10 +13,9 @@ use std::{
     sync::OnceLock,
 };
 
-mod client;
-pub use client::*;
-mod elements;
-pub use elements::*;
+pub mod client;
+pub mod custom;
+pub mod elements;
 
 pub trait Identify {
     type Id: Hash + Eq;
@@ -407,25 +407,5 @@ impl<State: ValidState> GenericElement<State> for Element<State> {
         inner_map: &mut ElementInnerMap,
     ) {
         self.0.diff_and_apply(parent_spatial, old, state, inner_map)
-    }
-}
-
-pub trait ElementTrait<State: ValidState>:
-    Any + Debug + PartialEq + Send + Sync + Sized + 'static
-{
-    type Inner: Send + Sync + 'static;
-    type Error: ToString;
-    fn create_inner(&self, parent_space: &SpatialRef) -> Result<Self::Inner, Self::Error>;
-    fn update(&self, old_decl: &Self, state: &mut State, inner: &mut Self::Inner);
-    fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef;
-    fn build(self) -> Element<State> {
-        self.with_children([])
-    }
-    fn with_children(self, children: impl IntoIterator<Item = Element<State>>) -> Element<State> {
-        Element(Box::new(ElementWrapper::<State, Self> {
-            params: self,
-            inner_key: OnceLock::new(),
-            children: children.into_iter().collect(),
-        }))
     }
 }

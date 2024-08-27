@@ -1,4 +1,7 @@
-use crate::{ElementTrait, SpatialRefExt, ValidState};
+use crate::{
+    custom::{ElementTrait, FnWrapper, Transformable},
+    SpatialRefExt, ValidState,
+};
 use derive_setters::Setters;
 use derive_where::derive_where;
 use mint::Vector2;
@@ -11,44 +14,6 @@ use stardust_xr_fusion::{
 };
 use stardust_xr_molecules::{button::ButtonVisualSettings, DebugSettings, VisualDebug};
 use std::fmt::Debug;
-
-pub struct FnWrapper<Signature: Send + Sync + ?Sized>(pub Box<Signature>);
-impl<Signature: Send + Sync + ?Sized> Debug for FnWrapper<Signature> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Function").finish()
-    }
-}
-impl<Signature: Send + Sync + ?Sized> PartialEq for FnWrapper<Signature> {
-    fn eq(&self, _other: &Self) -> bool {
-        true
-    }
-}
-
-pub trait Transformable: Sized {
-    fn transform(&self) -> &Transform;
-    fn transform_mut(&mut self) -> &mut Transform;
-    fn apply_transform(&self, other: &Self, spatial: &impl SpatialAspect) {
-        if self.transform().translation != other.transform().translation
-            || self.transform().rotation != other.transform().rotation
-            || self.transform().scale != other.transform().scale
-        {
-            let _ = spatial.set_local_transform(*self.transform());
-        }
-    }
-
-    fn pos(mut self, pos: impl Into<mint::Vector3<f32>>) -> Self {
-        self.transform_mut().translation = Some(pos.into());
-        self
-    }
-    fn rot(mut self, rot: impl Into<mint::Quaternion<f32>>) -> Self {
-        self.transform_mut().rotation = Some(rot.into());
-        self
-    }
-    fn scl(mut self, scl: impl Into<mint::Vector3<f32>>) -> Self {
-        self.transform_mut().scale = Some(scl.into());
-        self
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Setters)]
 #[setters(into, strip_option)]

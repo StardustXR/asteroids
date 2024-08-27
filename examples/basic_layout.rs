@@ -1,7 +1,9 @@
 use std::f32::consts::PI;
 use asteroids::{
-    Button, Element, ElementTrait, Lines, Model, Spatial, StardustClient, Text, Transformable,
-    ValidState,
+    client::StardustClient,
+    custom::{ElementTrait, Transformable},
+    elements::{Button, Lines, Model, Spatial, Text},
+    Element, ValidState,
 };
 use glam::{vec3, Quat};
 use manifest_dir_macros::directory_relative_path;
