@@ -1,11 +1,13 @@
 use std::f32::consts::PI;
 use asteroids::{
-    make_stardust_client, Button, Element, ElementTrait, Lines, Model, Spatial, Text, Transformable,
+    Button, Element, ElementTrait, Lines, Model, Spatial, StardustClient, Text, Transformable,
 };
 use glam::{vec3, Quat};
+use manifest_dir_macros::directory_relative_path;
 use map_range::MapRange;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
+    client::Client,
     drawable::{XAlign, YAlign},
     spatial::Transform,
     values::color::{Deg, Hsv, ToRgba},
@@ -38,7 +40,13 @@ async fn main() {
         .compact()
         .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
         .init();
-    make_stardust_client::<State>(
+    let (client, event_loop) = Client::connect_with_async_loop().await.unwrap();
+    client
+        .set_base_prefixes(&[directory_relative_path!("res")])
+        .unwrap();
+
+    let _asteroids = StardustClient::new(
+        client.clone(),
         State::default,
         |state, frame_info| {
             state.elapsed = frame_info.elapsed;
@@ -53,7 +61,12 @@ async fn main() {
                     .with_children(make_internals(state))])
         },
     )
-    .await
+    .unwrap();
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => (),
+        _ = event_loop => panic!("server crashed"),
+    }
 }
 
 fn make_internals(state: &State) -> Vec<Element<State>> {

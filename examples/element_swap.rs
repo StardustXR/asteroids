@@ -1,5 +1,7 @@
-use asteroids::{make_stardust_client, ElementTrait, Spatial, Text};
+use asteroids::{ElementTrait, Spatial, StardustClient, Text};
+use manifest_dir_macros::directory_relative_path;
 use serde::{Deserialize, Serialize};
+use stardust_xr_fusion::client::Client;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -13,7 +15,14 @@ async fn main() {
         .compact()
         .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
         .init();
-    make_stardust_client::<State>(
+
+    let (client, event_loop) = Client::connect_with_async_loop().await.unwrap();
+    client
+        .set_base_prefixes(&[directory_relative_path!("res")])
+        .unwrap();
+
+    let _asteroids = StardustClient::new(
+        client.clone(),
         State::default,
         |state, frame_info| {
             state.elapsed = frame_info.elapsed;
@@ -27,5 +36,10 @@ async fn main() {
             }
         },
     )
-    .await
+    .unwrap();
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => (),
+        _ = event_loop => panic!("server crashed"),
+    }
 }

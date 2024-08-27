@@ -1,10 +1,11 @@
 use std::f32::consts::PI;
-
-use asteroids::{make_stardust_client, Button, Element, ElementTrait, Spatial, Text, Transformable};
+use asteroids::{Button, Element, ElementTrait, Spatial, StardustClient, Text, Transformable};
 use derive_setters::Setters;
 use glam::Quat;
+use manifest_dir_macros::directory_relative_path;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
+    client::Client,
     drawable::{XAlign, YAlign},
     spatial::Transform,
 };
@@ -28,7 +29,19 @@ async fn main() {
         .compact()
         .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
         .init();
-    make_stardust_client::<State>(State::default, |_, _| (), make_internals).await
+
+    let (client, event_loop) = Client::connect_with_async_loop().await.unwrap();
+    client
+        .set_base_prefixes(&[directory_relative_path!("res")])
+        .unwrap();
+
+    let _asteroids =
+        StardustClient::new(client.clone(), State::default, |_, _| (), make_internals).unwrap();
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => (),
+        _ = event_loop => panic!("server crashed"),
+    }
 }
 
 #[derive(Setters)]
