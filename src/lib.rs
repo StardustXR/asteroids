@@ -31,13 +31,8 @@ impl<T: Hash + Eq> Identify for T {
 pub trait ValidState:
     Default + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'static
 {
+    fn reify(&self) -> Element<Self>;
 }
-impl<T: Default + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'static> ValidState
-    for T
-{
-}
-
-pub type ElementGenerator<State> = fn(&State) -> Element<State>;
 
 pub trait SpatialRefExt {
     fn spatial_ref(&self) -> SpatialRef;
@@ -90,31 +85,25 @@ impl<T: Clone + Hash + Eq> DeltaSet<T> {
 }
 
 pub struct View<State: ValidState> {
-    generator: ElementGenerator<State>,
     vdom_root: Element<State>,
     inner_map: ElementInnerMap,
 }
 impl<State: ValidState> View<State> {
-    pub fn new(
-        generator: ElementGenerator<State>,
-        state: &State,
-        parent_spatial: &impl SpatialRefAspect,
-    ) -> View<State> {
+    pub fn new(state: &State, parent_spatial: &impl SpatialRefAspect) -> View<State> {
         let mut inner_map = ElementInnerMap::default();
-        let vdom_root = generator(&state);
+        let vdom_root = state.reify();
         vdom_root.apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))]);
         vdom_root
             .create_inner_recursive(&parent_spatial.spatial_ref(), &mut inner_map)
             .unwrap();
         View {
-            generator,
             vdom_root,
             inner_map,
         }
     }
 
     pub fn update(&mut self, state: &mut State) {
-        let new_vdom = (self.generator)(state);
+        let new_vdom = state.reify();
         new_vdom.apply_element_keys(vec![(0, GenericElement::type_id(&new_vdom))]);
         new_vdom.diff_and_apply(
             self.vdom_root.spatial_aspect(&self.inner_map),

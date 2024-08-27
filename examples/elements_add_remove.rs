@@ -1,5 +1,7 @@
 use std::f32::consts::PI;
-use asteroids::{Button, Element, ElementTrait, Spatial, StardustClient, Text, Transformable};
+use asteroids::{
+    Button, Element, ElementTrait, Spatial, StardustClient, Text, Transformable, ValidState,
+};
 use derive_setters::Setters;
 use glam::Quat;
 use manifest_dir_macros::directory_relative_path;
@@ -22,6 +24,36 @@ impl Default for State {
         }
     }
 }
+impl ValidState for State {
+    fn reify(&self) -> Element<Self> {
+        Spatial::default().zoneable(true).with_children([
+            Spatial::default().with_children(
+                self.list
+                    .iter()
+                    .enumerate()
+                    .map(|(i, t)| make_list_item(i, t)),
+            ),
+            LabeledButton::new(|state: &mut State| {
+                state
+                    .list
+                    .push(format!("List item {}", state.list.len()));
+            })
+            .height(0.01)
+            .padding(0.0025)
+            .label("add")
+            .pos([-0.03, 0.02, 0.0])
+            .build(),
+            LabeledButton::new(|state: &mut State| {
+                state.list.pop();
+            })
+            .height(0.01)
+            .padding(0.0025)
+            .label("remove")
+            .pos([0.03, 0.02, 0.0])
+            .build(),
+        ])
+    }
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -35,8 +67,7 @@ async fn main() {
         .set_base_prefixes(&[directory_relative_path!("res")])
         .unwrap();
 
-    let _asteroids =
-        StardustClient::new(client.clone(), State::default, |_, _| (), make_internals).unwrap();
+    let _asteroids = StardustClient::new(client.clone(), State::default, |_, _| ()).unwrap();
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => (),
@@ -87,36 +118,6 @@ impl Transformable for LabeledButton {
     fn transform_mut(&mut self) -> &mut Transform {
         &mut self.transform
     }
-}
-
-fn make_internals(state: &State) -> Element<State> {
-    Spatial::default().zoneable(true).with_children([
-        Spatial::default().with_children(
-            state
-                .list
-                .iter()
-                .enumerate()
-                .map(|(i, t)| make_list_item(i, t)),
-        ),
-        LabeledButton::new(|state: &mut State| {
-            state
-                .list
-                .push(format!("List item {}", state.list.len()));
-        })
-        .height(0.01)
-        .padding(0.0025)
-        .label("add")
-        .pos([-0.03, 0.02, 0.0])
-        .build(),
-        LabeledButton::new(|state: &mut State| {
-            state.list.pop();
-        })
-        .height(0.01)
-        .padding(0.0025)
-        .label("remove")
-        .pos([0.03, 0.02, 0.0])
-        .build(),
-    ])
 }
 
 fn make_list_item(index: usize, text: &String) -> Element<State> {

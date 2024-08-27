@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 use asteroids::{
     Button, Element, ElementTrait, Lines, Model, Spatial, StardustClient, Text, Transformable,
+    ValidState,
 };
 use glam::{vec3, Quat};
 use manifest_dir_macros::directory_relative_path;
@@ -33,6 +34,17 @@ impl Default for State {
         }
     }
 }
+impl ValidState for State {
+    fn reify(&self) -> Element<Self> {
+        Spatial::default()
+            .zoneable(true)
+            .with_children([Spatial::default()
+                .transform(Transform::from_translation(
+                    vec3(self.elapsed.sin(), 0.0, self.elapsed.cos()) * 0.1,
+                ))
+                .with_children(make_internals(self))])
+    }
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -45,22 +57,9 @@ async fn main() {
         .set_base_prefixes(&[directory_relative_path!("res")])
         .unwrap();
 
-    let _asteroids = StardustClient::new(
-        client.clone(),
-        State::default,
-        |state, frame_info| {
-            state.elapsed = frame_info.elapsed;
-        },
-        |state| {
-            Spatial::default()
-                .zoneable(true)
-                .with_children([Spatial::default()
-                    .transform(Transform::from_translation(
-                        vec3(state.elapsed.sin(), 0.0, state.elapsed.cos()) * 0.1,
-                    ))
-                    .with_children(make_internals(state))])
-        },
-    )
+    let _asteroids = StardustClient::new(client.clone(), State::default, |state, frame_info| {
+        state.elapsed = frame_info.elapsed;
+    })
     .unwrap();
 
     tokio::select! {

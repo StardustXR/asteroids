@@ -1,4 +1,4 @@
-use crate::{ElementGenerator, ValidState, View};
+use crate::{ValidState, View};
 use stardust_xr_fusion::{
     client::Client,
     core::schemas::flex::flexbuffers,
@@ -19,7 +19,6 @@ impl<State: ValidState> StardustClient<State> {
         client: Arc<Client>,
         initial_state: impl FnOnce() -> State,
         on_frame: fn(&mut State, &FrameInfo),
-        generator: ElementGenerator<State>,
     ) -> NodeResult<HandlerWrapper<Root, StardustClient<State>>> {
         let state = client
             .get_state()
@@ -27,7 +26,7 @@ impl<State: ValidState> StardustClient<State> {
             .as_ref()
             .and_then(|m| flexbuffers::from_slice(m).ok())
             .unwrap_or_else(initial_state);
-        let view = View::new(generator, &state, client.get_root());
+        let view = View::new(&state, client.get_root());
         client.get_root().alias().wrap(StardustClient {
             client,
             state,
