@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 use asteroids::{
-    make_stardust_client, Element, ElementTrait, Lines, Model, Spatial, Text, Transformable, Button,
+    make_stardust_client, Button, Element, ElementTrait, Lines, Model, Spatial, Text, Transformable,
 };
 use glam::{vec3, Quat};
 use map_range::MapRange;
@@ -39,27 +39,18 @@ async fn main() {
         .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
         .init();
     make_stardust_client::<State>(
+        State::default,
         |state, frame_info| {
             state.elapsed = frame_info.elapsed;
         },
         |state| {
             Spatial::default()
                 .zoneable(true)
-                .with_children([
-                    Spatial::default()
-                        .transform(Transform::from_translation(
-                            vec3(
-                                state
-                                    .elapsed
-                                    .sin(),
-                                0.0,
-                                state
-                                    .elapsed
-                                    .cos(),
-                            ) * 0.1,
-                        ))
-                        .with_children(make_internals(state)),
-                ])
+                .with_children([Spatial::default()
+                    .transform(Transform::from_translation(
+                        vec3(state.elapsed.sin(), 0.0, state.elapsed.cos()) * 0.1,
+                    ))
+                    .with_children(make_internals(state))])
         },
     )
     .await

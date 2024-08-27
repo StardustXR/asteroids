@@ -28,7 +28,7 @@ async fn main() {
         .compact()
         .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
         .init();
-    make_stardust_client::<State>(|_, _| (), make_internals).await
+    make_stardust_client::<State>(State::default, |_, _| (), make_internals).await
 }
 
 #[derive(Setters)]

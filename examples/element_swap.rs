@@ -14,6 +14,7 @@ async fn main() {
         .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
         .init();
     make_stardust_client::<State>(
+        State::default,
         |state, frame_info| {
             state.elapsed = frame_info.elapsed;
         },

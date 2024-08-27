@@ -1,11 +1,7 @@
-use manifest_dir_macros::directory_relative_path;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use stardust_xr_fusion::{
-    client::Client,
-    core::schemas::flex::flexbuffers,
-    node::{MethodResult, NodeType},
-    root::{ClientState, FrameInfo, RootAspect, RootHandler},
+    node::NodeType,
     spatial::{SpatialRef, SpatialRefAspect},
 };
 use std::{
@@ -13,9 +9,11 @@ use std::{
     collections::hash_map::DefaultHasher,
     fmt::Debug,
     hash::{Hash, Hasher},
-    sync::{Arc, OnceLock},
+    sync::OnceLock,
 };
 
+mod client;
+pub use client::*;
 mod elements;
 pub use elements::*;
 
@@ -40,24 +38,6 @@ impl<T: Default + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'stat
 }
 
 pub type ElementGenerator<State> = fn(&State) -> Element<State>;
-
-pub async fn make_stardust_client<State: ValidState>(
-    on_frame: fn(&mut State, &FrameInfo),
-    root: ElementGenerator<State>,
-) {
-    let (client, event_loop) = Client::connect_with_async_loop().await.unwrap();
-    client
-        .set_base_prefixes(&[directory_relative_path!("res")])
-        .unwrap();
-
-    let asteroids = StardustClient::new(client.clone(), on_frame, root);
-    let _root = client.get_root().alias().wrap(asteroids).unwrap();
-
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => (),
-        _ = event_loop => panic!("server crashed"),
-    }
-}
 
 pub trait SpatialRefExt {
     fn spatial_ref(&self) -> SpatialRef;
@@ -108,79 +88,38 @@ impl<T: Clone + Hash + Eq> DeltaSet<T> {
         &self.removed
     }
 }
-pub struct StardustClient<State: ValidState> {
-    client: Arc<Client>,
-    on_frame: fn(&mut State, &FrameInfo),
-    view: View<State>,
-}
-
-impl<State: ValidState> StardustClient<State> {
-    pub fn new(
-        client: Arc<Client>,
-        on_frame: fn(&mut State, &FrameInfo),
-        generator: ElementGenerator<State>,
-    ) -> StardustClient<State> {
-        let state = client
-            .get_state()
-            .data
-            .as_ref()
-            .and_then(|m| flexbuffers::from_slice(m).ok())
-            .unwrap_or_default();
-        let view = View::new(generator, state, &client.get_root().spatial_ref());
-        StardustClient {
-            client,
-            on_frame,
-            view,
-        }
-    }
-}
-impl<State: ValidState> RootHandler for StardustClient<State> {
-    fn frame(&mut self, info: FrameInfo) {
-        (self.on_frame)(&mut self.view.state, &info);
-        self.view.update();
-    }
-
-    fn save_state(&mut self) -> MethodResult<ClientState> {
-        ClientState::from_data_root(
-            Some(flexbuffers::to_vec(&self.view.state)?),
-            self.client.get_root(),
-        )
-    }
-}
 
 pub struct View<State: ValidState> {
     generator: ElementGenerator<State>,
-    state: State,
     vdom_root: Element<State>,
     inner_map: ElementInnerMap,
 }
 impl<State: ValidState> View<State> {
     pub fn new(
         generator: ElementGenerator<State>,
-        state: State,
-        parent_spatial: &SpatialRef,
+        state: &State,
+        parent_spatial: &impl SpatialRefAspect,
     ) -> View<State> {
         let mut inner_map = ElementInnerMap::default();
         let vdom_root = generator(&state);
         vdom_root.apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))]);
         vdom_root
-            .create_inner_recursive(parent_spatial, &mut inner_map)
+            .create_inner_recursive(&parent_spatial.spatial_ref(), &mut inner_map)
             .unwrap();
         View {
             generator,
-            state,
             vdom_root,
             inner_map,
         }
     }
 
-    pub fn update(&mut self) {
-        let new_vdom = (self.generator)(&self.state);
+    pub fn update(&mut self, state: &mut State) {
+        let new_vdom = (self.generator)(state);
         new_vdom.apply_element_keys(vec![(0, GenericElement::type_id(&new_vdom))]);
         new_vdom.diff_and_apply(
             self.vdom_root.spatial_aspect(&self.inner_map),
             &self.vdom_root,
-            &mut self.state,
+            state,
             &mut self.inner_map,
         );
         self.vdom_root = new_vdom;
