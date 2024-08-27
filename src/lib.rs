@@ -174,18 +174,18 @@ impl<State: ValidState> RootHandler for StardustClient<State> {
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 struct ElementInnerKey(u64);
-impl ElementInnerKey {
-    pub fn from_identifiable<I: Identify>(i: &I) -> Self {
-        let mut hasher = DefaultHasher::new();
-        i.id().hash(&mut hasher);
-        ElementInnerKey(hasher.finish())
-    }
+// impl ElementInnerKey {
+// pub fn from_identifiable<I: Identify>(i: &I) -> Self {
+//     let mut hasher = DefaultHasher::new();
+//     i.id().hash(&mut hasher);
+//     ElementInnerKey(hasher.finish())
+// }
 
-    // pub fn new_random() -> Self {
-    //     let random_value: u64 = rand::thread_rng().gen();
-    //     ElementInnerKey(random_value)
-    // }
-}
+// pub fn new_random() -> Self {
+//     let random_value: u64 = rand::thread_rng().gen();
+//     ElementInnerKey(random_value)
+// }
+// }
 
 #[derive(Debug, Default)]
 struct ElementInnerMap(FxHashMap<ElementInnerKey, Box<dyn Any + Send + Sync>>);
@@ -257,7 +257,6 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
         parent: &SpatialRef,
         inner_map: &mut ElementInnerMap,
     ) -> Result<(), String>;
-    fn update(&self, old: &Element<State>, state: &mut State, inner_map: &mut ElementInnerMap);
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
     fn as_any(&self) -> &dyn Any;
@@ -291,15 +290,8 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
         }
         Ok(())
     }
-    fn update(&self, old: &Element<State>, state: &mut State, inner_map: &mut ElementInnerMap) {
-        let inner_key = *self.inner_key.get().unwrap();
-        let inner = inner_map
-            .get_mut::<State, E>(inner_key)
-            .unwrap_or_else(|| panic!("old:{old:?}\nnew:{self:?}\n"));
-        self.params.update(old.params::<E>().unwrap(), state, inner);
-    }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
-        for child in self.children() {
+        for child in &self.children {
             child.destroy_inner_recursive(inner_map);
         }
         inner_map.0.remove(&self.inner_key().unwrap());
@@ -349,6 +341,13 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
         state: &mut State,
         inner_map: &mut ElementInnerMap,
     ) {
+        let old_params = old
+            .params::<E>()
+            .unwrap_or_else(|| panic!("old:{:?}\nnew:{:?}\n", old, self));
+        let inner_key = *self.inner_key.get().unwrap();
+        let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
+        self.params.update(old_params, state, inner);
+
         let mut delta_set = DeltaSet::default();
         delta_set.push_new(old.children().iter());
         let old_children: FxHashSet<_> = delta_set.current.iter().cloned().collect();
@@ -357,7 +356,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
         // modified possibly
         for new_child in delta_set.current().difference(delta_set.added()) {
             let old_child = old_children.get(new_child).unwrap();
-            new_child.update(old_child, state, inner_map);
+
             new_child.diff_and_apply(
                 old_child.spatial_aspect(inner_map),
                 old_child,
@@ -387,9 +386,6 @@ impl<State: ValidState> GenericElement<State> for Element<State> {
         inner_map: &mut ElementInnerMap,
     ) -> Result<(), String> {
         self.0.create_inner_recursive(parent, inner_map)
-    }
-    fn update(&self, old: &Element<State>, state: &mut State, inner_map: &mut ElementInnerMap) {
-        self.0.update(old, state, inner_map)
     }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
         self.0.destroy_inner_recursive(inner_map)
