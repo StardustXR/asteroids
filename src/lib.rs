@@ -108,37 +108,66 @@ impl<T: Clone + Hash + Eq> DeltaSet<T> {
         &self.removed
     }
 }
-
 pub struct StardustClient<State: ValidState> {
     client: Arc<Client>,
     on_frame: fn(&mut State, &FrameInfo),
-    root_view: ElementGenerator<State>,
-    state: State,
-    vdom_root: Element<State>,
-    inner_map: ElementInnerMap,
+    view: View<State>,
 }
+
 impl<State: ValidState> StardustClient<State> {
     pub fn new(
         client: Arc<Client>,
         on_frame: fn(&mut State, &FrameInfo),
-        root_view: ElementGenerator<State>,
+        generator: ElementGenerator<State>,
     ) -> StardustClient<State> {
-        let mut inner_map = ElementInnerMap::default();
         let state = client
             .get_state()
             .data
             .as_ref()
             .and_then(|m| flexbuffers::from_slice(m).ok())
             .unwrap_or_default();
-        let vdom_root = root_view(&state);
-        vdom_root.apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))]);
-        vdom_root
-            .create_inner_recursive(&client.get_root().spatial_ref(), &mut inner_map)
-            .unwrap();
+        let view = View::new(generator, state, &client.get_root().spatial_ref());
         StardustClient {
             client,
             on_frame,
-            root_view,
+            view,
+        }
+    }
+}
+impl<State: ValidState> RootHandler for StardustClient<State> {
+    fn frame(&mut self, info: FrameInfo) {
+        (self.on_frame)(&mut self.view.state, &info);
+        self.view.update();
+    }
+
+    fn save_state(&mut self) -> MethodResult<ClientState> {
+        ClientState::from_data_root(
+            Some(flexbuffers::to_vec(&self.view.state)?),
+            self.client.get_root(),
+        )
+    }
+}
+
+pub struct View<State: ValidState> {
+    generator: ElementGenerator<State>,
+    state: State,
+    vdom_root: Element<State>,
+    inner_map: ElementInnerMap,
+}
+impl<State: ValidState> View<State> {
+    pub fn new(
+        generator: ElementGenerator<State>,
+        state: State,
+        parent_spatial: &SpatialRef,
+    ) -> View<State> {
+        let mut inner_map = ElementInnerMap::default();
+        let vdom_root = generator(&state);
+        vdom_root.apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))]);
+        vdom_root
+            .create_inner_recursive(parent_spatial, &mut inner_map)
+            .unwrap();
+        View {
+            generator,
             state,
             vdom_root,
             inner_map,
@@ -146,29 +175,15 @@ impl<State: ValidState> StardustClient<State> {
     }
 
     pub fn update(&mut self) {
-        let new_vdom = (self.root_view)(&self.state);
+        let new_vdom = (self.generator)(&self.state);
         new_vdom.apply_element_keys(vec![(0, GenericElement::type_id(&new_vdom))]);
-        // dbg!(&self.vdom_root);
-        // dbg!(&new_vdom);
         new_vdom.diff_and_apply(
-            self.client.get_root().spatial_ref(),
+            self.vdom_root.spatial_aspect(&self.inner_map),
             &self.vdom_root,
             &mut self.state,
             &mut self.inner_map,
         );
         self.vdom_root = new_vdom;
-    }
-}
-impl<State: ValidState> RootHandler for StardustClient<State> {
-    fn frame(&mut self, info: FrameInfo) {
-        self.update();
-        (self.on_frame)(&mut self.state, &info);
-    }
-    fn save_state(&mut self) -> MethodResult<ClientState> {
-        ClientState::from_data_root(
-            Some(flexbuffers::to_vec(&self.state)?),
-            self.client.get_root(),
-        )
     }
 }
 
