@@ -227,11 +227,6 @@ impl<State: ValidState> Element<State> {
         self.0.children()
     }
 }
-impl<State: ValidState> Clone for Element<State> {
-    fn clone(&self) -> Self {
-        Element(self.0.clone_box())
-    }
-}
 impl<State: ValidState> Hash for Element<State> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.inner_key().hash(state);
@@ -244,7 +239,7 @@ impl<State: ValidState> PartialEq for Element<State> {
 }
 impl<State: ValidState> Eq for Element<State> {}
 
-#[derive_where::derive_where(Debug, Clone)]
+#[derive_where::derive_where(Debug)]
 struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
     params: E,
     inner_key: OnceLock<ElementInnerKey>,
@@ -262,7 +257,6 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
     fn inner_key(&self) -> Option<ElementInnerKey>;
     fn children(&self) -> &[Element<State>];
-    fn clone_box(&self) -> Box<dyn GenericElement<State>>;
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>);
     fn diff_and_apply(
         &self,
@@ -313,10 +307,6 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 
     fn children(&self) -> &[Element<State>] {
         &self.children
-    }
-
-    fn clone_box(&self) -> Box<dyn GenericElement<State>> {
-        Box::new(self.clone())
     }
 
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
@@ -402,9 +392,6 @@ impl<State: ValidState> GenericElement<State> for Element<State> {
     fn children(&self) -> &[Element<State>] {
         self.0.children()
     }
-    fn clone_box(&self) -> Box<dyn GenericElement<State>> {
-        self.0.clone_box()
-    }
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
         self.0.apply_element_keys(path)
     }
@@ -420,7 +407,7 @@ impl<State: ValidState> GenericElement<State> for Element<State> {
 }
 
 pub trait ElementTrait<State: ValidState>:
-    Any + Debug + Clone + PartialEq + Send + Sync + Sized + 'static
+    Any + Debug + PartialEq + Send + Sync + Sized + 'static
 {
     type Inner: Send + Sync + 'static;
     type Error: ToString;
