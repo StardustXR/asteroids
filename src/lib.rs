@@ -211,20 +211,30 @@ impl ElementInnerMap {
     }
 }
 
+pub fn sub_state_view<State: ValidState, SubState: ValidState>(
+    state: &State,
+    mapper: fn(&State) -> &SubState,
+    mapper_mut: fn(&mut State) -> &mut SubState,
+    create_fn: fn(&SubState) -> Element<SubState>,
+) -> Element<State> {
+    let element = (create_fn)((mapper)(state));
+    Element(Box::new(MappedElement::<State, SubState> {
+        mapper: mapper_mut,
+        element,
+    }))
+}
+
 #[derive_where::derive_where(Debug)]
 pub struct Element<State: ValidState>(Box<dyn GenericElement<State>>);
 impl<State: ValidState> Element<State> {
-    fn wrapper<E: ElementTrait<State>>(&self) -> Option<&ElementWrapper<State, E>> {
-        self.0.as_any().downcast_ref()
-    }
-    fn params<E: ElementTrait<State>>(&self) -> Option<&E> {
-        Some(&self.wrapper::<E>()?.params)
-    }
-    // fn inner<'a, E: ElementTrait>(&self, inner_map: &'a ElementInnerMap) -> Option<&'a E::Inner> {
-    //     inner_map.get::<E>(self.wrapper::<E>()?.inner_key)
-    // }
-    fn children(&self) -> &[Element<State>] {
-        self.0.children()
+    pub fn map<NewState: ValidState>(
+        self,
+        mapper: fn(&mut NewState) -> &mut State,
+    ) -> Element<NewState> {
+        Element(Box::new(MappedElement::<NewState, State> {
+            mapper,
+            element: self,
+        }))
     }
 }
 impl<State: ValidState> Hash for Element<State> {
@@ -238,6 +248,63 @@ impl<State: ValidState> PartialEq for Element<State> {
     }
 }
 impl<State: ValidState> Eq for Element<State> {}
+
+#[derive_where::derive_where(Debug)]
+pub struct MappedElement<State: ValidState, SubState: ValidState> {
+    element: Element<SubState>,
+    mapper: fn(&mut State) -> &mut SubState,
+}
+impl<State: ValidState, SubState: ValidState> GenericElement<State>
+    for MappedElement<State, SubState>
+{
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<(State, SubState)>()
+    }
+
+    fn create_inner_recursive(
+        &self,
+        parent: &SpatialRef,
+        inner_map: &mut ElementInnerMap,
+    ) -> Result<(), String> {
+        self.element.create_inner_recursive(parent, inner_map)
+    }
+
+    fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
+        self.element.destroy_inner_recursive(inner_map)
+    }
+
+    fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
+        self.element.spatial_aspect(inner_map)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn inner_key(&self) -> Option<ElementInnerKey> {
+        self.element.inner_key()
+    }
+
+    fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
+        self.element.apply_element_keys(path)
+    }
+
+    fn diff_and_apply(
+        &self,
+        parent_spatial: SpatialRef,
+        old: &Element<State>,
+        state: &mut State,
+        inner_map: &mut ElementInnerMap,
+    ) {
+        let old_mapper: &Self = old.0.as_any().downcast_ref().unwrap();
+        self.element.diff_and_apply(
+            parent_spatial,
+            &old_mapper.element,
+            (self.mapper)(state),
+            inner_map,
+        )
+    }
+}
 
 #[derive_where::derive_where(Debug)]
 struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
@@ -256,7 +323,6 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
     fn as_any(&self) -> &dyn Any;
     fn inner_key(&self) -> Option<ElementInnerKey>;
-    fn children(&self) -> &[Element<State>];
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>);
     fn diff_and_apply(
         &self,
@@ -305,10 +371,6 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
         self.inner_key.get().cloned()
     }
 
-    fn children(&self) -> &[Element<State>] {
-        &self.children
-    }
-
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
         let key = {
             let mut hasher = DefaultHasher::new();
@@ -331,15 +393,17 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
         state: &mut State,
         inner_map: &mut ElementInnerMap,
     ) {
-        let old_params = old
-            .params::<E>()
+        let old_wrapper: &ElementWrapper<State, E> = old
+            .0
+            .as_any()
+            .downcast_ref()
             .unwrap_or_else(|| panic!("old:{:?}\nnew:{:?}\n", old, self));
         let inner_key = *self.inner_key.get().unwrap();
         let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
-        self.params.update(old_params, state, inner);
+        self.params.update(&old_wrapper.params, state, inner);
 
         let mut delta_set = DeltaSet::default();
-        delta_set.push_new(old.children().iter());
+        delta_set.push_new(old_wrapper.children.iter());
         let old_children: FxHashSet<_> = delta_set.current.iter().cloned().collect();
         delta_set.push_new(self.children.iter());
 
@@ -388,9 +452,6 @@ impl<State: ValidState> GenericElement<State> for Element<State> {
     }
     fn inner_key(&self) -> Option<ElementInnerKey> {
         self.0.inner_key()
-    }
-    fn children(&self) -> &[Element<State>] {
-        self.0.children()
     }
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
         self.0.apply_element_keys(path)

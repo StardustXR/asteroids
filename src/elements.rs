@@ -12,6 +12,18 @@ use stardust_xr_fusion::{
 use stardust_xr_molecules::{button::ButtonVisualSettings, DebugSettings, VisualDebug};
 use std::fmt::Debug;
 
+pub struct FnWrapper<Signature: Send + Sync + ?Sized>(pub Box<Signature>);
+impl<Signature: Send + Sync + ?Sized> Debug for FnWrapper<Signature> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Function").finish()
+    }
+}
+impl<Signature: Send + Sync + ?Sized> PartialEq for FnWrapper<Signature> {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
 pub trait Transformable: Sized {
     fn transform(&self) -> &Transform;
     fn transform_mut(&mut self) -> &mut Transform;
@@ -240,12 +252,12 @@ impl Transformable for Text {
     }
 }
 
-#[derive_where::derive_where(Debug, Clone, PartialEq)]
+#[derive_where::derive_where(Debug, PartialEq)]
 #[derive(Setters)]
 #[setters(into, strip_option)]
 pub struct Button<State: ValidState> {
     transform: Transform,
-    on_press: fn(&mut State),
+    on_press: FnWrapper<dyn Fn(&mut State) + Send + Sync>,
     size: Vector2<f32>,
     max_hover_distance: f32,
     line_thickness: f32,
@@ -256,7 +268,7 @@ impl<State: ValidState> Default for Button<State> {
     fn default() -> Self {
         Button {
             transform: Transform::none(),
-            on_press: |_| {},
+            on_press: FnWrapper(Box::new(|_| {})),
             size: [0.1; 2].into(),
             max_hover_distance: 0.025,
             line_thickness: 0.005,
@@ -266,9 +278,9 @@ impl<State: ValidState> Default for Button<State> {
     }
 }
 impl<State: ValidState> Button<State> {
-    pub fn new(on_press: fn(&mut State)) -> Button<State> {
+    pub fn new(on_press: impl Fn(&mut State) + Send + Sync + 'static) -> Button<State> {
         Button {
-            on_press,
+            on_press: FnWrapper(Box::new(on_press)),
             ..Default::default()
         }
     }
@@ -297,7 +309,7 @@ impl<State: ValidState> ElementTrait<State> for Button<State> {
     fn update(&self, old: &Self, state: &mut State, inner: &mut Self::Inner) {
         inner.update();
         if inner.pressed() {
-            (self.on_press)(state);
+            (self.on_press.0)(state);
         }
         self.apply_transform(old, inner.touch_plane().root());
         // if self.size != old.size {

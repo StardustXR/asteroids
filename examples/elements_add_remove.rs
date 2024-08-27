@@ -107,14 +107,33 @@ fn make_internals(state: &State) -> Element<State> {
 }
 
 fn make_list_item(index: usize, text: &String) -> Element<State> {
-    Text::default()
-        .text(text)
-        .character_height(0.01)
+    let size = 0.01;
+    let padding = 0.0025;
+    Spatial::default()
         .pos([
             0.0,
-            (index as f32) * -0.0125,
+            (index as f32) * -(size + padding),
             0.0,
         ])
-        .rot(Quat::from_rotation_y(PI))
-        .build()
+        .with_children([
+            Button::new(move |state: &mut State| {
+                state.list.remove(index);
+            })
+            .size([size; 2])
+            .pos([-0.05, 0.0, 0.0])
+            .build(),
+            Text::default()
+                .text("-")
+                .character_height(size)
+                .text_align_x(XAlign::Center)
+                .pos([-0.05, 0.0, 0.0])
+                .rot(Quat::from_rotation_y(PI))
+                .build(),
+            Text::default()
+                .text(text)
+                .character_height(size)
+                .text_align_x(XAlign::Left)
+                .rot(Quat::from_rotation_y(PI))
+                .build(),
+        ])
 }
