@@ -14,16 +14,16 @@ pub mod client;
 pub mod custom;
 pub mod elements;
 
-pub trait Identify {
-    type Id: Hash + Eq;
-    fn id(&self) -> &Self::Id;
-}
-impl<T: Hash + Eq> Identify for T {
-    type Id = Self;
-    fn id(&self) -> &Self::Id {
-        self
-    }
-}
+// pub trait Identify {
+//     type Id: Hash + Eq;
+//     fn id(&self) -> &Self::Id;
+// }
+// impl<T: Hash + Eq> Identify for T {
+//     type Id = Self;
+//     fn id(&self) -> &Self::Id {
+//         self
+//     }
+// }
 
 pub trait RootState:
     Reify + Default + Serialize + DeserializeOwned + Send + Sync + 'static
@@ -33,6 +33,13 @@ impl<T: Reify + Default + Serialize + DeserializeOwned + Send + Sync + 'static> 
 
 pub trait Reify: Sized + Send + Sync + 'static {
     fn reify(&self) -> Element<Self>;
+
+    fn reify_substate<SuperState: Reify>(
+        &self,
+        mapper: fn(&mut SuperState) -> &mut Self,
+    ) -> Element<SuperState> {
+        self.reify().map(mapper)
+    }
 }
 
 pub struct DeltaSet<T: Clone + Hash + Eq> {
@@ -144,19 +151,6 @@ impl ElementInnerMap {
     ) -> Option<&mut E::Inner> {
         self.0.get_mut(&key)?.downcast_mut()
     }
-}
-
-pub fn sub_state_view<State: Reify, SubState: Reify>(
-    state: &State,
-    mapper: fn(&State) -> &SubState,
-    mapper_mut: fn(&mut State) -> &mut SubState,
-    create_fn: fn(&SubState) -> Element<SubState>,
-) -> Element<State> {
-    let element = (create_fn)((mapper)(state));
-    Element(Box::new(MappedElement::<State, SubState> {
-        mapper: mapper_mut,
-        element,
-    }))
 }
 
 #[derive_where::derive_where(Debug)]
