@@ -1,6 +1,6 @@
 use crate::{
     custom::{ElementTrait, FnWrapper, Transformable},
-    ValidState,
+    Reify,
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -21,7 +21,7 @@ pub struct Spatial {
     transform: Transform,
     zoneable: bool,
 }
-impl<State: ValidState> ElementTrait<State> for Spatial {
+impl<State: Reify> ElementTrait<State> for Spatial {
     type Inner = stardust_xr_fusion::spatial::Spatial;
     type Error = NodeError;
 
@@ -65,7 +65,7 @@ pub struct Model {
     transform: Transform,
     pub resource: ResourceID,
 }
-impl<State: ValidState> ElementTrait<State> for Model {
+impl<State: Reify> ElementTrait<State> for Model {
     type Inner = ModelInner;
     type Error = NodeError;
 
@@ -115,7 +115,7 @@ pub struct Lines {
     transform: Transform,
     lines: Vec<Line>,
 }
-impl<State: ValidState> ElementTrait<State> for Lines {
+impl<State: Reify> ElementTrait<State> for Lines {
     type Inner = stardust_xr_fusion::drawable::Lines;
     type Error = NodeError;
 
@@ -162,7 +162,7 @@ pub struct Text {
     text_align_y: YAlign,
     bounds: Option<TextBounds>,
 }
-impl<State: ValidState> ElementTrait<State> for Text {
+impl<State: Reify> ElementTrait<State> for Text {
     type Inner = stardust_xr_fusion::drawable::Text;
     type Error = NodeError;
 
@@ -220,7 +220,7 @@ impl Transformable for Text {
 #[derive_where::derive_where(Debug, PartialEq)]
 #[derive(Setters)]
 #[setters(into, strip_option)]
-pub struct Button<State: ValidState> {
+pub struct Button<State: Reify> {
     transform: Transform,
     on_press: FnWrapper<dyn Fn(&mut State) + Send + Sync>,
     size: Vector2<f32>,
@@ -229,7 +229,7 @@ pub struct Button<State: ValidState> {
     accent_color: Color,
     debug: Option<DebugSettings>,
 }
-impl<State: ValidState> Default for Button<State> {
+impl<State: Reify> Default for Button<State> {
     fn default() -> Self {
         Button {
             transform: Transform::none(),
@@ -242,7 +242,7 @@ impl<State: ValidState> Default for Button<State> {
         }
     }
 }
-impl<State: ValidState> Button<State> {
+impl<State: Reify> Button<State> {
     pub fn new(on_press: impl Fn(&mut State) + Send + Sync + 'static) -> Button<State> {
         Button {
             on_press: FnWrapper(Box::new(on_press)),
@@ -250,7 +250,7 @@ impl<State: ValidState> Button<State> {
         }
     }
 }
-impl<State: ValidState> ElementTrait<State> for Button<State> {
+impl<State: Reify> ElementTrait<State> for Button<State> {
     type Inner = stardust_xr_molecules::button::Button;
     type Error = NodeError;
 
@@ -286,7 +286,7 @@ impl<State: ValidState> ElementTrait<State> for Button<State> {
         inner.touch_plane().root().clone().as_spatial_ref()
     }
 }
-impl<State: ValidState> Transformable for Button<State> {
+impl<State: Reify> Transformable for Button<State> {
     fn transform(&self) -> &Transform {
         &self.transform
     }

@@ -1,4 +1,4 @@
-use crate::{ValidState, View};
+use crate::{RootState, View};
 use stardust_xr_fusion::{
     client::Client,
     core::schemas::flex::flexbuffers,
@@ -8,12 +8,12 @@ use stardust_xr_fusion::{
 };
 use std::sync::Arc;
 
-pub struct StardustClient<State: ValidState> {
+pub struct StardustClient<State: RootState> {
     client: Arc<ClientHandle>,
     pub state: State,
     view: View<State>,
 }
-impl<State: ValidState> StardustClient<State> {
+impl<State: RootState> StardustClient<State> {
     pub async fn new(
         client: &mut Client,
         initial_state: impl FnOnce() -> State,

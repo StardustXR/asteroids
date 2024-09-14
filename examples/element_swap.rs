@@ -2,7 +2,7 @@ use asteroids::{
     client::StardustClient,
     custom::ElementTrait,
     elements::{Spatial, Text},
-    ValidState,
+    Reify,
 };
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{client::Client, project_local_resources};
@@ -12,7 +12,7 @@ use tracing_subscriber::EnvFilter;
 pub struct State {
     elapsed: f32,
 }
-impl ValidState for State {
+impl Reify for State {
     fn reify(&self) -> asteroids::Element<Self> {
         // every odd second
         if self.elapsed % 2.0 > 1.0 {

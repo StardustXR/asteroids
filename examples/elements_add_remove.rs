@@ -3,7 +3,7 @@ use asteroids::{
     client::StardustClient,
     custom::{ElementTrait, Transformable},
     elements::{Button, Spatial, Text},
-    Element, ValidState,
+    Element, Reify,
 };
 use derive_setters::Setters;
 use glam::Quat;
@@ -27,7 +27,7 @@ impl Default for State {
         }
     }
 }
-impl ValidState for State {
+impl Reify for State {
     fn reify(&self) -> Element<Self> {
         Spatial::default().zoneable(true).with_children([
             Spatial::default().with_children(

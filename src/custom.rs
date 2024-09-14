@@ -1,11 +1,11 @@
-use crate::{Element, ElementWrapper, ValidState};
+use crate::{Element, ElementWrapper, Reify};
 pub use derive_setters;
 use stardust_xr_fusion::spatial::{SpatialAspect, SpatialRef, Transform};
 use std::any::Any;
 use std::fmt::Debug;
 use std::sync::OnceLock;
 
-pub trait ElementTrait<State: ValidState>:
+pub trait ElementTrait<State: Reify>:
     Any + Debug + PartialEq + Send + Sync + Sized + 'static
 {
     type Inner: Send + Sync + 'static;

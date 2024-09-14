@@ -3,7 +3,7 @@ use asteroids::{
     client::StardustClient,
     custom::{ElementTrait, Transformable},
     elements::{Button, Lines, Model, Spatial, Text},
-    Element, ValidState,
+    Element, Reify,
 };
 use glam::{vec3, Quat};
 use map_range::MapRange;
@@ -36,7 +36,7 @@ impl Default for State {
         }
     }
 }
-impl ValidState for State {
+impl Reify for State {
     fn reify(&self) -> Element<Self> {
         Spatial::default()
             .zoneable(true)
