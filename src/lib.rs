@@ -7,6 +7,7 @@ use std::{
     collections::hash_map::DefaultHasher,
     fmt::Debug,
     hash::{Hash, Hasher},
+    marker::PhantomData,
     sync::OnceLock,
 };
 
@@ -34,9 +35,12 @@ impl<T: Reify + Default + Serialize + DeserializeOwned + Send + Sync + 'static> 
 pub trait Reify: Sized + Send + Sync + 'static {
     fn reify(&self) -> Element<Self>;
 
-    fn reify_substate<SuperState: Reify>(
+    fn reify_substate<
+        SuperState: Reify,
+        F: Fn(&mut SuperState) -> &mut Self + Send + Sync + 'static,
+    >(
         &self,
-        mapper: fn(&mut SuperState) -> &mut Self,
+        mapper: F,
     ) -> Element<SuperState> {
         self.reify().map(mapper)
     }
@@ -156,13 +160,14 @@ impl ElementInnerMap {
 #[derive_where::derive_where(Debug)]
 pub struct Element<State: Reify>(Box<dyn GenericElement<State>>);
 impl<State: Reify> Element<State> {
-    pub fn map<NewState: Reify>(
+    pub fn map<NewState: Reify, F: Fn(&mut NewState) -> &mut State + Send + Sync + 'static>(
         self,
-        mapper: fn(&mut NewState) -> &mut State,
+        mapper: F,
     ) -> Element<NewState> {
-        Element(Box::new(MappedElement::<NewState, State> {
-            mapper,
+        Element(Box::new(MappedElement::<NewState, State, F> {
             element: self,
+            mapper,
+            data: PhantomData,
         }))
     }
 }
@@ -178,12 +183,18 @@ impl<State: Reify> PartialEq for Element<State> {
 }
 impl<State: Reify> Eq for Element<State> {}
 
-#[derive_where::derive_where(Debug)]
-pub struct MappedElement<State: Reify, SubState: Reify> {
+pub struct MappedElement<
+    State: Reify,
+    SubState: Reify,
+    F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static,
+> {
     element: Element<SubState>,
-    mapper: fn(&mut State) -> &mut SubState,
+    mapper: F,
+    data: PhantomData<State>,
 }
-impl<State: Reify, SubState: Reify> GenericElement<State> for MappedElement<State, SubState> {
+impl<State: Reify, SubState: Reify, F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static>
+    GenericElement<State> for MappedElement<State, SubState, F>
+{
     fn type_id(&self) -> TypeId {
         TypeId::of::<(State, SubState)>()
     }
@@ -230,6 +241,14 @@ impl<State: Reify, SubState: Reify> GenericElement<State> for MappedElement<Stat
             (self.mapper)(state),
             inner_map,
         )
+    }
+}
+
+impl<State: Reify, SubState: Reify, F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static>
+    Debug for MappedElement<State, SubState, F>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("MappedElement").field(&self.element).finish()
     }
 }
 
