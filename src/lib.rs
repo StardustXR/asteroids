@@ -1,10 +1,7 @@
 use custom::ElementTrait;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use stardust_xr_fusion::{
-    node::NodeType,
-    spatial::{SpatialRef, SpatialRefAspect},
-};
+use stardust_xr_fusion::spatial::{Spatial, SpatialRef, SpatialRefAspect, Transform};
 use std::{
     any::{Any, TypeId},
     collections::hash_map::DefaultHasher,
@@ -32,15 +29,6 @@ pub trait ValidState:
     Default + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'static
 {
     fn reify(&self) -> Element<Self>;
-}
-
-pub trait SpatialRefExt {
-    fn spatial_ref(&self) -> SpatialRef;
-}
-impl<S: SpatialRefAspect> SpatialRefExt for S {
-    fn spatial_ref(&self) -> SpatialRef {
-        SpatialRef(self.node().alias())
-    }
 }
 
 pub struct DeltaSet<T: Clone + Hash + Eq> {
@@ -85,18 +73,21 @@ impl<T: Clone + Hash + Eq> DeltaSet<T> {
 }
 
 pub struct View<State: ValidState> {
+    _root: Spatial,
     vdom_root: Element<State>,
     inner_map: ElementInnerMap,
 }
 impl<State: ValidState> View<State> {
     pub fn new(state: &State, parent_spatial: &impl SpatialRefAspect) -> View<State> {
+        let root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
         let mut inner_map = ElementInnerMap::default();
         let vdom_root = state.reify();
         vdom_root.apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))]);
         vdom_root
-            .create_inner_recursive(&parent_spatial.spatial_ref(), &mut inner_map)
+            .create_inner_recursive(&root.clone().as_spatial_ref(), &mut inner_map)
             .unwrap();
         View {
+            _root: root,
             vdom_root,
             inner_map,
         }

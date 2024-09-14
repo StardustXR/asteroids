@@ -6,12 +6,12 @@ use asteroids::{
     Element, ValidState,
 };
 use glam::{vec3, Quat};
-use manifest_dir_macros::directory_relative_path;
 use map_range::MapRange;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
     client::Client,
     drawable::{XAlign, YAlign},
+    project_local_resources,
     spatial::Transform,
     values::color::{Deg, Hsv, ToRgba},
 };
@@ -52,22 +52,24 @@ impl ValidState for State {
 async fn main() {
     tracing_subscriber::fmt()
         .compact()
-        .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
+        .with_env_filter(EnvFilter::from_default_env())
         .init();
-    let (client, event_loop) = Client::connect_with_async_loop().await.unwrap();
+    let mut client = Client::connect().await.unwrap();
     client
-        .set_base_prefixes(&[directory_relative_path!("res")])
+        .setup_resources(&[&project_local_resources!("res")])
         .unwrap();
 
-    let _asteroids = StardustClient::new(client.clone(), State::default, |state, frame_info| {
-        state.elapsed = frame_info.elapsed;
-    })
-    .unwrap();
-
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => (),
-        _ = event_loop => panic!("server crashed"),
-    }
+    let mut asteroids = StardustClient::new(&mut client, State::default)
+        .await
+        .unwrap();
+    client
+        .event_loop(|_, _| {
+            asteroids.event_loop_update(|state, info| {
+                state.elapsed = info.elapsed;
+            })
+        })
+        .await
+        .unwrap();
 }
 
 fn make_internals(state: &State) -> Vec<Element<State>> {

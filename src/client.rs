@@ -2,46 +2,53 @@ use crate::{ValidState, View};
 use stardust_xr_fusion::{
     client::Client,
     core::schemas::flex::flexbuffers,
-    node::{MethodResult, NodeResult, NodeType},
-    root::{ClientState, FrameInfo, Root, RootAspect, RootHandler},
-    HandlerWrapper,
+    node::{MethodResult, NodeResult},
+    root::{ClientState, FrameInfo, RootAspect, RootEvent},
+    ClientHandle,
 };
 use std::sync::Arc;
 
 pub struct StardustClient<State: ValidState> {
-    client: Arc<Client>,
+    client: Arc<ClientHandle>,
     pub state: State,
-    on_frame: fn(&mut State, &FrameInfo),
     view: View<State>,
 }
 impl<State: ValidState> StardustClient<State> {
-    pub fn new(
-        client: Arc<Client>,
+    pub async fn new(
+        client: &mut Client,
         initial_state: impl FnOnce() -> State,
-        on_frame: fn(&mut State, &FrameInfo),
-    ) -> NodeResult<HandlerWrapper<Root, StardustClient<State>>> {
-        let state = client
-            .get_state()
+    ) -> NodeResult<StardustClient<State>> {
+        let raw_state = client
+            .with_event_loop(client.handle().get_root().get_state())
+            .await??;
+        let state = raw_state
             .data
             .as_ref()
             .and_then(|m| flexbuffers::from_slice(m).ok())
             .unwrap_or_else(initial_state);
         let view = View::new(&state, client.get_root());
-        client.get_root().alias().wrap(StardustClient {
-            client,
+        Ok(StardustClient {
+            client: client.handle(),
             state,
-            on_frame,
             view,
         })
     }
-}
-impl<State: ValidState> RootHandler for StardustClient<State> {
-    fn frame(&mut self, info: FrameInfo) {
-        (self.on_frame)(&mut self.state, &info);
+
+    pub fn event_loop_update<F: FnMut(&mut State, &FrameInfo)>(&mut self, mut on_frame: F) {
+        while let Some(root_event) = self.client.get_root().recv_root_event() {
+            match root_event {
+                RootEvent::Frame { info } => {
+                    (on_frame)(&mut self.state, &info);
+                    self.update();
+                }
+                RootEvent::SaveState { response } => response.wrap(|| self.save_state()),
+            }
+        }
+    }
+    pub fn update(&mut self) {
         self.view.update(&mut self.state);
     }
-
-    fn save_state(&mut self) -> MethodResult<ClientState> {
+    pub fn save_state(&mut self) -> MethodResult<ClientState> {
         ClientState::from_data_root(
             Some(flexbuffers::to_vec(&self.state)?),
             self.client.get_root(),

@@ -1,6 +1,6 @@
 use crate::{
     custom::{ElementTrait, FnWrapper, Transformable},
-    SpatialRefExt, ValidState,
+    ValidState,
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -8,11 +8,11 @@ use mint::Vector2;
 use stardust_xr_fusion::{
     core::values::{Color, ResourceID},
     drawable::{Line, LinesAspect, TextAspect, TextBounds, TextStyle, XAlign, YAlign},
-    node::{NodeError, NodeType},
+    node::NodeError,
     spatial::{SpatialAspect, SpatialRef, Transform},
     values::color::rgba_linear,
 };
-use stardust_xr_molecules::{button::ButtonVisualSettings, DebugSettings, VisualDebug};
+use stardust_xr_molecules::{button::ButtonVisualSettings, DebugSettings, UIElement, VisualDebug};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Setters)]
@@ -35,7 +35,7 @@ impl<State: ValidState> ElementTrait<State> for Spatial {
         }
     }
     fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-        inner.spatial_ref()
+        inner.clone().as_spatial_ref()
     }
 }
 impl Default for Spatial {
@@ -76,7 +76,7 @@ impl<State: ValidState> ElementTrait<State> for Model {
                 self.transform,
                 &self.resource,
             )?,
-            parent: spatial_parent.alias(),
+            parent: spatial_parent.clone(),
         })
     }
     fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
@@ -89,7 +89,7 @@ impl<State: ValidState> ElementTrait<State> for Model {
         }
     }
     fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-        inner.model.spatial_ref()
+        inner.model.clone().as_spatial().as_spatial_ref()
     }
 }
 impl Transformable for Model {
@@ -130,7 +130,7 @@ impl<State: ValidState> ElementTrait<State> for Lines {
         }
     }
     fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-        inner.spatial_ref()
+        inner.clone().as_spatial().as_spatial_ref()
     }
 }
 impl Default for Lines {
@@ -191,7 +191,7 @@ impl<State: ValidState> ElementTrait<State> for Text {
         }
     }
     fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-        inner.spatial_ref()
+        inner.clone().as_spatial().as_spatial_ref()
     }
 }
 impl Default for Text {
@@ -272,7 +272,7 @@ impl<State: ValidState> ElementTrait<State> for Button<State> {
     }
 
     fn update(&self, old: &Self, state: &mut State, inner: &mut Self::Inner) {
-        inner.update();
+        inner.handle_events();
         if inner.pressed() {
             (self.on_press.0)(state);
         }
@@ -283,7 +283,7 @@ impl<State: ValidState> ElementTrait<State> for Button<State> {
     }
 
     fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-        inner.touch_plane().root().spatial_ref()
+        inner.touch_plane().root().clone().as_spatial_ref()
     }
 }
 impl<State: ValidState> Transformable for Button<State> {
