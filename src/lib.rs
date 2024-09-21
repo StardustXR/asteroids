@@ -26,17 +26,17 @@ pub mod elements;
 //     }
 // }
 
-pub trait RootState:
-    Reify + Default + Serialize + DeserializeOwned + Send + Sync + 'static
-{
-}
-impl<T: Reify + Default + Serialize + DeserializeOwned + Send + Sync + 'static> RootState for T {}
+pub trait ValidState: Sized + Send + Sync + 'static {}
+impl<T: Sized + Send + Sync + 'static> ValidState for T {}
 
-pub trait Reify: Sized + Send + Sync + 'static {
+pub trait RootState: Reify + Default + Serialize + DeserializeOwned {}
+impl<T: Reify + Default + Serialize + DeserializeOwned> RootState for T {}
+
+pub trait Reify: ValidState + Sized + Send + Sync + 'static {
     fn reify(&self) -> Element<Self>;
 
     fn reify_substate<
-        SuperState: Reify,
+        SuperState: ValidState,
         F: Fn(&mut SuperState) -> &mut Self + Send + Sync + 'static,
     >(
         &self,
@@ -139,17 +139,20 @@ struct ElementInnerKey(u64);
 #[derive(Debug, Default)]
 struct ElementInnerMap(FxHashMap<ElementInnerKey, Box<dyn Any + Send + Sync>>);
 impl ElementInnerMap {
-    fn insert<State: Reify, E: ElementTrait<State>>(
+    fn insert<State: ValidState, E: ElementTrait<State>>(
         &mut self,
         key: ElementInnerKey,
         inner: E::Inner,
     ) {
         self.0.insert(key, Box::new(inner));
     }
-    fn get<State: Reify, E: ElementTrait<State>>(&self, key: ElementInnerKey) -> Option<&E::Inner> {
+    fn get<State: ValidState, E: ElementTrait<State>>(
+        &self,
+        key: ElementInnerKey,
+    ) -> Option<&E::Inner> {
         self.0.get(&key)?.downcast_ref()
     }
-    fn get_mut<State: Reify, E: ElementTrait<State>>(
+    fn get_mut<State: ValidState, E: ElementTrait<State>>(
         &mut self,
         key: ElementInnerKey,
     ) -> Option<&mut E::Inner> {
@@ -158,9 +161,9 @@ impl ElementInnerMap {
 }
 
 #[derive_where::derive_where(Debug)]
-pub struct Element<State: Reify>(Box<dyn GenericElement<State>>);
-impl<State: Reify> Element<State> {
-    pub fn map<NewState: Reify, F: Fn(&mut NewState) -> &mut State + Send + Sync + 'static>(
+pub struct Element<State: ValidState>(Box<dyn GenericElement<State>>);
+impl<State: ValidState> Element<State> {
+    pub fn map<NewState: ValidState, F: Fn(&mut NewState) -> &mut State + Send + Sync + 'static>(
         self,
         mapper: F,
     ) -> Element<NewState> {
@@ -171,29 +174,32 @@ impl<State: Reify> Element<State> {
         }))
     }
 }
-impl<State: Reify> Hash for Element<State> {
+impl<State: ValidState> Hash for Element<State> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.inner_key().hash(state);
     }
 }
-impl<State: Reify> PartialEq for Element<State> {
+impl<State: ValidState> PartialEq for Element<State> {
     fn eq(&self, other: &Self) -> bool {
         self.inner_key() == other.inner_key()
     }
 }
-impl<State: Reify> Eq for Element<State> {}
+impl<State: ValidState> Eq for Element<State> {}
 
 pub struct MappedElement<
-    State: Reify,
-    SubState: Reify,
+    State: ValidState,
+    SubState: ValidState,
     F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static,
 > {
     element: Element<SubState>,
     mapper: F,
     data: PhantomData<State>,
 }
-impl<State: Reify, SubState: Reify, F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static>
-    GenericElement<State> for MappedElement<State, SubState, F>
+impl<
+        State: ValidState,
+        SubState: ValidState,
+        F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static,
+    > GenericElement<State> for MappedElement<State, SubState, F>
 {
     fn type_id(&self) -> TypeId {
         TypeId::of::<(State, SubState)>()
@@ -244,8 +250,11 @@ impl<State: Reify, SubState: Reify, F: Fn(&mut State) -> &mut SubState + Send + 
     }
 }
 
-impl<State: Reify, SubState: Reify, F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static>
-    Debug for MappedElement<State, SubState, F>
+impl<
+        State: ValidState,
+        SubState: ValidState,
+        F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static,
+    > Debug for MappedElement<State, SubState, F>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("MappedElement").field(&self.element).finish()
@@ -253,12 +262,12 @@ impl<State: Reify, SubState: Reify, F: Fn(&mut State) -> &mut SubState + Send + 
 }
 
 #[derive_where::derive_where(Debug)]
-struct ElementWrapper<State: Reify, E: ElementTrait<State>> {
+struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
     params: E,
     inner_key: OnceLock<ElementInnerKey>,
     children: Vec<Element<State>>,
 }
-trait GenericElement<State: Reify>: Any + Debug + Send + Sync {
+trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
     fn type_id(&self) -> TypeId;
     fn create_inner_recursive(
         &self,
@@ -278,7 +287,7 @@ trait GenericElement<State: Reify>: Any + Debug + Send + Sync {
         inner_map: &mut ElementInnerMap,
     );
 }
-impl<State: Reify, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
+impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
     fn type_id(&self) -> TypeId {
         self.params.type_id()
     }
@@ -376,7 +385,7 @@ impl<State: Reify, E: ElementTrait<State>> GenericElement<State> for ElementWrap
         }
     }
 }
-impl<State: Reify> GenericElement<State> for Element<State> {
+impl<State: ValidState> GenericElement<State> for Element<State> {
     fn type_id(&self) -> TypeId {
         GenericElement::type_id(self.0.as_ref())
     }
