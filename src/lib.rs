@@ -1,7 +1,10 @@
 use custom::ElementTrait;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use stardust_xr_fusion::spatial::{Spatial, SpatialRef, SpatialRefAspect, Transform};
+use stardust_xr_fusion::{
+    root::FrameInfo,
+    spatial::{Spatial, SpatialRef, SpatialRefAspect, Transform},
+};
 use std::{
     any::{Any, TypeId},
     collections::hash_map::DefaultHasher,
@@ -119,6 +122,9 @@ impl<State: Reify> View<State> {
         );
         self.vdom_root = new_vdom;
     }
+    pub fn frame(&mut self, info: &FrameInfo) {
+        self.vdom_root.0.frame_recursive(info, &mut self.inner_map);
+    }
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,7 +218,9 @@ impl<
     ) -> Result<(), String> {
         self.element.create_inner_recursive(parent, inner_map)
     }
-
+    fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
+        self.element.frame_recursive(info, inner_map);
+    }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
         self.element.destroy_inner_recursive(inner_map)
     }
@@ -220,19 +228,15 @@ impl<
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
         self.element.spatial_aspect(inner_map)
     }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
-
     fn inner_key(&self) -> Option<ElementInnerKey> {
         self.element.inner_key()
     }
-
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
         self.element.apply_element_keys(path)
     }
-
     fn diff_and_apply(
         &self,
         parent_spatial: SpatialRef,
@@ -274,6 +278,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
         parent: &SpatialRef,
         inner_map: &mut ElementInnerMap,
     ) -> Result<(), String>;
+    fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap);
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
     fn as_any(&self) -> &dyn Any;
@@ -304,6 +309,15 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
             child.create_inner_recursive(&spatial, inner_map)?;
         }
         Ok(())
+    }
+    fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
+        let inner_key = *self.inner_key.get().unwrap();
+        let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
+        self.params.frame(info, inner);
+
+        for child in &self.children {
+            child.frame_recursive(info, inner_map);
+        }
     }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
         for child in &self.children {
@@ -395,6 +409,9 @@ impl<State: ValidState> GenericElement<State> for Element<State> {
         inner_map: &mut ElementInnerMap,
     ) -> Result<(), String> {
         self.0.create_inner_recursive(parent, inner_map)
+    }
+    fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
+        self.0.frame_recursive(info, inner_map);
     }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
         self.0.destroy_inner_recursive(inner_map)

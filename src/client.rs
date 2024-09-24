@@ -39,14 +39,12 @@ impl<State: RootState> StardustClient<State> {
             match root_event {
                 RootEvent::Frame { info } => {
                     (on_frame)(&mut self.state, &info);
-                    self.update();
+                    self.view.frame(&info);
+                    self.view.update(&mut self.state);
                 }
                 RootEvent::SaveState { response } => response.wrap(|| self.save_state()),
             }
         }
-    }
-    pub fn update(&mut self) {
-        self.view.update(&mut self.state);
     }
     pub fn save_state(&mut self) -> MethodResult<ClientState> {
         ClientState::from_data_root(

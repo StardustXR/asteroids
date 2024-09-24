@@ -1,5 +1,6 @@
 use crate::{Element, ElementWrapper, ValidState};
 pub use derive_setters;
+use stardust_xr_fusion::root::FrameInfo;
 use stardust_xr_fusion::spatial::{SpatialAspect, SpatialRef, Transform};
 use std::any::Any;
 use std::fmt::Debug;
@@ -12,6 +13,7 @@ pub trait ElementTrait<State: ValidState>:
     type Error: ToString;
     fn create_inner(&self, parent_space: &SpatialRef) -> Result<Self::Inner, Self::Error>;
     fn update(&self, old_decl: &Self, state: &mut State, inner: &mut Self::Inner);
+    fn frame(&self, _info: &FrameInfo, _inner: &mut Self::Inner) {}
     fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef;
     fn build(self) -> Element<State> {
         self.with_children([])
