@@ -18,17 +18,6 @@ pub mod client;
 pub mod custom;
 pub mod elements;
 
-// pub trait Identify {
-//     type Id: Hash + Eq;
-//     fn id(&self) -> &Self::Id;
-// }
-// impl<T: Hash + Eq> Identify for T {
-//     type Id = Self;
-//     fn id(&self) -> &Self::Id {
-//         self
-//     }
-// }
-
 pub trait ValidState: Sized + Send + Sync + 'static {}
 impl<T: Sized + Send + Sync + 'static> ValidState for T {}
 
@@ -100,8 +89,11 @@ impl<State: Reify> View<State> {
         let root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
         let mut inner_map = ElementInnerMap::default();
         let vdom_root = state.reify();
-        vdom_root.apply_element_keys(vec![(0, GenericElement::type_id(&vdom_root))]);
         vdom_root
+            .0
+            .apply_element_keys(vec![(0, GenericElement::type_id(vdom_root.0.as_ref()))]);
+        vdom_root
+            .0
             .create_inner_recursive(&root.clone().as_spatial_ref(), &mut inner_map)
             .unwrap();
         View {
@@ -113,9 +105,11 @@ impl<State: Reify> View<State> {
 
     pub fn update(&mut self, state: &mut State) {
         let new_vdom = state.reify();
-        new_vdom.apply_element_keys(vec![(0, GenericElement::type_id(&new_vdom))]);
-        new_vdom.diff_and_apply(
-            self.vdom_root.spatial_aspect(&self.inner_map),
+        new_vdom
+            .0
+            .apply_element_keys(vec![(0, GenericElement::type_id(new_vdom.0.as_ref()))]);
+        new_vdom.0.diff_and_apply(
+            self.vdom_root.0.spatial_aspect(&self.inner_map),
             &self.vdom_root,
             state,
             &mut self.inner_map,
@@ -129,18 +123,6 @@ impl<State: Reify> View<State> {
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 struct ElementInnerKey(u64);
-// impl ElementInnerKey {
-// pub fn from_identifiable<I: Identify>(i: &I) -> Self {
-//     let mut hasher = DefaultHasher::new();
-//     i.id().hash(&mut hasher);
-//     ElementInnerKey(hasher.finish())
-// }
-
-// pub fn new_random() -> Self {
-//     let random_value: u64 = rand::thread_rng().gen();
-//     ElementInnerKey(random_value)
-// }
-// }
 
 #[derive(Debug, Default)]
 struct ElementInnerMap(FxHashMap<ElementInnerKey, Box<dyn Any + Send + Sync>>);
@@ -179,15 +161,22 @@ impl<State: ValidState> Element<State> {
             data: PhantomData,
         }))
     }
+    pub fn identify<H: Hash>(mut self, h: &H) -> Self {
+        let mut hasher = DefaultHasher::new();
+        h.hash(&mut hasher);
+        let key = ElementInnerKey(hasher.finish());
+        self.0.identify(key);
+        self
+    }
 }
 impl<State: ValidState> Hash for Element<State> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.inner_key().hash(state);
+        self.0.inner_key().hash(state);
     }
 }
 impl<State: ValidState> PartialEq for Element<State> {
     fn eq(&self, other: &Self) -> bool {
-        self.inner_key() == other.inner_key()
+        self.0.inner_key() == other.0.inner_key()
     }
 }
 impl<State: ValidState> Eq for Element<State> {}
@@ -216,26 +205,29 @@ impl<
         parent: &SpatialRef,
         inner_map: &mut ElementInnerMap,
     ) -> Result<(), String> {
-        self.element.create_inner_recursive(parent, inner_map)
+        self.element.0.create_inner_recursive(parent, inner_map)
     }
     fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
-        self.element.frame_recursive(info, inner_map);
+        self.element.0.frame_recursive(info, inner_map);
     }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
-        self.element.destroy_inner_recursive(inner_map)
+        self.element.0.destroy_inner_recursive(inner_map)
     }
 
     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
-        self.element.spatial_aspect(inner_map)
+        self.element.0.spatial_aspect(inner_map)
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn inner_key(&self) -> Option<ElementInnerKey> {
-        self.element.inner_key()
+        self.element.0.inner_key()
     }
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
-        self.element.apply_element_keys(path)
+        self.element.0.apply_element_keys(path)
+    }
+    fn identify(&mut self, key: ElementInnerKey) {
+        self.element.0.identify(key);
     }
     fn diff_and_apply(
         &self,
@@ -245,7 +237,7 @@ impl<
         inner_map: &mut ElementInnerMap,
     ) {
         let old_mapper: &Self = old.0.as_any().downcast_ref().unwrap();
-        self.element.diff_and_apply(
+        self.element.0.diff_and_apply(
             parent_spatial,
             &old_mapper.element,
             (self.mapper)(state),
@@ -265,12 +257,6 @@ impl<
     }
 }
 
-#[derive_where::derive_where(Debug)]
-struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
-    params: E,
-    inner_key: OnceLock<ElementInnerKey>,
-    children: Vec<Element<State>>,
-}
 trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
     fn type_id(&self) -> TypeId;
     fn create_inner_recursive(
@@ -284,6 +270,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
     fn inner_key(&self) -> Option<ElementInnerKey>;
     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>);
+    fn identify(&mut self, key: ElementInnerKey);
     fn diff_and_apply(
         &self,
         parent_spatial: SpatialRef,
@@ -291,6 +278,13 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
         state: &mut State,
         inner_map: &mut ElementInnerMap,
     );
+}
+
+#[derive_where::derive_where(Debug)]
+struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
+    params: E,
+    inner_key: OnceLock<ElementInnerKey>,
+    children: Vec<Element<State>>,
 }
 impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
     fn type_id(&self) -> TypeId {
@@ -306,7 +300,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 
         let spatial = self.spatial_aspect(inner_map);
         for child in &self.children {
-            child.create_inner_recursive(&spatial, inner_map)?;
+            child.0.create_inner_recursive(&spatial, inner_map)?;
         }
         Ok(())
     }
@@ -316,12 +310,12 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
         self.params.frame(info, inner);
 
         for child in &self.children {
-            child.frame_recursive(info, inner_map);
+            child.0.frame_recursive(info, inner_map);
         }
     }
     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
         for child in &self.children {
-            child.destroy_inner_recursive(inner_map);
+            child.0.destroy_inner_recursive(inner_map);
         }
         inner_map.0.remove(&self.inner_key().unwrap());
     }
@@ -350,9 +344,13 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 
         for (i, child) in self.children.iter().enumerate() {
             let mut child_path = path.clone();
-            child_path.push((i, GenericElement::type_id(child)));
-            child.apply_element_keys(child_path);
+            child_path.push((i, GenericElement::type_id(child.0.as_ref())));
+            child.0.apply_element_keys(child_path);
         }
+    }
+
+    fn identify(&mut self, key: ElementInnerKey) {
+        let _ = self.inner_key.set(key);
     }
 
     fn diff_and_apply(
@@ -380,8 +378,8 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
         for new_child in delta_set.current().difference(delta_set.added()) {
             let old_child = old_children.get(new_child).unwrap();
 
-            new_child.diff_and_apply(
-                old_child.spatial_aspect(inner_map),
+            new_child.0.diff_and_apply(
+                old_child.0.spatial_aspect(inner_map),
                 old_child,
                 state,
                 inner_map,
@@ -389,52 +387,56 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
         }
         // just removed
         for child in delta_set.removed() {
-            child.destroy_inner_recursive(inner_map);
+            child.0.destroy_inner_recursive(inner_map);
         }
         // just added
         for child in delta_set.added() {
             child
+                .0
                 .create_inner_recursive(&parent_spatial, inner_map)
                 .unwrap();
         }
     }
 }
-impl<State: ValidState> GenericElement<State> for Element<State> {
-    fn type_id(&self) -> TypeId {
-        GenericElement::type_id(self.0.as_ref())
-    }
-    fn create_inner_recursive(
-        &self,
-        parent: &SpatialRef,
-        inner_map: &mut ElementInnerMap,
-    ) -> Result<(), String> {
-        self.0.create_inner_recursive(parent, inner_map)
-    }
-    fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
-        self.0.frame_recursive(info, inner_map);
-    }
-    fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
-        self.0.destroy_inner_recursive(inner_map)
-    }
-    fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
-        self.0.spatial_aspect(inner_map)
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn inner_key(&self) -> Option<ElementInnerKey> {
-        self.0.inner_key()
-    }
-    fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
-        self.0.apply_element_keys(path)
-    }
-    fn diff_and_apply(
-        &self,
-        parent_spatial: SpatialRef,
-        old: &Element<State>,
-        state: &mut State,
-        inner_map: &mut ElementInnerMap,
-    ) {
-        self.0.diff_and_apply(parent_spatial, old, state, inner_map)
-    }
-}
+// impl<State: ValidState> GenericElement<State> for Element<State> {
+//     fn type_id(&self) -> TypeId {
+//         GenericElement::type_id(self.0.as_ref())
+//     }
+//     fn create_inner_recursive(
+//         &self,
+//         parent: &SpatialRef,
+//         inner_map: &mut ElementInnerMap,
+//     ) -> Result<(), String> {
+//         self.0.create_inner_recursive(parent, inner_map)
+//     }
+//     fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
+//         self.0.frame_recursive(info, inner_map);
+//     }
+//     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
+//         self.0.destroy_inner_recursive(inner_map)
+//     }
+//     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
+//         self.0.spatial_aspect(inner_map)
+//     }
+//     fn as_any(&self) -> &dyn Any {
+//         self
+//     }
+//     fn inner_key(&self) -> Option<ElementInnerKey> {
+//         self.0.inner_key()
+//     }
+//     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
+//         self.0.apply_element_keys(path)
+//     }
+//     fn identify(&mut self, key: ElementInnerKey) {
+//         self.0.identify(key)
+//     }
+//     fn diff_and_apply(
+//         &self,
+//         parent_spatial: SpatialRef,
+//         old: &Element<State>,
+//         state: &mut State,
+//         inner_map: &mut ElementInnerMap,
+//     ) {
+//         self.0.diff_and_apply(parent_spatial, old, state, inner_map)
+//     }
+// }

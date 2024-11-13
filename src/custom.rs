@@ -6,9 +6,7 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::sync::OnceLock;
 
-pub trait ElementTrait<State: ValidState>:
-    Any + Debug + PartialEq + Send + Sync + Sized + 'static
-{
+pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
     type Inner: Send + Sync + 'static;
     type Error: ToString;
     fn create_inner(&self, parent_space: &SpatialRef) -> Result<Self::Inner, Self::Error>;

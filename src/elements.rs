@@ -5,15 +5,20 @@ use crate::{
 use derive_setters::Setters;
 use derive_where::derive_where;
 use mint::Vector2;
+use rustc_hash::{FxHashMap, FxHashSet};
 use stardust_xr_fusion::{
     core::values::{Color, ResourceID},
-    drawable::{Line, LinesAspect, TextAspect, TextBounds, TextStyle, XAlign, YAlign},
-    node::NodeError,
+    drawable::{
+        Line, LinesAspect, MaterialParameter, ModelPartAspect, TextAspect, TextBounds, TextStyle,
+        XAlign, YAlign,
+    },
+    items::panel::{PanelItem, PanelItemAspect, SurfaceId},
+    node::{NodeError, NodeResult},
     spatial::{SpatialAspect, SpatialRef, Transform},
     values::color::rgba_linear,
 };
 use stardust_xr_molecules::{button::ButtonVisualSettings, DebugSettings, UIElement, VisualDebug};
-use std::fmt::Debug;
+use std::{fmt::Debug, hash::Hash};
 
 #[derive(Debug, Clone, Copy, PartialEq, Setters)]
 #[setters(into, strip_option)]
@@ -56,28 +61,65 @@ impl Transformable for Spatial {
 }
 
 pub struct ModelInner {
-    model: stardust_xr_fusion::drawable::Model,
     parent: SpatialRef,
+    model: stardust_xr_fusion::drawable::Model,
+    model_parts: FxHashMap<String, stardust_xr_fusion::drawable::ModelPart>,
 }
-#[derive(Debug, Clone, PartialEq, Setters)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelPart {
+    path: String,
+    material_parameter_overrides: FxHashMap<String, MaterialParameter>,
+    panel_item_override: Option<(PanelItem, SurfaceId)>,
+}
+impl ModelPart {
+    fn apply_material_parameters(
+        &self,
+        part: &stardust_xr_fusion::drawable::ModelPart,
+    ) -> NodeResult<()> {
+        for (param_name, param_value) in &self.material_parameter_overrides {
+            part.set_material_parameter(param_name, param_value.clone())?;
+        }
+        Ok(())
+    }
+}
+impl Hash for ModelPart {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path.hash(state)
+    }
+}
+impl Eq for ModelPart {}
+#[derive(Debug, Clone, Setters)]
 #[setters(into, strip_option)]
 pub struct Model {
     transform: Transform,
     pub resource: ResourceID,
+    pub model_parts: FxHashSet<ModelPart>,
 }
 impl<State: ValidState> ElementTrait<State> for Model {
     type Inner = ModelInner;
     type Error = NodeError;
 
     fn create_inner(&self, spatial_parent: &SpatialRef) -> Result<Self::Inner, Self::Error> {
-        Ok(ModelInner {
-            model: stardust_xr_fusion::drawable::Model::create(
-                spatial_parent,
-                self.transform,
-                &self.resource,
-            )?,
+        let model = stardust_xr_fusion::drawable::Model::create(
+            spatial_parent,
+            self.transform,
+            &self.resource,
+        )?;
+        let model_parts = self
+            .model_parts
+            .iter()
+            .filter_map(|p| {
+                let part = model.part(&p.path).ok()?;
+                p.apply_material_parameters(&part).ok()?;
+                Some((p.path.clone(), part))
+            })
+            .collect();
+        let inner = ModelInner {
             parent: spatial_parent.clone(),
-        })
+            model,
+            model_parts,
+        };
+        Ok(inner)
     }
     fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
         self.apply_transform(old_decl, &inner.model);
@@ -86,6 +128,36 @@ impl<State: ValidState> ElementTrait<State> for Model {
             {
                 *inner = new_inner;
             }
+        }
+        // just added
+        for part_info in self.model_parts.difference(&old_decl.model_parts) {
+            let Ok(part) = inner.model.part(&part_info.path) else {
+                continue;
+            };
+            if part_info.apply_material_parameters(&part).is_err() {
+                continue;
+            }
+            inner.model_parts.insert(part_info.path.clone(), part);
+        }
+        //still here
+        for part_info in self.model_parts.union(&old_decl.model_parts) {
+            if Some(&part_info.material_parameter_overrides)
+                != old_decl
+                    .model_parts
+                    .get(part_info)
+                    .map(|p| &p.material_parameter_overrides)
+            {
+                let _ = part_info
+                    .apply_material_parameters(inner.model_parts.get(&part_info.path).unwrap());
+            }
+            if let Some((panel_override, surface_id)) = &part_info.panel_item_override {
+                let model_part = inner.model_parts.get(&part_info.path).unwrap();
+                let _ = panel_override.apply_surface_material(surface_id.clone(), model_part);
+            }
+        }
+        // just removed
+        for part_info in old_decl.model_parts.difference(&self.model_parts) {
+            inner.model_parts.remove(&part_info.path);
         }
     }
     fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
@@ -105,7 +177,12 @@ impl Model {
         Model {
             transform: Transform::none(),
             resource: ResourceID::new_namespaced(namespace, path),
+            model_parts: Default::default(),
         }
+    }
+    pub fn part(mut self, info: ModelPart) -> Self {
+        self.model_parts.insert(info);
+        self
     }
 }
 
