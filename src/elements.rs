@@ -72,6 +72,22 @@ pub struct ModelPart {
 	panel_item_override: Option<(PanelItem, SurfaceId)>,
 }
 impl ModelPart {
+	pub fn new(path: &str) -> Self {
+		ModelPart {
+			path: path.to_string(),
+			material_parameter_overrides: FxHashMap::default(),
+			panel_item_override: None,
+		}
+	}
+	pub fn mat_param(mut self, name: &str, value: MaterialParameter) -> Self {
+		self.material_parameter_overrides
+			.insert(name.to_string(), value);
+		self
+	}
+	pub fn apply_panel_item(mut self, panel_item: PanelItem, surface_id: SurfaceId) -> Self {
+		self.panel_item_override.replace((panel_item, surface_id));
+		self
+	}
 	fn apply_material_parameters(
 		&self,
 		part: &stardust_xr_fusion::drawable::ModelPart,
