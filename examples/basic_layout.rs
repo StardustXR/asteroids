@@ -101,15 +101,15 @@ fn make_triangles(
 		let offset = f * spacing - half_spacing;
 		let turns = f / triangle_count as f32;
 		let color = turns.map_range(0.0..1.0, 130.0..180.0);
+
+		let lines = lines::circle(3, 0.0, size)
+			.thickness(0.01)
+			.color(Hsv::new(Deg(color), 1.0, 1.0).to_rgba());
 		Lines::default()
 			.pos([
 				0.0, 0.0, offset,
 			])
-			.lines([
-				lines::circle(3, 0.0, size)
-					.thickness(0.01)
-					.color(Hsv::new(Deg(color), 1.0, 1.0).to_rgba()),
-			])
+			.lines([lines])
 			.build()
 	})
 }
