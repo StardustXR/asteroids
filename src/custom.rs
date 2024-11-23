@@ -36,6 +36,11 @@ impl<Signature: Send + Sync + ?Sized> PartialEq for FnWrapper<Signature> {
 		true
 	}
 }
+impl<Signature: Send + Sync> From<Signature> for FnWrapper<Signature> {
+	fn from(value: Signature) -> Self {
+		FnWrapper(Box::new(value))
+	}
+}
 
 pub trait Transformable: Sized {
 	fn transform(&self) -> &Transform;
