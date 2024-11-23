@@ -1,55 +1,58 @@
-use crate::{RootState, View};
+use crate::{Element, Reify, View};
+use serde::{de::DeserializeOwned, Serialize};
 use stardust_xr_fusion::{
-    client::Client,
     core::schemas::flex::flexbuffers,
-    node::{MethodResult, NodeResult},
-    root::{ClientState, FrameInfo, RootAspect, RootEvent},
-    ClientHandle,
+    root::{FrameInfo, RootAspect, RootEvent},
 };
-use std::sync::Arc;
+use std::path::Path;
 
-pub struct StardustClient<State: RootState> {
-    client: Arc<ClientHandle>,
-    pub state: State,
-    view: View<State>,
+pub trait ClientState: Reify + Default + Serialize + DeserializeOwned {
+    fn on_frame(&mut self, info: &FrameInfo);
+    fn reify(&self) -> Element<Self>;
 }
-impl<State: RootState> StardustClient<State> {
-    pub async fn new(
-        client: &mut Client,
-        initial_state: impl FnOnce() -> State,
-    ) -> NodeResult<StardustClient<State>> {
-        let raw_state = client
-            .with_event_loop(client.handle().get_root().get_state())
-            .await??;
-        let state = raw_state
-            .data
-            .as_ref()
-            .and_then(|m| flexbuffers::from_slice(m).ok())
-            .unwrap_or_else(initial_state);
-        let view = View::new(&state, client.get_root());
-        Ok(StardustClient {
-            client: client.handle(),
-            state,
-            view,
-        })
+impl<T: ClientState> Reify for T {
+    fn reify(&self) -> Element<Self> {
+        <T as ClientState>::reify(self)
     }
+}
 
-    pub fn event_loop_update<F: FnMut(&mut State, &FrameInfo)>(&mut self, mut on_frame: F) {
-        while let Some(root_event) = self.client.get_root().recv_root_event() {
-            match root_event {
-                RootEvent::Frame { info } => {
-                    (on_frame)(&mut self.state, &info);
-                    self.view.frame(&info);
-                    self.view.update(&mut self.state);
+pub async fn run<State: ClientState>(initial_state: impl FnOnce() -> State, resources: &[&Path]) {
+    let Ok(mut client) = stardust_xr_fusion::client::Client::connect().await else {
+        return;
+    };
+    if !resources.is_empty() {
+        let _ = client.setup_resources(resources);
+    }
+    let Ok(Ok(raw_state)) = client
+        .await_method(client.handle().get_root().get_state())
+        .await
+    else {
+        return;
+    };
+    let mut state = raw_state
+        .data
+        .as_ref()
+        .and_then(|m| flexbuffers::from_slice(m).ok())
+        .unwrap_or_else(initial_state);
+    let mut view = View::new(&state, client.get_root());
+
+    let _ = client
+        .sync_event_loop(|client, _| {
+            while let Some(root_event) = client.get_root().recv_root_event() {
+                match root_event {
+                    RootEvent::Frame { info } => {
+                        state.on_frame(&info);
+                        view.frame(&info);
+                        view.update(&mut state);
+                    }
+                    RootEvent::SaveState { response } => response.wrap(|| {
+                        stardust_xr_fusion::root::ClientState::from_data_root(
+                            Some(flexbuffers::to_vec(&state)?),
+                            client.get_root(),
+                        )
+                    }),
                 }
-                RootEvent::SaveState { response } => response.wrap(|| self.save_state()),
             }
-        }
-    }
-    pub fn save_state(&mut self) -> MethodResult<ClientState> {
-        ClientState::from_data_root(
-            Some(flexbuffers::to_vec(&self.state)?),
-            self.client.get_root(),
-        )
-    }
+        })
+        .await;
 }

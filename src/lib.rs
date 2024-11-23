@@ -1,6 +1,6 @@
 use custom::ElementTrait;
 use rustc_hash::{FxHashMap, FxHashSet};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
     root::FrameInfo,
     spatial::{Spatial, SpatialRef, SpatialRefAspect, Transform},
@@ -20,9 +20,6 @@ pub mod elements;
 
 pub trait ValidState: Sized + Send + Sync + 'static {}
 impl<T: Sized + Send + Sync + 'static> ValidState for T {}
-
-pub trait RootState: Reify + Default + Serialize + DeserializeOwned {}
-impl<T: Reify + Default + Serialize + DeserializeOwned> RootState for T {}
 
 pub trait Reify: ValidState + Sized + Send + Sync + 'static {
     fn reify(&self) -> Element<Self>;
@@ -181,7 +178,7 @@ impl<State: ValidState> PartialEq for Element<State> {
 }
 impl<State: ValidState> Eq for Element<State> {}
 
-pub struct MappedElement<
+struct MappedElement<
     State: ValidState,
     SubState: ValidState,
     F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static,

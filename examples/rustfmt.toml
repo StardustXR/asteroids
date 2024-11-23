@@ -1,4 +1,8 @@
-reorder_imports = false
-array_width = 20
-chain_width = 50
+# trailing_comma = "Vertical"
+array_width = 15
+# chain_width = 50
+# indent_style = "Block"
+# fn_args_layout = "Vertical"
 # overflow_delimited_expr = true
+
+# use_small_heuristics = "Off"

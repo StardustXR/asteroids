@@ -1,20 +1,29 @@
-use std::f32::consts::PI;
 use asteroids::{
-    client::StardustClient,
+    client::{self, ClientState},
     custom::{ElementTrait, Transformable},
     elements::{Button, Spatial, Text},
-    Element, Reify,
+    Element,
 };
 use derive_setters::Setters;
 use glam::Quat;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
-    client::Client,
     drawable::{XAlign, YAlign},
     project_local_resources,
+    root::FrameInfo,
     spatial::Transform,
 };
+use std::f32::consts::PI;
 use tracing_subscriber::EnvFilter;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    tracing_subscriber::fmt()
+        .compact()
+        .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
+        .init();
+    client::run(State::default, &[&project_local_resources!("res")]).await
+}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct State {
@@ -27,7 +36,7 @@ impl Default for State {
         }
     }
 }
-impl Reify for State {
+impl ClientState for State {
     fn reify(&self) -> Element<Self> {
         Spatial::default().zoneable(true).with_children([
             Spatial::default().with_children(
@@ -37,14 +46,14 @@ impl Reify for State {
                     .map(|(i, t)| make_list_item(i, t)),
             ),
             LabeledButton::new(|state: &mut State| {
-                state
-                    .list
-                    .push(format!("List item {}", state.list.len()));
+                state.list.push(format!("List item {}", state.list.len()));
             })
             .height(0.01)
             .padding(0.0025)
             .label("add")
-            .pos([-0.03, 0.02, 0.0])
+            .pos([
+                -0.03, 0.02, 0.0,
+            ])
             .build(),
             LabeledButton::new(|state: &mut State| {
                 state.list.pop();
@@ -56,26 +65,8 @@ impl Reify for State {
             .build(),
         ])
     }
-}
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
-    tracing_subscriber::fmt()
-        .compact()
-        .with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
-        .init();
-    let mut client = Client::connect().await.unwrap();
-    client
-        .setup_resources(&[&project_local_resources!("res")])
-        .unwrap();
-
-    let mut asteroids = StardustClient::new(&mut client, State::default)
-        .await
-        .unwrap();
-    client
-        .event_loop(|_, _| asteroids.event_loop_update(|_, _| ()))
-        .await
-        .unwrap()
+    fn on_frame(&mut self, _info: &FrameInfo) {}
 }
 
 #[derive(Setters)]
