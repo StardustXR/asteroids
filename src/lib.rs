@@ -26,7 +26,7 @@ pub trait Reify: ValidState + Sized + Send + Sync + 'static {
 
 	fn reify_substate<
 		SuperState: ValidState,
-		F: Fn(&mut SuperState) -> &mut Self + Send + Sync + 'static,
+		F: Fn(&mut SuperState) -> Option<&mut Self> + Send + Sync + 'static,
 	>(
 		&self,
 		mapper: F,
@@ -148,7 +148,10 @@ impl ElementInnerMap {
 #[derive_where::derive_where(Debug)]
 pub struct Element<State: ValidState>(Box<dyn GenericElement<State>>);
 impl<State: ValidState> Element<State> {
-	pub fn map<NewState: ValidState, F: Fn(&mut NewState) -> &mut State + Send + Sync + 'static>(
+	pub fn map<
+		NewState: ValidState,
+		F: Fn(&mut NewState) -> Option<&mut State> + Send + Sync + 'static,
+	>(
 		self,
 		mapper: F,
 	) -> Element<NewState> {
@@ -181,7 +184,7 @@ impl<State: ValidState> Eq for Element<State> {}
 struct MappedElement<
 	State: ValidState,
 	SubState: ValidState,
-	F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static,
+	F: Fn(&mut State) -> Option<&mut SubState> + Send + Sync + 'static,
 > {
 	element: Element<SubState>,
 	mapper: F,
@@ -190,7 +193,7 @@ struct MappedElement<
 impl<
 		State: ValidState,
 		SubState: ValidState,
-		F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static,
+		F: Fn(&mut State) -> Option<&mut SubState> + Send + Sync + 'static,
 	> GenericElement<State> for MappedElement<State, SubState, F>
 {
 	fn type_id(&self) -> TypeId {
@@ -234,19 +237,19 @@ impl<
 		inner_map: &mut ElementInnerMap,
 	) {
 		let old_mapper: &Self = old.0.as_any().downcast_ref().unwrap();
-		self.element.0.diff_and_apply(
-			parent_spatial,
-			&old_mapper.element,
-			(self.mapper)(state),
-			inner_map,
-		)
+		let Some(mapped) = (self.mapper)(state) else {
+			return;
+		};
+		self.element
+			.0
+			.diff_and_apply(parent_spatial, &old_mapper.element, mapped, inner_map)
 	}
 }
 
 impl<
 		State: ValidState,
 		SubState: ValidState,
-		F: Fn(&mut State) -> &mut SubState + Send + Sync + 'static,
+		F: Fn(&mut State) -> Option<&mut SubState> + Send + Sync + 'static,
 	> Debug for MappedElement<State, SubState, F>
 {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
