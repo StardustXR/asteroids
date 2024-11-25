@@ -158,22 +158,31 @@ impl<State: ValidState> ElementTrait<State> for Model {
 		//still here
 		for part_info in self.model_parts.union(&old_decl.model_parts) {
 			if let Some(model_part) = inner.model_parts.get(&part_info.path) {
-				let Some(old_part_info) = old_decl.model_parts.get(part_info) else {
-					return;
-				};
-				if part_info.material_parameter_overrides
-					!= old_part_info.material_parameter_overrides
-				{
-					let _ = part_info.apply_material_parameters(model_part);
-				}
-				if let Some((panel_override, surface_id)) = &part_info.panel_item_override {
-					if let Some((old_panel_override, old_surface_id)) =
-						&old_part_info.panel_item_override
+				if let Some(old_part_info) = old_decl.model_parts.get(part_info) {
+					if part_info.material_parameter_overrides
+						!= old_part_info.material_parameter_overrides
 					{
-						if panel_override != old_panel_override && surface_id != old_surface_id {
+						let _ = part_info.apply_material_parameters(model_part);
+					}
+					if let Some((panel_override, surface_id)) = &part_info.panel_item_override {
+						if let Some((old_panel_override, old_surface_id)) =
+							&old_part_info.panel_item_override
+						{
+							if panel_override != old_panel_override && surface_id != old_surface_id
+							{
+								let _ = panel_override
+									.apply_surface_material(surface_id.clone(), model_part);
+							}
+						} else {
 							let _ = panel_override
 								.apply_surface_material(surface_id.clone(), model_part);
 						}
+					}
+				} else {
+					let _ = part_info.apply_material_parameters(model_part);
+					if let Some((panel_override, surface_id)) = &part_info.panel_item_override {
+						let _ =
+							panel_override.apply_surface_material(surface_id.clone(), model_part);
 					}
 				}
 			}
