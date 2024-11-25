@@ -85,7 +85,7 @@ impl<State: Reify> View<State> {
 	pub fn new(state: &State, parent_spatial: &impl SpatialRefAspect) -> View<State> {
 		let root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
 		let mut inner_map = ElementInnerMap::default();
-		let vdom_root = state.reify();
+		let vdom_root = elements::Spatial::default().with_children([state.reify()]);
 		vdom_root
 			.0
 			.apply_element_keys(vec![(0, GenericElement::type_id(vdom_root.0.as_ref()))]);
@@ -101,7 +101,7 @@ impl<State: Reify> View<State> {
 	}
 
 	pub fn update(&mut self, state: &mut State) {
-		let new_vdom = state.reify();
+		let new_vdom = elements::Spatial::default().with_children([state.reify()]);
 		new_vdom
 			.0
 			.apply_element_keys(vec![(0, GenericElement::type_id(new_vdom.0.as_ref()))]);
@@ -296,7 +296,10 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		inner_map: &mut ElementInnerMap,
 	) -> Result<(), String> {
 		let inner = E::create_inner(&self.params, parent).map_err(|e| e.to_string())?;
-		inner_map.insert::<State, E>(self.inner_key().unwrap(), inner);
+		let Some(inner_key) = self.inner_key.get() else {
+			return Err("Internal: Couldn't get inner key?".to_string());
+		};
+		inner_map.insert::<State, E>(*inner_key, inner);
 
 		let spatial = self.spatial_aspect(inner_map);
 		for child in &self.children {
@@ -305,8 +308,12 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		Ok(())
 	}
 	fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
-		let inner_key = *self.inner_key.get().unwrap();
-		let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
+		let Some(inner_key) = self.inner_key.get() else {
+			return;
+		};
+		let Some(inner) = inner_map.get_mut::<State, E>(*inner_key) else {
+			return;
+		};
 		self.params.frame(info, inner);
 
 		for child in &self.children {
@@ -317,12 +324,16 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		for child in &self.children {
 			child.0.destroy_inner_recursive(inner_map);
 		}
-		inner_map.0.remove(&self.inner_key().unwrap());
+		let Some(inner_key) = self.inner_key() else {
+			return;
+		};
+		inner_map.0.remove(&inner_key);
 	}
 
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
-		let inner_key = *self.inner_key.get().unwrap();
-		let inner = inner_map.get::<State, E>(inner_key).unwrap();
+		let inner = inner_map
+			.get::<State, E>(*self.inner_key.get().unwrap())
+			.unwrap();
 		self.params.spatial_aspect(inner)
 	}
 
@@ -398,45 +409,3 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		}
 	}
 }
-// impl<State: ValidState> GenericElement<State> for Element<State> {
-//     fn type_id(&self) -> TypeId {
-//         GenericElement::type_id(self.0.as_ref())
-//     }
-//     fn create_inner_recursive(
-//         &self,
-//         parent: &SpatialRef,
-//         inner_map: &mut ElementInnerMap,
-//     ) -> Result<(), String> {
-//         self.0.create_inner_recursive(parent, inner_map)
-//     }
-//     fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
-//         self.0.frame_recursive(info, inner_map);
-//     }
-//     fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
-//         self.0.destroy_inner_recursive(inner_map)
-//     }
-//     fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
-//         self.0.spatial_aspect(inner_map)
-//     }
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-//     fn inner_key(&self) -> Option<ElementInnerKey> {
-//         self.0.inner_key()
-//     }
-//     fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
-//         self.0.apply_element_keys(path)
-//     }
-//     fn identify(&mut self, key: ElementInnerKey) {
-//         self.0.identify(key)
-//     }
-//     fn diff_and_apply(
-//         &self,
-//         parent_spatial: SpatialRef,
-//         old: &Element<State>,
-//         state: &mut State,
-//         inner_map: &mut ElementInnerMap,
-//     ) {
-//         self.0.diff_and_apply(parent_spatial, old, state, inner_map)
-//     }
-// }

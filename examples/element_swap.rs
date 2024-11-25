@@ -1,8 +1,11 @@
+use std::f32::consts::PI;
+
 use asteroids::{
 	client::{self, ClientState},
-	custom::ElementTrait,
+	custom::{ElementTrait, Transformable},
 	elements::{Spatial, Text},
 };
+use glam::Quat;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::project_local_resources;
 use tracing_subscriber::EnvFilter;
@@ -27,10 +30,21 @@ impl ClientState for State {
 
 	fn reify(&self) -> asteroids::Element<Self> {
 		// every odd second
-		if self.elapsed % 2.0 > 1.0 {
-			Spatial::default().build()
+		let odd_second = self.elapsed % 2.0 > 1.0;
+		let text = Text::default()
+			.text(if odd_second {
+				"Spatial root"
+			} else {
+				"Text root"
+			})
+			.character_height(0.02)
+			.rot(Quat::from_rotation_y(PI))
+			.build();
+
+		if odd_second {
+			Spatial::default().with_children([text])
 		} else {
-			Text::default().build()
+			text
 		}
 	}
 }
