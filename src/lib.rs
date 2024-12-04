@@ -331,9 +331,8 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 	}
 
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
-		let inner = inner_map
-			.get::<State, E>(*self.inner_key.get().unwrap())
-			.unwrap();
+		let inner_key = *self.inner_key.get().unwrap();
+		let inner = inner_map.get::<State, E>(inner_key).unwrap();
 		self.params.spatial_aspect(inner)
 	}
 
