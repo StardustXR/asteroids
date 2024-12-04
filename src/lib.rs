@@ -345,12 +345,15 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 	}
 
 	fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
-		let key = {
+		let path = if let Some(key) = self.inner_key.get().cloned() {
+			vec![(key.0 as usize, GenericElement::type_id(self))]
+		} else {
 			let mut hasher = DefaultHasher::new();
 			path.hash(&mut hasher);
-			ElementInnerKey(hasher.finish())
+			let key = ElementInnerKey(hasher.finish());
+			let _ = self.inner_key.set(key);
+			path
 		};
-		let _ = self.inner_key.set(key);
 
 		for (i, child) in self.children.iter().enumerate() {
 			let mut child_path = path.clone();
