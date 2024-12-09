@@ -9,34 +9,34 @@ use stardust_xr_fusion::{
 	node::NodeError,
 	spatial::{SpatialRef, Transform},
 };
-use stardust_xr_molecules::keyboard::{KeyboardHandler, KeypressInfo};
+use stardust_xr_molecules::keyboard::{KeyboardHandler as MoleculesKeyboardHandler, KeypressInfo};
 use zbus::Connection;
 
 #[derive_where::derive_where(Debug, PartialEq)]
 #[derive(Setters)]
 #[setters(into, strip_option)]
-pub struct KeyboardElement<State: ValidState> {
+pub struct KeyboardHandler<State: ValidState> {
 	transform: Transform,
 	field_shape: stardust_xr_fusion::fields::Shape,
 	#[allow(clippy::type_complexity)]
 	on_key: FnWrapper<dyn Fn(&mut State, KeypressInfo) + Send + Sync>,
 }
 
-impl<State: ValidState> Default for KeyboardElement<State> {
+impl<State: ValidState> Default for KeyboardHandler<State> {
 	fn default() -> Self {
-		KeyboardElement {
+		KeyboardHandler {
 			transform: Transform::none(),
 			field_shape: stardust_xr_fusion::fields::Shape::Sphere(1.0),
 			on_key: FnWrapper(Box::new(|_, _| {})),
 		}
 	}
 }
-impl<State: ValidState> KeyboardElement<State> {
+impl<State: ValidState> KeyboardHandler<State> {
 	pub fn new(
 		field_shape: Shape,
 		on_key: impl Fn(&mut State, KeypressInfo) + Send + Sync + 'static,
-	) -> KeyboardElement<State> {
-		KeyboardElement {
+	) -> KeyboardHandler<State> {
+		KeyboardHandler {
 			transform: Transform::none(),
 			field_shape,
 			on_key: FnWrapper(Box::new(on_key)),
@@ -45,9 +45,9 @@ impl<State: ValidState> KeyboardElement<State> {
 }
 pub struct KeyboardElementInner {
 	field: Field,
-	handler: KeyboardHandler,
+	handler: MoleculesKeyboardHandler,
 }
-impl<State: ValidState> ElementTrait<State> for KeyboardElement<State> {
+impl<State: ValidState> ElementTrait<State> for KeyboardHandler<State> {
 	type Inner = KeyboardElementInner;
 	type Error = NodeError;
 
@@ -57,7 +57,7 @@ impl<State: ValidState> ElementTrait<State> for KeyboardElement<State> {
 		dbus_connection: &Connection,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(spatial_parent, self.transform, self.field_shape.clone())?;
-		let handler = KeyboardHandler::create(dbus_connection.clone(), None, &field);
+		let handler = MoleculesKeyboardHandler::create(dbus_connection.clone(), None, &field);
 		Ok(KeyboardElementInner { field, handler })
 	}
 
@@ -77,7 +77,7 @@ impl<State: ValidState> ElementTrait<State> for KeyboardElement<State> {
 		inner.field.clone().as_spatial().as_spatial_ref()
 	}
 }
-impl<State: ValidState> Transformable for KeyboardElement<State> {
+impl<State: ValidState> Transformable for KeyboardHandler<State> {
 	fn transform(&self) -> &Transform {
 		&self.transform
 	}
@@ -90,7 +90,7 @@ async fn asteroids_keyboard_element() {
 	use crate::{
 		client::{self, ClientState},
 		custom::ElementTrait,
-		elements::{KeyboardElement, Spatial, Text},
+		elements::{KeyboardHandler, Spatial, Text},
 		Element,
 	};
 	use serde::{Deserialize, Serialize};
@@ -123,7 +123,7 @@ async fn asteroids_keyboard_element() {
 					)
 					.character_height(0.05)
 					.build(),
-				KeyboardElement::new(Shape::Sphere(0.5), Self::key_press).build(),
+				KeyboardHandler::new(Shape::Sphere(0.5), Self::key_press).build(),
 			])
 		}
 	}
