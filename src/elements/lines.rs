@@ -1,0 +1,57 @@
+use crate::{
+	custom::{ElementTrait, Transformable},
+	ValidState,
+};
+use derive_setters::Setters;
+use stardust_xr_fusion::{
+	drawable::{Line, LinesAspect},
+	node::NodeError,
+	spatial::{SpatialRef, Transform},
+};
+use std::fmt::Debug;
+use zbus::Connection;
+
+#[derive(Debug, Clone, PartialEq, Setters)]
+#[setters(into, strip_option)]
+pub struct Lines {
+	transform: Transform,
+	lines: Vec<Line>,
+}
+impl<State: ValidState> ElementTrait<State> for Lines {
+	type Inner = stardust_xr_fusion::drawable::Lines;
+	type Error = NodeError;
+
+	fn create_inner(
+		&self,
+		parent_space: &SpatialRef,
+		_dbus_connection: &Connection,
+	) -> Result<Self::Inner, Self::Error> {
+		stardust_xr_fusion::drawable::Lines::create(parent_space, self.transform, &self.lines)
+	}
+
+	fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
+		self.apply_transform(old_decl, inner);
+		if self.lines != old_decl.lines {
+			let _ = inner.set_lines(&self.lines);
+		}
+	}
+	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
+		inner.clone().as_spatial().as_spatial_ref()
+	}
+}
+impl Default for Lines {
+	fn default() -> Self {
+		Lines {
+			transform: Transform::none(),
+			lines: vec![],
+		}
+	}
+}
+impl Transformable for Lines {
+	fn transform(&self) -> &Transform {
+		&self.transform
+	}
+	fn transform_mut(&mut self) -> &mut Transform {
+		&mut self.transform
+	}
+}

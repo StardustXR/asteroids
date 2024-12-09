@@ -1,0 +1,132 @@
+use crate::{
+	custom::{ElementTrait, FnWrapper, Transformable},
+	ValidState,
+};
+use derive_setters::Setters;
+use derive_where::derive_where;
+use stardust_xr_fusion::{
+	fields::{Field, FieldAspect, Shape},
+	node::NodeError,
+	spatial::{SpatialRef, Transform},
+};
+use stardust_xr_molecules::keyboard::{KeyboardHandler, KeypressInfo};
+use zbus::Connection;
+
+#[derive_where::derive_where(Debug, PartialEq)]
+#[derive(Setters)]
+#[setters(into, strip_option)]
+pub struct KeyboardElement<State: ValidState> {
+	transform: Transform,
+	field_shape: stardust_xr_fusion::fields::Shape,
+	#[allow(clippy::type_complexity)]
+	on_key: FnWrapper<dyn Fn(&mut State, KeypressInfo) + Send + Sync>,
+}
+
+impl<State: ValidState> Default for KeyboardElement<State> {
+	fn default() -> Self {
+		KeyboardElement {
+			transform: Transform::none(),
+			field_shape: stardust_xr_fusion::fields::Shape::Sphere(1.0),
+			on_key: FnWrapper(Box::new(|_, _| {})),
+		}
+	}
+}
+impl<State: ValidState> KeyboardElement<State> {
+	pub fn new(
+		field_shape: Shape,
+		on_key: impl Fn(&mut State, KeypressInfo) + Send + Sync + 'static,
+	) -> KeyboardElement<State> {
+		KeyboardElement {
+			transform: Transform::none(),
+			field_shape,
+			on_key: FnWrapper(Box::new(on_key)),
+		}
+	}
+}
+pub struct KeyboardElementInner {
+	field: Field,
+	handler: KeyboardHandler,
+}
+impl<State: ValidState> ElementTrait<State> for KeyboardElement<State> {
+	type Inner = KeyboardElementInner;
+	type Error = NodeError;
+
+	fn create_inner(
+		&self,
+		spatial_parent: &SpatialRef,
+		dbus_connection: &Connection,
+	) -> Result<Self::Inner, Self::Error> {
+		let field = Field::create(spatial_parent, self.transform, self.field_shape.clone())?;
+		let handler = KeyboardHandler::create(dbus_connection.clone(), None, &field);
+		Ok(KeyboardElementInner { field, handler })
+	}
+
+	fn update(&self, old: &Self, state: &mut State, inner: &mut Self::Inner) {
+		self.apply_transform(old, &inner.field);
+
+		if self.field_shape != old.field_shape {
+			let _ = inner.field.set_shape(self.field_shape.clone());
+		}
+
+		while let Ok(key_info) = inner.handler.key_rx.try_recv() {
+			(self.on_key.0)(state, key_info);
+		}
+	}
+
+	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
+		inner.field.clone().as_spatial().as_spatial_ref()
+	}
+}
+impl<State: ValidState> Transformable for KeyboardElement<State> {
+	fn transform(&self) -> &Transform {
+		&self.transform
+	}
+	fn transform_mut(&mut self) -> &mut Transform {
+		&mut self.transform
+	}
+}
+#[tokio::test]
+async fn asteroids_keyboard_element() {
+	use crate::{
+		client::{self, ClientState},
+		custom::ElementTrait,
+		elements::{KeyboardElement, Spatial, Text},
+		Element,
+	};
+	use serde::{Deserialize, Serialize};
+	use stardust_xr_fusion::{fields::Shape, root::FrameInfo};
+	use stardust_xr_molecules::keyboard::KeypressInfo;
+
+	#[derive(Default, Serialize, Deserialize)]
+	struct TestState {
+		#[serde(skip)]
+		latest_key: Option<KeypressInfo>,
+	}
+	impl TestState {
+		pub fn key_press(&mut self, key_info: KeypressInfo) {
+			if key_info.pressed {}
+		}
+	}
+
+	impl ClientState for TestState {
+		fn on_frame(&mut self, _info: &FrameInfo) {}
+
+		fn reify(&self) -> Element<Self> {
+			// Create a container spatial
+			Spatial::default().with_children([
+				Text::default()
+					.text(
+						self.latest_key
+							.as_ref()
+							.map(|key| format!("Latest key: {:?}", key.key))
+							.unwrap_or_default(),
+					)
+					.character_height(0.05)
+					.build(),
+				KeyboardElement::new(Shape::Sphere(0.5), Self::key_press).build(),
+			])
+		}
+	}
+
+	client::run(TestState::default, &[]).await
+}

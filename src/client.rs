@@ -2,6 +2,7 @@ use crate::{Element, Reify, View};
 use serde::{de::DeserializeOwned, Serialize};
 use stardust_xr_fusion::{
 	core::schemas::flex::flexbuffers,
+	objects::connect_client,
 	root::{FrameInfo, RootAspect, RootEvent},
 };
 use std::path::Path;
@@ -34,7 +35,8 @@ pub async fn run<State: ClientState>(initial_state: impl FnOnce() -> State, reso
 		.as_ref()
 		.and_then(|m| flexbuffers::from_slice(m).ok())
 		.unwrap_or_else(initial_state);
-	let mut view = View::new(&state, client.get_root());
+	let dbus_connection = connect_client().await.unwrap();
+	let mut view = View::new(&state, dbus_connection, client.get_root());
 
 	let _ = client
 		.sync_event_loop(|client, _| {

@@ -13,6 +13,7 @@ use std::{
 	marker::PhantomData,
 	sync::OnceLock,
 };
+use zbus::Connection;
 
 pub mod client;
 pub mod custom;
@@ -78,12 +79,17 @@ impl<T: Clone + Hash + Eq> DeltaSet<T> {
 
 pub struct View<State: Reify> {
 	_root: Spatial,
+	dbus_connection: Connection,
 	vdom_root: Element<State>,
 	inner_map: ElementInnerMap,
 }
 impl<State: Reify> View<State> {
-	pub fn new(state: &State, parent_spatial: &impl SpatialRefAspect) -> View<State> {
-		let root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
+	pub fn new(
+		state: &State,
+		dbus_connection: Connection,
+		parent_spatial: &impl SpatialRefAspect,
+	) -> View<State> {
+		let _root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
 		let mut inner_map = ElementInnerMap::default();
 		let vdom_root = elements::Spatial::default().with_children([state.reify()]);
 		vdom_root
@@ -91,10 +97,15 @@ impl<State: Reify> View<State> {
 			.apply_element_keys(vec![(0, GenericElement::type_id(vdom_root.0.as_ref()))]);
 		vdom_root
 			.0
-			.create_inner_recursive(&root.clone().as_spatial_ref(), &mut inner_map)
+			.create_inner_recursive(
+				&_root.clone().as_spatial_ref(),
+				&mut inner_map,
+				&dbus_connection,
+			)
 			.unwrap();
 		View {
-			_root: root,
+			_root,
+			dbus_connection,
 			vdom_root,
 			inner_map,
 		}
@@ -108,6 +119,7 @@ impl<State: Reify> View<State> {
 		new_vdom.0.diff_and_apply(
 			self.vdom_root.0.spatial_aspect(&self.inner_map),
 			&self.vdom_root,
+			&self.dbus_connection,
 			state,
 			&mut self.inner_map,
 		);
@@ -204,8 +216,12 @@ impl<
 		&self,
 		parent: &SpatialRef,
 		inner_map: &mut ElementInnerMap,
+
+		dbus_connection: &Connection,
 	) -> Result<(), String> {
-		self.element.0.create_inner_recursive(parent, inner_map)
+		self.element
+			.0
+			.create_inner_recursive(parent, inner_map, dbus_connection)
 	}
 	fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
 		self.element.0.frame_recursive(info, inner_map);
@@ -233,6 +249,7 @@ impl<
 		&self,
 		parent_spatial: SpatialRef,
 		old: &Element<State>,
+		dbus_connection: &Connection,
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 	) {
@@ -240,9 +257,13 @@ impl<
 		let Some(mapped) = (self.mapper)(state) else {
 			return;
 		};
-		self.element
-			.0
-			.diff_and_apply(parent_spatial, &old_mapper.element, mapped, inner_map)
+		self.element.0.diff_and_apply(
+			parent_spatial,
+			&old_mapper.element,
+			dbus_connection,
+			mapped,
+			inner_map,
+		)
 	}
 }
 
@@ -263,6 +284,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 		&self,
 		parent: &SpatialRef,
 		inner_map: &mut ElementInnerMap,
+		dbus_connection: &Connection,
 	) -> Result<(), String>;
 	fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap);
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
@@ -275,6 +297,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 		&self,
 		parent_spatial: SpatialRef,
 		old: &Element<State>,
+		dbus_connection: &Connection,
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 	);
@@ -294,8 +317,10 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		&self,
 		parent: &SpatialRef,
 		inner_map: &mut ElementInnerMap,
+		dbus_connection: &Connection,
 	) -> Result<(), String> {
-		let inner = E::create_inner(&self.params, parent).map_err(|e| e.to_string())?;
+		let inner =
+			E::create_inner(&self.params, parent, dbus_connection).map_err(|e| e.to_string())?;
 		let Some(inner_key) = self.inner_key.get() else {
 			return Err("Internal: Couldn't get inner key?".to_string());
 		};
@@ -303,7 +328,9 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 
 		let spatial = self.spatial_aspect(inner_map);
 		for child in &self.children {
-			child.0.create_inner_recursive(&spatial, inner_map)?;
+			child
+				.0
+				.create_inner_recursive(&spatial, inner_map, dbus_connection)?;
 		}
 		Ok(())
 	}
@@ -370,6 +397,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		&self,
 		parent_spatial: SpatialRef,
 		old: &Element<State>,
+		dbus_connection: &Connection,
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 	) {
@@ -394,6 +422,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 			new_child.0.diff_and_apply(
 				old_child.0.spatial_aspect(inner_map),
 				old_child,
+				dbus_connection,
 				state,
 				inner_map,
 			);
@@ -406,7 +435,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		for child in delta_set.added() {
 			child
 				.0
-				.create_inner_recursive(&parent_spatial, inner_map)
+				.create_inner_recursive(&parent_spatial, inner_map, dbus_connection)
 				.unwrap();
 		}
 	}

@@ -9,17 +9,14 @@ repository = "https://github.com/StardustXR/asteroids/"
 homepage = "https://stardustxr.org"
 
 [dependencies]
-glam = { version = "0.28.0", features = ["mint"] }
+tokio = { version = "1.28.0", features = ["macros"] }
 mint = "0.5.9"
-manifest-dir-macros = "0.1.17"
 lazy_static = "1.4.0"
-tokio = { version = "1.28.0", features = ["full"] }
-input-event-codes = "6.2.0"
 rustc-hash = "2.0.0"
 serde = { version = "1.0.197", features = ["serde_derive"] }
 derive_setters = "0.1.6"
-tracing-subscriber = "0.3.18"
 derive-where = "1.2.7"
+zbus = "5.1.1"
 
 [dependencies.stardust-xr-fusion]
 git = "https://github.com/StardustXR/core.git"
@@ -30,5 +27,8 @@ git = "https://github.com/StardustXR/molecules.git"
 branch = "dev"
 
 [dev-dependencies]
+glam = { version = "0.28.0", features = ["mint"] }
 map-range = "0.1.2"
+tokio = { version = "1.28.0", features = ["full"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+xkbcommon = "0.8.0"

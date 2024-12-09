@@ -43,7 +43,7 @@ impl ClientState for State {
 				self.list
 					.iter()
 					.enumerate()
-					.map(|(i, t)| make_list_item(i, t)),
+					.map(|(i, t)| make_list_item(i, t).identify(&i)),
 			),
 			LabeledButton::new(|state: &mut State| {
 				state.list.push(format!("List item {}", state.list.len()));
