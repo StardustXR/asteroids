@@ -19,17 +19,25 @@ pub struct Lines {
 }
 impl<State: ValidState> ElementTrait<State> for Lines {
 	type Inner = stardust_xr_fusion::drawable::Lines;
+	type Resource = ();
 	type Error = NodeError;
 
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
 		_dbus_connection: &Connection,
+		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Lines::create(parent_space, self.transform, &self.lines)
 	}
 
-	fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
+	fn update(
+		&self,
+		old_decl: &Self,
+		_state: &mut State,
+		inner: &mut Self::Inner,
+		_resource: &mut Self::Resource,
+	) {
 		self.apply_transform(old_decl, inner);
 		if self.lines != old_decl.lines {
 			let _ = inner.set_lines(&self.lines);

@@ -68,12 +68,14 @@ pub struct Model {
 }
 impl<State: ValidState> ElementTrait<State> for Model {
 	type Inner = ModelInner;
+	type Resource = ();
 	type Error = NodeError;
 
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
 		dbus_connection: &Connection,
+		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let model = stardust_xr_fusion::drawable::Model::create(
 			spatial_parent,
@@ -97,13 +99,20 @@ impl<State: ValidState> ElementTrait<State> for Model {
 		};
 		Ok(inner)
 	}
-	fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
+	fn update(
+		&self,
+		old_decl: &Self,
+		_state: &mut State,
+		inner: &mut Self::Inner,
+		_resource: &mut Self::Resource,
+	) {
 		self.apply_transform(old_decl, &inner.model);
 		if self.resource != old_decl.resource {
 			if let Ok(new_inner) = <Self as ElementTrait<State>>::create_inner(
 				self,
 				&inner.parent,
 				&inner.dbus_connection,
+				_resource,
 			) {
 				*inner = new_inner;
 			}

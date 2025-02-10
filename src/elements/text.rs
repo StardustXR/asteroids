@@ -27,12 +27,14 @@ pub struct Text {
 }
 impl<State: ValidState> ElementTrait<State> for Text {
 	type Inner = stardust_xr_fusion::drawable::Text;
+	type Resource = ();
 	type Error = NodeError;
 
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
 		_dbus_connection: &Connection,
+		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Text::create(
 			spatial_parent,
@@ -48,7 +50,13 @@ impl<State: ValidState> ElementTrait<State> for Text {
 			},
 		)
 	}
-	fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
+	fn update(
+		&self,
+		old_decl: &Self,
+		_state: &mut State,
+		inner: &mut Self::Inner,
+		_resource: &mut Self::Resource,
+	) {
 		self.apply_transform(old_decl, inner);
 		if self.text != old_decl.text {
 			let _ = inner.set_text(&self.text);

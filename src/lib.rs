@@ -77,11 +77,25 @@ impl<T: Clone + Hash + Eq> DeltaSet<T> {
 	}
 }
 
+#[derive(Default)]
+pub(crate) struct ResourceRegistry(FxHashMap<TypeId, Box<dyn Any>>);
+impl ResourceRegistry {
+	fn get<R: Default + Send + Sync + 'static>(&mut self) -> &mut R {
+		let type_id = TypeId::of::<R>();
+		self.0
+			.entry(type_id)
+			.or_insert_with(|| Box::new(R::default()))
+			.downcast_mut::<R>()
+			.unwrap()
+	}
+}
+
 pub struct View<State: Reify> {
 	_root: Spatial,
 	dbus_connection: Connection,
 	vdom_root: Element<State>,
 	inner_map: ElementInnerMap,
+	resources: ResourceRegistry,
 }
 impl<State: Reify> View<State> {
 	pub fn new(
@@ -95,12 +109,14 @@ impl<State: Reify> View<State> {
 		vdom_root
 			.0
 			.apply_element_keys(vec![(0, GenericElement::type_id(vdom_root.0.as_ref()))]);
+		let mut resources = ResourceRegistry::default();
 		vdom_root
 			.0
 			.create_inner_recursive(
 				&_root.clone().as_spatial_ref(),
 				&mut inner_map,
 				&dbus_connection,
+				&mut resources,
 			)
 			.unwrap();
 		View {
@@ -108,6 +124,7 @@ impl<State: Reify> View<State> {
 			dbus_connection,
 			vdom_root,
 			inner_map,
+			resources,
 		}
 	}
 
@@ -122,6 +139,7 @@ impl<State: Reify> View<State> {
 			&self.dbus_connection,
 			state,
 			&mut self.inner_map,
+			&mut self.resources,
 		);
 		self.vdom_root = new_vdom;
 	}
@@ -216,12 +234,12 @@ impl<
 		&self,
 		parent: &SpatialRef,
 		inner_map: &mut ElementInnerMap,
-
 		dbus_connection: &Connection,
+		resources: &mut ResourceRegistry,
 	) -> Result<(), String> {
 		self.element
 			.0
-			.create_inner_recursive(parent, inner_map, dbus_connection)
+			.create_inner_recursive(parent, inner_map, dbus_connection, resources)
 	}
 	fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
 		self.element.0.frame_recursive(info, inner_map);
@@ -252,6 +270,7 @@ impl<
 		dbus_connection: &Connection,
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
+		resources: &mut ResourceRegistry,
 	) {
 		let old_mapper: &Self = old.0.as_any().downcast_ref().unwrap();
 		let Some(mapped) = (self.mapper)(state) else {
@@ -263,6 +282,7 @@ impl<
 			dbus_connection,
 			mapped,
 			inner_map,
+			resources,
 		)
 	}
 }
@@ -285,6 +305,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 		parent: &SpatialRef,
 		inner_map: &mut ElementInnerMap,
 		dbus_connection: &Connection,
+		resources: &mut ResourceRegistry,
 	) -> Result<(), String>;
 	fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap);
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
@@ -300,6 +321,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 		dbus_connection: &Connection,
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
+		resources: &mut ResourceRegistry,
 	);
 }
 
@@ -318,9 +340,15 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		parent: &SpatialRef,
 		inner_map: &mut ElementInnerMap,
 		dbus_connection: &Connection,
+		resources: &mut ResourceRegistry,
 	) -> Result<(), String> {
-		let inner =
-			E::create_inner(&self.params, parent, dbus_connection).map_err(|e| e.to_string())?;
+		let inner = E::create_inner(
+			&self.params,
+			parent,
+			dbus_connection,
+			resources.get::<E::Resource>(),
+		)
+		.map_err(|e| e.to_string())?;
 		let Some(inner_key) = self.inner_key.get() else {
 			return Err("Internal: Couldn't get inner key?".to_string());
 		};
@@ -330,7 +358,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		for child in &self.children {
 			child
 				.0
-				.create_inner_recursive(&spatial, inner_map, dbus_connection)?;
+				.create_inner_recursive(&spatial, inner_map, dbus_connection, resources)?;
 		}
 		Ok(())
 	}
@@ -400,6 +428,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		dbus_connection: &Connection,
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
+		resources: &mut ResourceRegistry,
 	) {
 		let old_wrapper: &ElementWrapper<State, E> = old
 			.0
@@ -408,7 +437,12 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 			.unwrap_or_else(|| panic!("old:{:?}\nnew:{:?}\n", old, self));
 		let inner_key = *self.inner_key.get().unwrap();
 		let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
-		self.params.update(&old_wrapper.params, state, inner);
+		self.params.update(
+			&old_wrapper.params,
+			state,
+			inner,
+			resources.get::<E::Resource>(),
+		);
 
 		let mut delta_set = DeltaSet::default();
 		delta_set.push_new(old_wrapper.children.iter());
@@ -425,6 +459,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 				dbus_connection,
 				state,
 				inner_map,
+				resources,
 			);
 		}
 		// just removed
@@ -435,7 +470,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		for child in delta_set.added() {
 			child
 				.0
-				.create_inner_recursive(&parent_spatial, inner_map, dbus_connection)
+				.create_inner_recursive(&parent_spatial, inner_map, dbus_connection, resources)
 				.unwrap();
 		}
 	}

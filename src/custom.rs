@@ -8,19 +8,36 @@ use std::sync::OnceLock;
 use zbus::Connection;
 
 pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
+	/// The imperative struct containing non-saved state
 	type Inner: Send + Sync + 'static;
+	/// A global shared across the whole View
+	type Resource: Default + Send + Sync + 'static;
 	type Error: ToString;
+	/// Create the inner imperative struct
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
 		dbus_connection: &Connection,
+		resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error>;
-	fn update(&self, old_decl: &Self, state: &mut State, inner: &mut Self::Inner);
+	/// Update the inner imperative struct with the new state of the node.
+	/// You will need to check for changes between `old_decl` and `state` and update accordingly.
+	fn update(
+		&self,
+		old_decl: &Self,
+		state: &mut State,
+		inner: &mut Self::Inner,
+		resource: &mut Self::Resource,
+	);
+	/// Every frame on the server
 	fn frame(&self, _info: &FrameInfo, _inner: &mut Self::Inner) {}
+	/// Return the SpatialRef that all child elements should be parented under.
 	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef;
+	/// Call this to add the element as a child of another one.
 	fn build(self) -> Element<State> {
 		self.with_children([])
 	}
+	/// Build this element and add the elements as children.
 	fn with_children(self, children: impl IntoIterator<Item = Element<State>>) -> Element<State> {
 		Element(Box::new(ElementWrapper::<State, Self> {
 			params: self,

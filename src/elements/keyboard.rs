@@ -49,19 +49,27 @@ pub struct KeyboardElementInner {
 }
 impl<State: ValidState> ElementTrait<State> for KeyboardHandler<State> {
 	type Inner = KeyboardElementInner;
+	type Resource = ();
 	type Error = NodeError;
 
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
 		dbus_connection: &Connection,
+		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(spatial_parent, self.transform, self.field_shape.clone())?;
 		let handler = MoleculesKeyboardHandler::create(dbus_connection.clone(), None, &field);
 		Ok(KeyboardElementInner { field, handler })
 	}
 
-	fn update(&self, old: &Self, state: &mut State, inner: &mut Self::Inner) {
+	fn update(
+		&self,
+		old: &Self,
+		state: &mut State,
+		inner: &mut Self::Inner,
+		_resource: &mut Self::Resource,
+	) {
 		self.apply_transform(old, &inner.field);
 
 		if self.field_shape != old.field_shape {

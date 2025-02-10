@@ -49,12 +49,14 @@ impl<State: ValidState> Button<State> {
 }
 impl<State: ValidState> ElementTrait<State> for Button<State> {
 	type Inner = stardust_xr_molecules::button::Button;
+	type Resource = ();
 	type Error = NodeError;
 
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
 		_dbus_connection: &Connection,
+		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let mut button = stardust_xr_molecules::button::Button::create(
 			parent_space,
@@ -72,7 +74,13 @@ impl<State: ValidState> ElementTrait<State> for Button<State> {
 		Ok(button)
 	}
 
-	fn update(&self, old: &Self, state: &mut State, inner: &mut Self::Inner) {
+	fn update(
+		&self,
+		old: &Self,
+		state: &mut State,
+		inner: &mut Self::Inner,
+		_resource: &mut Self::Resource,
+	) {
 		inner.handle_events();
 		if inner.pressed() {
 			(self.on_press.0)(state);

@@ -18,16 +18,24 @@ pub struct Spatial {
 }
 impl<State: ValidState> ElementTrait<State> for Spatial {
 	type Inner = stardust_xr_fusion::spatial::Spatial;
+	type Resource = ();
 	type Error = NodeError;
 
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
 		_dbus_connection: &Connection,
+		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::spatial::Spatial::create(spatial_parent, self.transform, self.zoneable)
 	}
-	fn update(&self, old_decl: &Self, _state: &mut State, inner: &mut Self::Inner) {
+	fn update(
+		&self,
+		old_decl: &Self,
+		_state: &mut State,
+		inner: &mut Self::Inner,
+		_resource: &mut Self::Resource,
+	) {
 		self.apply_transform(old_decl, inner);
 		if self.zoneable != old_decl.zoneable {
 			let _ = inner.set_zoneable(self.zoneable);
