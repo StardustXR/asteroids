@@ -17,6 +17,7 @@ serde = { version = "1.0.197", features = ["serde_derive"] }
 derive_setters = "0.1.6"
 derive-where = "1.2.7"
 zbus = "5.1.1"
+glam = { version = "0.28.0", features = ["mint"] }
 
 [dependencies.stardust-xr-fusion]
 git = "https://github.com/StardustXR/core.git"
@@ -27,7 +28,6 @@ git = "https://github.com/StardustXR/molecules.git"
 branch = "dev"
 
 [dev-dependencies]
-glam = { version = "0.28.0", features = ["mint"] }
 map-range = "0.1.2"
 tokio = { version = "1.28.0", features = ["full"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
