@@ -7,9 +7,9 @@ macro_rules! mod_expose {
 }
 
 mod_expose!(button);
+mod_expose!(dial);
 // mod_expose!(grabbable);
 mod_expose!(keyboard);
-mod_expose!(knob);
 mod_expose!(lines);
 mod_expose!(model);
 mod_expose!(spatial);
