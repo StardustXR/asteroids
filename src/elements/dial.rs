@@ -11,7 +11,7 @@ use stardust_xr_fusion::{
 	fields::{CylinderShape, Field, FieldAspect, Shape},
 	input::{InputDataType, InputHandler},
 	node::{NodeError, NodeResult},
-	spatial::{SpatialRef, Transform},
+	spatial::{SpatialAspect, SpatialRef, Transform},
 	values::color::rgba_linear,
 };
 use stardust_xr_molecules::{
@@ -143,9 +143,10 @@ impl DialInner {
 			}),
 		)?;
 		let input = InputHandler::create(parent, transform, &field)?.queue()?;
+		let _ = field.set_spatial_parent(input.handler());
 
 		let lines = Lines::create(
-			parent,
+			input.handler(),
 			transform,
 			&[
 				// circles are z-facing
