@@ -11,7 +11,7 @@ use stardust_xr_fusion::{
 	fields::{CylinderShape, Field, FieldAspect, Shape},
 	input::{InputDataType, InputHandler},
 	node::{NodeError, NodeResult},
-	spatial::{SpatialAspect, SpatialRef, Transform},
+	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
 	values::color::rgba_linear,
 };
 use stardust_xr_molecules::{
@@ -120,6 +120,7 @@ impl<State: ValidState> Transformable for Dial<State> {
 	}
 }
 pub struct DialInner {
+	root: Spatial,
 	lines: Lines,
 	input: InputQueue,
 	single_action: SingleAction,
@@ -134,20 +135,21 @@ impl DialInner {
 		thickness: f32,
 		accent_color: Color,
 	) -> NodeResult<Self> {
+		let root = Spatial::create(parent, transform, false)?;
 		let field = Field::create(
-			parent,
-			transform,
+			&root,
+			Transform::identity(),
 			Shape::Cylinder(CylinderShape {
 				radius,
 				length: thickness,
 			}),
 		)?;
-		let input = InputHandler::create(parent, transform, &field)?.queue()?;
+		let input = InputHandler::create(&root, Transform::identity(), &field)?.queue()?;
 		let _ = field.set_spatial_parent(input.handler());
 
 		let lines = Lines::create(
-			input.handler(),
-			transform,
+			&root,
+			Transform::identity(),
 			&[
 				// circles are z-facing
 				circle(32, 0.0, radius).color(accent_color),
@@ -158,6 +160,7 @@ impl DialInner {
 		)?;
 
 		Ok(Self {
+			root,
 			lines,
 			input,
 			single_action: SingleAction::default(),
