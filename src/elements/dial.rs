@@ -11,7 +11,7 @@ use stardust_xr_fusion::{
 	fields::{CylinderShape, Field, FieldAspect, Shape},
 	input::{InputDataType, InputHandler},
 	node::{NodeError, NodeResult},
-	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	values::color::rgba_linear,
 };
 use stardust_xr_molecules::{
@@ -104,7 +104,7 @@ impl<State: ValidState> ElementTrait<State> for Dial<State> {
 		if new_value != self.current_value {
 			(self.on_change.0)(state, new_value);
 		}
-		self.apply_transform(old, inner.input.handler());
+		self.apply_transform(old, &inner.root);
 	}
 
 	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
@@ -145,7 +145,6 @@ impl DialInner {
 			}),
 		)?;
 		let input = InputHandler::create(&root, Transform::identity(), &field)?.queue()?;
-		let _ = field.set_spatial_parent(input.handler());
 
 		let lines = Lines::create(
 			&root,
