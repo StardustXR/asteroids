@@ -118,6 +118,10 @@ async fn asteroids_button_element() {
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 	struct TestState;
 	impl ClientState for TestState {
+		const QUALIFIER: &'static str = "org";
+		const ORGANIZATION: &'static str = "asteroids";
+		const NAME: &'static str = "button";
+
 		fn on_frame(&mut self, _info: &FrameInfo) {}
 		fn reify(&self) -> Element<Self> {
 			Button::new(|_| {
@@ -128,5 +132,5 @@ async fn asteroids_button_element() {
 		}
 	}
 
-	client::run(TestState::default, &[]).await
+	client::run::<TestState>(&[]).await
 }

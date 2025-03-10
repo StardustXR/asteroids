@@ -22,7 +22,7 @@ async fn main() {
 		.compact()
 		.with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
 		.init();
-	client::run(State::default, &[&project_local_resources!("res")]).await
+	client::run::<State>(&[&project_local_resources!("res")]).await
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -37,6 +37,10 @@ impl Default for State {
 	}
 }
 impl ClientState for State {
+	const QUALIFIER: &'static str = "org";
+	const ORGANIZATION: &'static str = "asteroids";
+	const NAME: &'static str = "elements_add_remove";
+
 	fn reify(&self) -> Element<Self> {
 		Spatial::default().zoneable(true).with_children([
 			Spatial::default().with_children(

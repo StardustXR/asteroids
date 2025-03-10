@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use asteroids::{
 	client::{self, ClientState},
 	custom::{ElementTrait, Transformable},
@@ -8,6 +6,7 @@ use asteroids::{
 use glam::Quat;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::project_local_resources;
+use std::f32::consts::PI;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main(flavor = "current_thread")]
@@ -16,7 +15,7 @@ async fn main() {
 		.compact()
 		.with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
 		.init();
-	client::run(State::default, &[&project_local_resources!("res")]).await
+	client::run::<State>(&[&project_local_resources!("res")]).await
 }
 
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -24,6 +23,10 @@ pub struct State {
 	elapsed: f32,
 }
 impl ClientState for State {
+	const QUALIFIER: &'static str = "org";
+	const ORGANIZATION: &'static str = "asteroids";
+	const NAME: &'static str = "element_swap";
+
 	fn on_frame(&mut self, info: &stardust_xr_fusion::root::FrameInfo) {
 		self.elapsed = info.elapsed;
 	}

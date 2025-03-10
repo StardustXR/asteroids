@@ -27,7 +27,7 @@ async fn main() {
 		.compact()
 		.with_env_filter(EnvFilter::from_default_env())
 		.init();
-	client::run(State::default, &[&project_local_resources!("res")]).await
+	client::run::<State>(&[&project_local_resources!("res")]).await
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -46,6 +46,10 @@ impl Default for State {
 	}
 }
 impl ClientState for State {
+	const QUALIFIER: &'static str = "org";
+	const ORGANIZATION: &'static str = "asteroids";
+	const NAME: &'static str = "basic_layout";
+
 	fn on_frame(&mut self, info: &FrameInfo) {
 		self.elapsed = info.elapsed;
 	}

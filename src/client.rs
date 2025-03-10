@@ -1,13 +1,19 @@
 use crate::{Element, Reify, View};
+use convert_case::{Case, Casing};
 use serde::{de::DeserializeOwned, Serialize};
 use stardust_xr_fusion::{
 	core::schemas::flex::flexbuffers,
 	objects::connect_client,
 	root::{FrameInfo, RootAspect, RootEvent},
+	Client,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub trait ClientState: Reify + Default + Serialize + DeserializeOwned {
+	const QUALIFIER: &'static str;
+	const ORGANIZATION: &'static str;
+	const NAME: &'static str;
+
 	fn on_frame(&mut self, info: &FrameInfo);
 	fn reify(&self) -> Element<Self>;
 }
@@ -17,25 +23,54 @@ impl<T: ClientState> Reify for T {
 	}
 }
 
-pub async fn run<State: ClientState>(initial_state: impl FnOnce() -> State, resources: &[&Path]) {
+fn initial_state<State: ClientState>() -> Option<State> {
+	let qualified_name = format!(
+		"{}.{}.{}",
+		State::QUALIFIER,
+		State::ORGANIZATION.to_case(Case::Pascal),
+		State::NAME.to_case(Case::Pascal)
+	);
+
+	// this is a dumb heuristic for determining if it's installed or not, may wanna replace
+	#[cfg(debug_assertions)]
+	let initial_state_path = PathBuf::from("/tmp/asteroids_config").join(qualified_name + ".ron");
+	#[cfg(not(debug_assertions))]
+	let initial_state_path = directories::BaseDirs::new()?
+		.config_dir()
+		.join(qualified_name)
+		.join("initial_state.ron");
+	confy::load_path::<State>(initial_state_path).ok()
+}
+
+async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
+	let saved_state = client
+		.await_method(client.handle().get_root().get_state())
+		.await
+		.ok()?
+		.ok()?;
+
+	let state = saved_state
+		.data
+		.as_ref()
+		.and_then(|m| flexbuffers::from_slice(m).ok())
+		.or_else(initial_state)
+		.unwrap_or_default();
+	Some(state)
+}
+
+pub async fn run<State: ClientState>(resources: &[&Path]) {
 	let Ok(mut client) = stardust_xr_fusion::client::Client::connect().await else {
 		return;
 	};
 	if !resources.is_empty() {
 		let _ = client.setup_resources(resources);
 	}
-	let Ok(Ok(raw_state)) = client
-		.await_method(client.handle().get_root().get_state())
-		.await
-	else {
+	let dbus_connection = connect_client().await.unwrap();
+
+	let Some(mut state): Option<State> = state(&mut client).await else {
 		return;
 	};
-	let mut state = raw_state
-		.data
-		.as_ref()
-		.and_then(|m| flexbuffers::from_slice(m).ok())
-		.unwrap_or_else(initial_state);
-	let dbus_connection = connect_client().await.unwrap();
+
 	let mut view = View::new(&state, dbus_connection, client.get_root());
 
 	let _ = client

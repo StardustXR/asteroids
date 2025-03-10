@@ -18,6 +18,9 @@ derive_setters = "0.1.6"
 derive-where = "1.2.7"
 zbus = "5.1.1"
 glam = { version = "0.28.0", features = ["mint"] }
+directories = "6.0.0"
+confy = { version = "0.6.1", no-default-features=true, features = ["ron"] }
+convert_case = "0.8.0"
 
 [dependencies.stardust-xr-fusion]
 git = "https://github.com/StardustXR/core.git"

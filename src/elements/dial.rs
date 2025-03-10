@@ -293,6 +293,10 @@ async fn asteroids_dial_element() {
 		value: f32,
 	}
 	impl ClientState for TestState {
+		const QUALIFIER: &'static str = "org";
+		const ORGANIZATION: &'static str = "asteroids";
+		const NAME: &'static str = "dial";
+
 		fn on_frame(&mut self, _info: &FrameInfo) {}
 		fn reify(&self) -> Element<Self> {
 			let hours = (self.value / 60.0).floor();
@@ -336,6 +340,5 @@ async fn asteroids_dial_element() {
 			])
 		}
 	}
-
-	client::run(TestState::default, &[]).await
+	client::run::<TestState>(&[]).await
 }
