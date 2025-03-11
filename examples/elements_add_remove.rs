@@ -2,6 +2,7 @@ use asteroids::{
 	client::{self, ClientState},
 	custom::{ElementTrait, Transformable},
 	elements::{Button, Spatial, Text},
+	util::Migrate,
 	Element,
 };
 use derive_setters::Setters;
@@ -35,6 +36,9 @@ impl Default for State {
 			list: vec!["List Item 0".to_string()],
 		}
 	}
+}
+impl Migrate for State {
+	type Old = Self;
 }
 impl ClientState for State {
 	const QUALIFIER: &'static str = "org";

@@ -292,6 +292,9 @@ async fn asteroids_dial_element() {
 	struct TestState {
 		value: f32,
 	}
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
 	impl ClientState for TestState {
 		const QUALIFIER: &'static str = "org";
 		const ORGANIZATION: &'static str = "asteroids";

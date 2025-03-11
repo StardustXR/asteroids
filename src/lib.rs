@@ -18,6 +18,7 @@ use zbus::Connection;
 pub mod client;
 pub mod custom;
 pub mod elements;
+pub mod util;
 
 pub trait ValidState: Sized + Send + Sync + 'static {}
 impl<T: Sized + Send + Sync + 'static> ValidState for T {}

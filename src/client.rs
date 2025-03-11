@@ -1,4 +1,7 @@
-use crate::{Element, Reify, View};
+use crate::{
+	util::{Migrate, RonFile},
+	Element, Reify, View,
+};
 use convert_case::{Case, Casing};
 use serde::{de::DeserializeOwned, Serialize};
 use stardust_xr_fusion::{
@@ -7,9 +10,12 @@ use stardust_xr_fusion::{
 	root::{FrameInfo, RootAspect, RootEvent},
 	Client,
 };
-use std::path::{Path, PathBuf};
+use std::{
+	fs::read_to_string,
+	path::{Path, PathBuf},
+};
 
-pub trait ClientState: Reify + Default + Serialize + DeserializeOwned {
+pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned {
 	const QUALIFIER: &'static str;
 	const ORGANIZATION: &'static str;
 	const NAME: &'static str;
@@ -39,7 +45,8 @@ fn initial_state<State: ClientState>() -> Option<State> {
 		.config_dir()
 		.join(qualified_name)
 		.join("initial_state.ron");
-	confy::load_path::<State>(initial_state_path).ok()
+	let initial_state_string = RonFile(read_to_string(initial_state_path).ok()?);
+	State::deserialize_with_migrate(&initial_state_string).ok()
 }
 
 async fn state<State: ClientState>(client: &mut Client) -> Option<State> {

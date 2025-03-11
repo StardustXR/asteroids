@@ -117,6 +117,9 @@ async fn asteroids_button_element() {
 
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 	struct TestState;
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
 	impl ClientState for TestState {
 		const QUALIFIER: &'static str = "org";
 		const ORGANIZATION: &'static str = "asteroids";

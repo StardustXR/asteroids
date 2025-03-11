@@ -115,7 +115,9 @@ async fn asteroids_keyboard_element() {
 			if key_info.pressed {}
 		}
 	}
-
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
 	impl ClientState for TestState {
 		const QUALIFIER: &'static str = "org";
 		const ORGANIZATION: &'static str = "asteroids";

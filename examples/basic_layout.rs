@@ -2,6 +2,7 @@ use asteroids::{
 	client::{self, ClientState},
 	custom::{ElementTrait, Transformable},
 	elements::{Button, Lines, Model, Spatial, Text},
+	util::Migrate,
 	Element,
 };
 use glam::Quat;
@@ -44,6 +45,9 @@ impl Default for State {
 			text: "triangle :D".to_string(),
 		}
 	}
+}
+impl Migrate for State {
+	type Old = Self;
 }
 impl ClientState for State {
 	const QUALIFIER: &'static str = "org";

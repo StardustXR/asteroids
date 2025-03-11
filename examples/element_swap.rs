@@ -2,6 +2,7 @@ use asteroids::{
 	client::{self, ClientState},
 	custom::{ElementTrait, Transformable},
 	elements::{Spatial, Text},
+	util::Migrate,
 };
 use glam::Quat;
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,9 @@ async fn main() {
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct State {
 	elapsed: f32,
+}
+impl Migrate for State {
+	type Old = Self;
 }
 impl ClientState for State {
 	const QUALIFIER: &'static str = "org";
