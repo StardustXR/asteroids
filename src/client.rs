@@ -86,7 +86,7 @@ pub async fn run<State: ClientState>(resources: &[&Path]) {
 				match root_event {
 					RootEvent::Frame { info } => {
 						state.on_frame(&info);
-						view.frame(&info);
+						view.frame(&info, &mut state);
 						view.update(&mut state);
 					}
 					RootEvent::SaveState { response } => response.wrap(|| {

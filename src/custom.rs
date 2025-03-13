@@ -30,7 +30,7 @@ pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + '
 		resource: &mut Self::Resource,
 	);
 	/// Every frame on the server
-	fn frame(&self, _info: &FrameInfo, _inner: &mut Self::Inner) {}
+	fn frame(&self, _info: &FrameInfo, _state: &mut State, _inner: &mut Self::Inner) {}
 	/// Return the SpatialRef that all child elements should be parented under.
 	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef;
 	/// Call this to add the element as a child of another one.

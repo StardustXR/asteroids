@@ -144,8 +144,10 @@ impl<State: Reify> View<State> {
 		);
 		self.vdom_root = new_vdom;
 	}
-	pub fn frame(&mut self, info: &FrameInfo) {
-		self.vdom_root.0.frame_recursive(info, &mut self.inner_map);
+	pub fn frame(&mut self, info: &FrameInfo, state: &mut State) {
+		self.vdom_root
+			.0
+			.frame_recursive(info, state, &mut self.inner_map);
 	}
 }
 
@@ -242,8 +244,16 @@ impl<
 			.0
 			.create_inner_recursive(parent, inner_map, dbus_connection, resources)
 	}
-	fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
-		self.element.0.frame_recursive(info, inner_map);
+	fn frame_recursive(
+		&self,
+		info: &FrameInfo,
+		state: &mut State,
+		inner_map: &mut ElementInnerMap,
+	) {
+		let Some(mapped) = (self.mapper)(state) else {
+			return;
+		};
+		self.element.0.frame_recursive(info, mapped, inner_map);
 	}
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
 		self.element.0.destroy_inner_recursive(inner_map)
@@ -308,7 +318,7 @@ trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 		dbus_connection: &Connection,
 		resources: &mut ResourceRegistry,
 	) -> Result<(), String>;
-	fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap);
+	fn frame_recursive(&self, info: &FrameInfo, state: &mut State, inner_map: &mut ElementInnerMap);
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
 	fn as_any(&self) -> &dyn Any;
@@ -363,17 +373,22 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		}
 		Ok(())
 	}
-	fn frame_recursive(&self, info: &FrameInfo, inner_map: &mut ElementInnerMap) {
+	fn frame_recursive(
+		&self,
+		info: &FrameInfo,
+		state: &mut State,
+		inner_map: &mut ElementInnerMap,
+	) {
 		let Some(inner_key) = self.inner_key.get() else {
 			return;
 		};
 		let Some(inner) = inner_map.get_mut::<State, E>(*inner_key) else {
 			return;
 		};
-		self.params.frame(info, inner);
+		self.params.frame(info, state, inner);
 
 		for child in &self.children {
-			child.0.frame_recursive(info, inner_map);
+			child.0.frame_recursive(info, state, inner_map);
 		}
 	}
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
