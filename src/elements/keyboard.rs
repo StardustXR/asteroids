@@ -102,7 +102,7 @@ async fn asteroids_keyboard_element() {
 		Element,
 	};
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::{fields::Shape, root::FrameInfo};
+	use stardust_xr_fusion::fields::Shape;
 	use stardust_xr_molecules::keyboard::KeypressInfo;
 
 	#[derive(Default, Serialize, Deserialize)]
@@ -122,8 +122,6 @@ async fn asteroids_keyboard_element() {
 		const QUALIFIER: &'static str = "org";
 		const ORGANIZATION: &'static str = "asteroids";
 		const NAME: &'static str = "keyboard";
-
-		fn on_frame(&mut self, _info: &FrameInfo) {}
 
 		fn reify(&self) -> Element<Self> {
 			// Create a container spatial

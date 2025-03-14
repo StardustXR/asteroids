@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	project_local_resources,
-	root::FrameInfo,
 	spatial::Transform,
 };
 use std::f32::consts::PI;
@@ -73,8 +72,6 @@ impl ClientState for State {
 			.build(),
 		])
 	}
-
-	fn on_frame(&mut self, _info: &FrameInfo) {}
 }
 
 #[derive(Setters)]

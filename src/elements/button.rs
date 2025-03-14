@@ -113,7 +113,6 @@ async fn asteroids_button_element() {
 		Element,
 	};
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::root::FrameInfo;
 
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 	struct TestState;
@@ -125,7 +124,6 @@ async fn asteroids_button_element() {
 		const ORGANIZATION: &'static str = "asteroids";
 		const NAME: &'static str = "button";
 
-		fn on_frame(&mut self, _info: &FrameInfo) {}
 		fn reify(&self) -> Element<Self> {
 			Button::new(|_| {
 				std::process::exit(0);

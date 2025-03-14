@@ -286,7 +286,6 @@ async fn asteroids_dial_element() {
 		Element,
 	};
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::root::FrameInfo;
 
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 	struct TestState {
@@ -300,7 +299,6 @@ async fn asteroids_dial_element() {
 		const ORGANIZATION: &'static str = "asteroids";
 		const NAME: &'static str = "dial";
 
-		fn on_frame(&mut self, _info: &FrameInfo) {}
 		fn reify(&self) -> Element<Self> {
 			let hours = (self.value / 60.0).floor();
 			let minutes = (self.value % 60.0).floor();

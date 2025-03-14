@@ -15,12 +15,18 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+/// Represents a client that connects to the stardust server
 pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned {
+	/// Domain qualifier e.g. "com", "org", "net", etc.
 	const QUALIFIER: &'static str;
+	/// Organization name e.g. "stardustxr"
 	const ORGANIZATION: &'static str;
+	/// Client name e.g. "flatland"
 	const NAME: &'static str;
 
-	fn on_frame(&mut self, info: &FrameInfo);
+	/// Update the client state when newly launched (e.g. for program arguments)
+	fn initial_state_update(&mut self) {}
+	fn on_frame(&mut self, _info: &FrameInfo) {}
 	fn reify(&self) -> Element<Self>;
 }
 impl<T: ClientState> Reify for T {
@@ -46,7 +52,9 @@ fn initial_state<State: ClientState>() -> Option<State> {
 		.join(qualified_name)
 		.join("initial_state.ron");
 	let initial_state_string = RonFile(read_to_string(initial_state_path).ok()?);
-	State::deserialize_with_migrate(&initial_state_string).ok()
+	let mut state = State::deserialize_with_migrate(&initial_state_string).ok()?;
+	state.initial_state_update();
+	Some(state)
 }
 
 async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
