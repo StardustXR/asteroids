@@ -169,7 +169,7 @@ impl Model {
 			model_parts: Default::default(),
 		}
 	}
-	pub fn direct(path: impl AsRef<Path>) -> NodeResult<Self> {
+	pub fn direct(path: impl AsRef<Path>) -> std::io::Result<Self> {
 		Ok(Model {
 			transform: Transform::none(),
 			resource: ResourceID::new_direct(path)?,
