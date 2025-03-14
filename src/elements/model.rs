@@ -11,7 +11,7 @@ use stardust_xr_fusion::{
 	node::{NodeError, NodeResult},
 	spatial::{SpatialRef, Transform},
 };
-use std::{fmt::Debug, hash::Hash};
+use std::{fmt::Debug, hash::Hash, path::Path};
 use zbus::Connection;
 
 pub struct ModelInner {
@@ -168,6 +168,13 @@ impl Model {
 			resource: ResourceID::new_namespaced(namespace, path),
 			model_parts: Default::default(),
 		}
+	}
+	pub fn direct(path: impl AsRef<Path>) -> NodeResult<Self> {
+		Ok(Model {
+			transform: Transform::none(),
+			resource: ResourceID::new_direct(path)?,
+			model_parts: Default::default(),
+		})
 	}
 	pub fn part(mut self, info: ModelPart) -> Self {
 		self.model_parts.insert(info);
