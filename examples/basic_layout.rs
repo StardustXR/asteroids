@@ -54,6 +54,10 @@ impl ClientState for State {
 	const ORGANIZATION: &'static str = "asteroids";
 	const NAME: &'static str = "basic_layout";
 
+	fn initial_state_update(&mut self) {
+		println!("Initial state yippee");
+	}
+
 	fn on_frame(&mut self, info: &FrameInfo) {
 		self.elapsed = info.elapsed;
 	}

@@ -35,7 +35,7 @@ impl<T: ClientState> Reify for T {
 	}
 }
 
-fn initial_state<State: ClientState>() -> Option<State> {
+fn initial_state<State: ClientState>() -> State {
 	let qualified_name = format!(
 		"{}.{}.{}",
 		State::QUALIFIER,
@@ -51,10 +51,17 @@ fn initial_state<State: ClientState>() -> Option<State> {
 		.config_dir()
 		.join(qualified_name)
 		.join("initial_state.ron");
-	let initial_state_string = RonFile(read_to_string(initial_state_path).ok()?);
-	let mut state = State::deserialize_with_migrate(&initial_state_string).ok()?;
+	let mut state = match read_to_string(&initial_state_path).ok().map(RonFile) {
+		Some(initial_state_string) => State::deserialize_with_migrate(&initial_state_string)
+			.unwrap_or_else(|_| State::default()),
+		None => State::default(),
+	};
+	if !initial_state_path.exists() {
+		let _ = std::fs::create_dir_all(initial_state_path.parent().unwrap());
+		let _ = std::fs::write(&initial_state_path, ron::to_string(&state).unwrap());
+	}
 	state.initial_state_update();
-	Some(state)
+	state
 }
 
 async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
@@ -68,8 +75,7 @@ async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
 		.data
 		.as_ref()
 		.and_then(|m| flexbuffers::from_slice(m).ok())
-		.or_else(initial_state)
-		.unwrap_or_default();
+		.unwrap_or_else(initial_state);
 	Some(state)
 }
 
