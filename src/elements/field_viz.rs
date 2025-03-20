@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
 	custom::{ElementTrait, Transformable},
 	ValidState,
@@ -8,17 +10,15 @@ use mint::Vector3;
 use stardust_xr_fusion::{
 	core::values::Color,
 	drawable::{Line, LinesAspect},
-	fields::{CylinderShape, Field, FieldAspect, FieldRefAspect, Shape, TorusShape},
+	fields::{Field, FieldAspect, FieldRefAspect, Shape},
 	node::NodeError,
-	root::FrameInfo,
 	spatial::{SpatialAspect, SpatialRef, Transform},
 	values::color::rgba_linear,
 };
 use stardust_xr_molecules::lines::{line_from_points, LineExt};
 use tokio::{sync::mpsc, task::JoinSet};
 use zbus::Connection;
-
-#[derive(Debug, Clone, PartialEq, Setters)]
+#[derive(Clone, Setters)]
 #[setters(into, strip_option)]
 pub struct FieldViz {
 	transform: Transform,
@@ -28,8 +28,24 @@ pub struct FieldViz {
 	normal_length: f32,
 	line_thickness: f32,
 	color: Color,
+	#[setters(skip)]
+	color_fn: Arc<dyn Fn(f32) -> Color + Send + Sync>,
 }
 
+impl std::fmt::Debug for FieldViz {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("FieldViz")
+			.field("transform", &self.transform)
+			.field("shape", &self.shape)
+			.field("grid_size", &self.grid_size)
+			.field("sample_size", &self.sample_size)
+			.field("normal_length", &self.normal_length)
+			.field("line_thickness", &self.line_thickness)
+			.field("color", &self.color)
+			.field("color_fn", &"<function>")
+			.finish()
+	}
+}
 impl Default for FieldViz {
 	fn default() -> Self {
 		Self {
@@ -40,7 +56,27 @@ impl Default for FieldViz {
 			normal_length: 0.1,
 			line_thickness: 0.001,
 			color: rgba_linear!(0.0, 1.0, 0.75, 1.0),
+			color_fn: Arc::new(|d: f32| {
+				let t = (d * 20.0).clamp(-1.0, 1.0) * 0.5 + 0.5;
+				if t > 0.5 {
+					let t = (t - 0.5) * 2.0;
+					rgba_linear!(1.0 - t, 0.5 * (1.0 - t), 0.0, 1.0)
+				} else {
+					let t = t * 2.0;
+					rgba_linear!(1.0, 0.5 + (0.5 * t), t, 1.0)
+				}
+			}),
 		}
+	}
+}
+
+impl FieldViz {
+	pub fn color_fn<F>(mut self, f: F) -> Self
+	where
+		F: Fn(f32) -> Color + Send + Sync + 'static,
+	{
+		self.color_fn = Arc::new(f);
+		self
 	}
 }
 
@@ -58,7 +94,8 @@ impl FieldVizInner {
 		sample_size: f32,
 		normal_length: f32,
 		line_thickness: f32,
-		color: Color,
+		_color: Color,
+		color_fn: Arc<dyn Fn(f32) -> Color + Send + Sync>,
 	) -> Vec<Line> {
 		let half_size = Vec3::new(
 			grid_size.x as f32 - 1.0,
@@ -78,6 +115,7 @@ impl FieldVizInner {
 						(z as f32 * sample_size) - half_size.z,
 					);
 					let field = field.clone();
+					let color_fn = color_fn.clone();
 
 					set.spawn(async move {
 						const EPSILON: f32 = 0.0001;
@@ -98,36 +136,20 @@ impl FieldVizInner {
 
 							let end = pos + (normal * normal_length);
 
-							// Gradient color based on distance
-							let t = (d * 20.0).clamp(-1.0, 1.0) * 0.5 + 0.5; // map [-0.05, 0.05] to [0, 1]
-							let line_color = if t > 0.5 {
-								// Outside: orange (at surface) to black
-								let t = (t - 0.5) * 2.0; // remap [0.5, 1.0] to [0, 1]
-								rgba_linear!(
-									1.0 - t,         // red fades to black
-									0.5 * (1.0 - t), // orange component fades to black
-									0.0,
-									1.0
+							let line_color = color_fn(d);
+
+							if line_color.a > 0.0 {
+								Some(
+									line_from_points(vec![
+										[pos.x, pos.y, pos.z],
+										[end.x, end.y, end.z],
+									])
+									.color(line_color)
+									.thickness(line_thickness),
 								)
 							} else {
-								// Inside: orange (at surface) to white
-								let t = t * 2.0; // remap [0, 0.5] to [0, 1]
-								rgba_linear!(
-									1.0,             // red stays at max
-									0.5 + (0.5 * t), // green goes from orange to full
-									t,               // blue comes up to full
-									1.0
-								)
-							};
-
-							Some(
-								line_from_points(vec![
-									[pos.x, pos.y, pos.z],
-									[end.x, end.y, end.z],
-								])
-								.color(line_color)
-								.thickness(line_thickness),
-							)
+								None
+							}
 						} else {
 							None
 						}
@@ -167,6 +189,7 @@ impl<State: ValidState> ElementTrait<State> for FieldViz {
 		tokio::spawn({
 			let field_clone = field.clone();
 			let viz_config = self.clone();
+			let color_fn = self.color_fn.clone();
 			let update_tx = update_tx.clone();
 			async move {
 				let lines = FieldVizInner::update_normals(
@@ -176,6 +199,7 @@ impl<State: ValidState> ElementTrait<State> for FieldViz {
 					viz_config.normal_length,
 					viz_config.line_thickness,
 					viz_config.color,
+					color_fn,
 				)
 				.await;
 				let _ = update_tx.send(lines).await;
@@ -204,6 +228,7 @@ impl<State: ValidState> ElementTrait<State> for FieldViz {
 			let field = inner.field.clone();
 			let update_tx = inner.update_tx.clone();
 			let viz_config = self.clone();
+			let color_fn = self.color_fn.clone();
 			tokio::spawn(async move {
 				let lines = FieldVizInner::update_normals(
 					&field,
@@ -212,6 +237,7 @@ impl<State: ValidState> ElementTrait<State> for FieldViz {
 					viz_config.normal_length,
 					viz_config.line_thickness,
 					viz_config.color,
+					color_fn,
 				)
 				.await;
 				let _ = update_tx.send(lines).await;
@@ -248,7 +274,10 @@ async fn asteroids_field_viz_element() {
 		Element,
 	};
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::fields::Shape;
+	use stardust_xr_fusion::{
+		fields::{Shape, TorusShape},
+		root::FrameInfo,
+	};
 
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 	struct TestState(f32);
@@ -270,14 +299,8 @@ async fn asteroids_field_viz_element() {
 					radius_a: 0.1,
 					radius_b: 0.01,
 				}))
-				// .shape(Shape::Cylinder(CylinderShape {
-				// 	length: 0.5,
-				// 	radius: 0.025,
-				// }))
-				// .shape(Shape::Sphere((self.0 * 10.0).sin() * 0.5))
 				.grid_size([11, 11, 11])
 				.sample_size(0.025)
-				// .normal_length(0.05)
 				.normal_length(0.01)
 				.build()
 		}
