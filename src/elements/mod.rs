@@ -1,3 +1,4 @@
+
 #[macro_export]
 macro_rules! mod_expose {
 	($mod_name:ident) => {
@@ -15,3 +16,4 @@ mod_expose!(lines);
 mod_expose!(model);
 mod_expose!(spatial);
 mod_expose!(text);
+mod_expose!(playspace);
