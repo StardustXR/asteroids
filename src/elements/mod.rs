@@ -18,3 +18,5 @@ mod_expose!(spatial);
 mod_expose!(text);
 mod_expose!(playspace);
 mod_expose!(pen);
+mod_expose!(sky_texture);
+mod_expose!(sky_light);
