@@ -10,7 +10,7 @@ use crate::{custom::ElementTrait, ValidState};
 #[derive(Debug)]
 pub struct SkyLight(pub ResourceID);
 impl<State: ValidState> ElementTrait<State> for SkyLight {
-	type Inner = SpatialRef;
+	type Inner = SkyLightInner;
 
 	type Resource = ();
 
@@ -22,8 +22,8 @@ impl<State: ValidState> ElementTrait<State> for SkyLight {
 		_dbus_connection: &stardust_xr_fusion::core::schemas::zbus::Connection,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		set_sky_light(&parent_space.client()?, &self.0)?;
-		Ok(parent_space.clone())
+		set_sky_light(&parent_space.client()?, Some(&self.0))?;
+		Ok(SkyLightInner(parent_space.clone()))
 	}
 
 	fn update(
@@ -34,13 +34,21 @@ impl<State: ValidState> ElementTrait<State> for SkyLight {
 		_resource: &mut Self::Resource,
 	) {
 		if self.0 != old_decl.0 {
-			if let Ok(client) = inner.client() {
-				_ = set_sky_light(&client, &self.0);
+			if let Ok(client) = inner.0.client() {
+				_ = set_sky_light(&client, Some(&self.0));
 			}
 		}
 	}
 
 	fn spatial_aspect(&self, inner: &Self::Inner) -> stardust_xr_fusion::spatial::SpatialRef {
-		inner.clone()
+		inner.0.clone()
+	}
+}
+pub struct SkyLightInner(SpatialRef);
+impl Drop for SkyLightInner {
+	fn drop(&mut self) {
+		if let Ok(client) = self.0.client() {
+			_ = set_sky_light(&client, None);
+		}
 	}
 }

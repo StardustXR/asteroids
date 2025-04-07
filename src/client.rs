@@ -94,23 +94,28 @@ pub async fn run<State: ClientState>(resources: &[&Path]) {
 
 	let mut view = View::new(&state, dbus_connection, client.get_root());
 
-	let _ = client
-		.sync_event_loop(|client, _| {
-			while let Some(root_event) = client.get_root().recv_root_event() {
-				match root_event {
-					RootEvent::Frame { info } => {
-						state.on_frame(&info);
-						view.frame(&info, &mut state);
-						view.update(&mut state);
-					}
-					RootEvent::SaveState { response } => response.wrap(|| {
-						stardust_xr_fusion::root::ClientState::from_data_root(
-							Some(flexbuffers::to_vec(&state)?),
-							client.get_root(),
-						)
-					}),
+	let event_loop_future = client.sync_event_loop(|client, _| {
+		while let Some(root_event) = client.get_root().recv_root_event() {
+			match root_event {
+				RootEvent::Frame { info } => {
+					state.on_frame(&info);
+					view.frame(&info, &mut state);
+					view.update(&mut state);
 				}
+				RootEvent::SaveState { response } => response.wrap(|| {
+					stardust_xr_fusion::root::ClientState::from_data_root(
+						Some(flexbuffers::to_vec(&state)?),
+						client.get_root(),
+					)
+				}),
 			}
-		})
-		.await;
+		}
+	});
+	// make sure we call Drop impls
+	tokio::select! {
+		_ = event_loop_future => {}
+		_ = tokio::signal::ctrl_c() => {}
+	}
+	drop(view);
+	_ = client.try_flush().await;
 }
