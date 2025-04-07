@@ -97,6 +97,7 @@ pub async fn run<State: ClientState>(resources: &[&Path]) {
 	let event_loop_future = client.sync_event_loop(|client, _| {
 		while let Some(root_event) = client.get_root().recv_root_event() {
 			match root_event {
+				RootEvent::Ping { response: pong } => pong.send(Ok(())),
 				RootEvent::Frame { info } => {
 					state.on_frame(&info);
 					view.frame(&info, &mut state);
