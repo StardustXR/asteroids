@@ -117,5 +117,5 @@ pub async fn run<State: ClientState>(resources: &[&Path]) {
 		_ = tokio::signal::ctrl_c() => {}
 	}
 	drop(view);
-	client.async_event_loop().get_event_handle().wait().await;
+	_ = client.try_flush().await;
 }
