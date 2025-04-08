@@ -1,5 +1,3 @@
-use std::f32::consts::FRAC_PI_2;
-
 use crate::{
 	custom::{ElementTrait, FnWrapper},
 	ValidState,
@@ -11,11 +9,23 @@ use stardust_xr_fusion::{
 	drawable::{Line, LinePoint, Lines, LinesAspect},
 	fields::{CylinderShape, Field, FieldAspect, Shape},
 	input::{InputData, InputDataType, InputHandler},
-	node::NodeError,
-	spatial::{Spatial, SpatialAspect, Transform},
+	node::{NodeError, NodeResult},
+	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
 	values::color::{color_space::LinearRgb, rgba_linear, AlphaColor, Rgb},
 };
-use stardust_xr_molecules::input_action::{InputQueue, InputQueueable as _, SingleAction};
+use stardust_xr_molecules::input_action::{
+	InputQueue, InputQueueable as _, SimpleAction, SingleAction,
+};
+use std::f32::consts::FRAC_PI_2;
+use zbus::Connection;
+
+#[derive(Debug)]
+pub enum PenState {
+	Grabbed,
+	StartedDrawing(f32),
+	Drawing(f32),
+	StoppedDrawing,
+}
 
 #[derive_where::derive_where(Debug)]
 #[derive(Setters)]
@@ -28,142 +38,10 @@ pub struct Pen<State: ValidState> {
 	pub pos: Vector3<f32>,
 	pub rot: Quaternion<f32>,
 	#[expect(clippy::type_complexity)]
+	#[setters(skip)]
 	pub update:
 		FnWrapper<dyn Fn(&mut State, PenState, Vector3<f32>, Quaternion<f32>) + Send + Sync>,
-	pub drawing_value: FnWrapper<dyn Fn(&InputData) -> f32 + Send + Sync>,
-	pub should_draw: FnWrapper<dyn Fn(&InputData) -> bool + Send + Sync>,
 }
-
-#[derive(Debug)]
-pub enum PenState {
-	Grabbed,
-	StartedDrawing(f32),
-	Drawing(f32),
-	StoppedDrawing,
-}
-
-impl<State: ValidState> ElementTrait<State> for Pen<State> {
-	type Inner = PenInner;
-
-	type Resource = ();
-
-	type Error = NodeError;
-
-	fn create_inner(
-		&self,
-		parent_space: &stardust_xr_fusion::spatial::SpatialRef,
-		_dbus_connection: &stardust_xr_fusion::core::schemas::zbus::Connection,
-		_resource: &mut Self::Resource,
-	) -> Result<Self::Inner, Self::Error> {
-		let pen_root = Spatial::create(parent_space, Transform::none(), true)?;
-		let field = Field::create(
-			&pen_root,
-			Transform::from_translation([0.0, 0.0, self.length * 0.5]),
-			Shape::Cylinder(CylinderShape {
-				length: self.length,
-				radius: self.thickness * 0.5,
-			}),
-		)?;
-		let queue = InputHandler::create(parent_space, Transform::none(), &field)?.queue()?;
-		let visuals = Lines::create(&pen_root, Transform::none(), &[self.get_lines()])?;
-
-		let child_root = Spatial::create(
-			&pen_root,
-			Transform::from_translation(Vec3::new(0., self.length, 0.)),
-			false,
-		)?;
-
-		Ok(PenInner {
-			field,
-			pen_root,
-			queue,
-			grab_action: Default::default(),
-			visuals,
-			child_root,
-			drawing: false,
-		})
-	}
-
-	fn update(
-		&self,
-		old_decl: &Self,
-		state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		self.react_to_changes(old_decl, inner);
-		if !inner.queue.handle_events() {
-			return;
-		}
-		inner.grab_action.update(
-			false,
-			&inner.queue,
-			// should this even be exposed?
-			|data| {
-				data.distance < self.grab_distance
-			},
-			|data| {
-				data.datamap.with_data(|datamap| match &data.input {
-					// should we also expose these values?
-					InputDataType::Hand(_) => datamap.idx("grab_strength").as_f32() > 0.70,
-					InputDataType::Tip(_) => datamap.idx("grab").as_f32() > 0.90,
-					_ => false,
-				})
-			},
-		);
-
-		if inner.grab_action.actor_started() {
-			let _ = inner.pen_root.set_zoneable(false);
-		}
-		if inner.grab_action.actor_stopped() {
-			let _ = inner.pen_root.set_zoneable(true);
-		}
-		let Some(actor) = inner.grab_action.actor() else {
-			if inner.drawing {
-				inner.drawing = false;
-				self.update.0(state, PenState::StoppedDrawing, self.pos, self.rot);
-			}
-			return;
-		};
-		let (pos, rot) = match &actor.input {
-			InputDataType::Hand(h) => (
-				(Vec3::from(h.thumb.tip.position) + Vec3::from(h.index.tip.position)) * 0.5,
-				Quat::from(h.palm.rotation) * Quat::from_rotation_x(FRAC_PI_2),
-			),
-			InputDataType::Tip(t) => (
-				t.origin.into(),
-				Quat::from(t.orientation) * Quat::from_rotation_x(FRAC_PI_2),
-			),
-			_ => (Vec3::ZERO, Quat::IDENTITY),
-		};
-		let transform = Transform::from_translation_rotation(pos, rot);
-		let _ = inner
-			.pen_root
-			.set_relative_transform(inner.queue.handler(), transform);
-		let mut pen_state = PenState::Grabbed;
-		let drawing = self.should_draw.0(actor);
-		let started_drawing = drawing && !inner.drawing;
-		let stopped_drawing = inner.drawing && !drawing;
-		inner.drawing = drawing;
-
-		if inner.drawing && !started_drawing {
-			pen_state = PenState::Drawing(self.drawing_value.0(actor));
-		}
-		if started_drawing {
-			pen_state = PenState::StartedDrawing(self.drawing_value.0(actor));
-		}
-		if stopped_drawing {
-			pen_state = PenState::StoppedDrawing;
-		}
-
-		self.update.0(state, pen_state, pos.into(), rot.into());
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> stardust_xr_fusion::spatial::SpatialRef {
-		inner.child_root.clone().as_spatial_ref()
-	}
-}
-
 impl<State: ValidState> Pen<State> {
 	pub fn new(
 		pos: impl Into<Vector3<f32>>,
@@ -178,34 +56,9 @@ impl<State: ValidState> Pen<State> {
 			pos: pos.into(),
 			rot: rot.into(),
 			update: FnWrapper(Box::new(update)),
-			drawing_value: FnWrapper(Box::new(|data| {
-				data.datamap.with_data(|datamap| match &data.input {
-					InputDataType::Hand(_) => datamap.idx("pinch_strength").as_f32(),
-					InputDataType::Tip(_) => datamap.idx("select").as_f32(),
-					_ => unimplemented!(),
-				})
-			})),
-			should_draw: FnWrapper(Box::new(|data| {
-				data.datamap.with_data(|datamap| match &data.input {
-					InputDataType::Hand(_) => datamap.idx("pinch_strength").as_f32() > 0.3,
-					InputDataType::Tip(_) => datamap.idx("select").as_f32() > 0.01,
-					_ => false,
-				})
-			})),
 		}
 	}
-}
 
-impl<State: ValidState> Pen<State> {
-	fn react_to_changes(&self, old_decl: &Self, inner: &mut PenInner) {
-		if self.thickness != old_decl.thickness || self.length != old_decl.length {
-			_ = inner.visuals.set_lines(&[self.get_lines()]);
-			_ = inner.field.set_shape(Shape::Cylinder(CylinderShape {
-				length: self.length,
-				radius: self.thickness * 0.5,
-			}));
-		}
-	}
 	fn get_lines(&self) -> Line {
 		Line {
 			points: vec![
@@ -229,13 +82,162 @@ impl<State: ValidState> Pen<State> {
 		}
 	}
 }
+impl<State: ValidState> ElementTrait<State> for Pen<State> {
+	type Inner = PenInner;
+	type Resource = ();
+	type Error = NodeError;
+
+	fn create_inner(
+		&self,
+		parent_space: &SpatialRef,
+		_dbus_connection: &Connection,
+		_resource: &mut Self::Resource,
+	) -> Result<Self::Inner, Self::Error> {
+		PenInner::create(parent_space, self)
+	}
+
+	fn update(
+		&self,
+		old: &Self,
+		state: &mut State,
+		inner: &mut Self::Inner,
+		_resource: &mut Self::Resource,
+	) {
+		if self.thickness != old.thickness || self.length != old.length {
+			_ = inner.visuals.set_lines(&[self.get_lines()]);
+			_ = inner.field.set_shape(Shape::Cylinder(CylinderShape {
+				length: self.length,
+				radius: self.thickness * 0.5,
+			}));
+		}
+
+		if let Some((pen_state, pos, rot)) = inner.handle_events(self.grab_distance) {
+			(self.update.0)(state, pen_state, pos.into(), rot.into());
+		}
+	}
+
+	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
+		inner.child_root.clone().as_spatial_ref()
+	}
+}
 
 pub struct PenInner {
 	child_root: Spatial,
 	field: Field,
 	pen_root: Spatial,
-	queue: InputQueue,
+	input: InputQueue,
 	grab_action: SingleAction,
+	draw_action: SimpleAction,
 	visuals: Lines,
 	drawing: bool,
+}
+impl PenInner {
+	fn create<State: ValidState>(parent_space: &SpatialRef, decl: &Pen<State>) -> NodeResult<Self> {
+		let pen_root = Spatial::create(parent_space, Transform::none(), true)?;
+		let field = Field::create(
+			&pen_root,
+			Transform::from_translation([0.0, 0.0, decl.length * 0.5]),
+			Shape::Cylinder(CylinderShape {
+				length: decl.length,
+				radius: decl.thickness * 0.5,
+			}),
+		)?;
+		let queue = InputHandler::create(parent_space, Transform::none(), &field)?.queue()?;
+		let visuals = Lines::create(&pen_root, Transform::none(), &[decl.get_lines()])?;
+
+		let child_root = Spatial::create(
+			&pen_root,
+			Transform::from_translation(Vec3::new(0., decl.length, 0.)),
+			false,
+		)?;
+
+		Ok(PenInner {
+			field,
+			pen_root,
+			input: queue,
+			grab_action: Default::default(),
+			draw_action: Default::default(),
+			visuals,
+			child_root,
+			drawing: false,
+		})
+	}
+
+	fn handle_events(&mut self, grab_distance: f32) -> Option<(PenState, Vec3, Quat)> {
+		if !self.input.handle_events() {
+			return None;
+		}
+
+		self.grab_action.update(
+			false,
+			&self.input,
+			|data| data.distance < grab_distance,
+			|data| {
+				data.datamap.with_data(|datamap| match &data.input {
+					InputDataType::Hand(_) => datamap.idx("grab_strength").as_f32() > 0.70,
+					InputDataType::Tip(_) => datamap.idx("grab").as_f32() > 0.90,
+					_ => false,
+				})
+			},
+		);
+
+		self.draw_action.update(&self.input, &|data| {
+			data.datamap.with_data(|datamap| match &data.input {
+				InputDataType::Hand(_) => datamap.idx("pinch_strength").as_f32() > 0.3,
+				InputDataType::Tip(_) => datamap.idx("select").as_f32() > 0.01,
+				_ => false,
+			})
+		});
+
+		let Some(actor) = self.grab_action.actor() else {
+			if self.drawing {
+				self.drawing = false;
+				return Some((PenState::StoppedDrawing, Vec3::ZERO, Quat::IDENTITY));
+			}
+			return None;
+		};
+
+		let (pos, rot) = match &actor.input {
+			InputDataType::Hand(h) => (
+				(Vec3::from(h.thumb.tip.position) + Vec3::from(h.index.tip.position)) * 0.5,
+				Quat::from(h.palm.rotation) * Quat::from_rotation_x(FRAC_PI_2),
+			),
+			InputDataType::Tip(t) => (
+				t.origin.into(),
+				Quat::from(t.orientation) * Quat::from_rotation_x(FRAC_PI_2),
+			),
+			_ => (Vec3::ZERO, Quat::IDENTITY),
+		};
+
+		let transform = Transform::from_translation_rotation(pos, rot);
+		let _ = self
+			.pen_root
+			.set_relative_transform(self.input.handler(), transform);
+
+		let pen_state = if !self.draw_action.currently_acting().is_empty() {
+			if !self.drawing {
+				self.drawing = true;
+				PenState::StartedDrawing(self.get_pressure(&actor))
+			} else {
+				PenState::Drawing(self.get_pressure(&actor))
+			}
+		} else {
+			if self.drawing {
+				self.drawing = false;
+				PenState::StoppedDrawing
+			} else {
+				PenState::Grabbed
+			}
+		};
+
+		Some((pen_state, pos, rot))
+	}
+
+	fn get_pressure(&self, data: &InputData) -> f32 {
+		data.datamap.with_data(|datamap| match &data.input {
+			InputDataType::Hand(_) => datamap.idx("pinch_strength").as_f32(),
+			InputDataType::Tip(_) => datamap.idx("select").as_f32(),
+			_ => 0.0,
+		})
+	}
 }
