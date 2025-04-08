@@ -20,3 +20,7 @@ mod_expose!(playspace);
 mod_expose!(pen);
 mod_expose!(sky_texture);
 mod_expose!(sky_light);
+mod_expose!(turntable);
+mod_expose!(grab_ring);
+mod_expose!(file_watcher);
+mod_expose!(bounds);
