@@ -352,7 +352,7 @@ impl TurntableInner {
 		state: &mut State,
 	) {
 		self.angular_momentum *= 0.98;
-		if !self.touch_action.actor_acting() && self.angular_momentum > 0.0 {
+		if !self.touch_action.actor_acting() && self.angular_momentum.abs() > 0.0 {
 			self.rotate(
 				self.angular_momentum / info.delta,
 				settings.rotation,
