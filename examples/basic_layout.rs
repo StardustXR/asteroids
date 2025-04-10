@@ -1,9 +1,7 @@
 use asteroids::{
-	client::{self, ClientState},
-	custom::{ElementTrait, Transformable},
+	client,
 	elements::{Button, Lines, Model, Spatial, Text},
-	util::Migrate,
-	Element,
+	ClientState, Element, ElementTrait, Migrate, Transformable,
 };
 use glam::Quat;
 use map_range::MapRange;

@@ -1,6 +1,6 @@
 use crate::{
 	custom::{ElementTrait, Transformable},
-	ValidState,
+	Context, ValidState,
 };
 use derive_setters::Setters;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -19,6 +19,35 @@ pub struct ModelInner {
 	parent: SpatialRef,
 	model: stardust_xr_fusion::drawable::Model,
 	model_parts: FxHashMap<String, stardust_xr_fusion::drawable::ModelPart>,
+}
+impl ModelInner {
+	pub fn create(
+		spatial_parent: &SpatialRef,
+		dbus_connection: &Connection,
+		decl: &Model,
+	) -> NodeResult<Self> {
+		let model = stardust_xr_fusion::drawable::Model::create(
+			spatial_parent,
+			decl.transform,
+			&decl.resource,
+		)?;
+		let model_parts = decl
+			.model_parts
+			.iter()
+			.filter_map(|p| {
+				let part = model.part(&p.path).ok()?;
+				p.apply_material_parameters(&part).ok()?;
+				Some((p.path.clone(), part))
+			})
+			.collect();
+		let inner = ModelInner {
+			dbus_connection: dbus_connection.clone(),
+			parent: spatial_parent.clone(),
+			model,
+			model_parts,
+		};
+		Ok(inner)
+	}
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelPart {
@@ -74,30 +103,10 @@ impl<State: ValidState> ElementTrait<State> for Model {
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
-		dbus_connection: &Connection,
+		context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let model = stardust_xr_fusion::drawable::Model::create(
-			spatial_parent,
-			self.transform,
-			&self.resource,
-		)?;
-		let model_parts = self
-			.model_parts
-			.iter()
-			.filter_map(|p| {
-				let part = model.part(&p.path).ok()?;
-				p.apply_material_parameters(&part).ok()?;
-				Some((p.path.clone(), part))
-			})
-			.collect();
-		let inner = ModelInner {
-			dbus_connection: dbus_connection.clone(),
-			parent: spatial_parent.clone(),
-			model,
-			model_parts,
-		};
-		Ok(inner)
+		ModelInner::create(spatial_parent, &context.dbus_connection, self)
 	}
 	fn update(
 		&self,
@@ -108,12 +117,7 @@ impl<State: ValidState> ElementTrait<State> for Model {
 	) {
 		self.apply_transform(old_decl, &inner.model);
 		if self.resource != old_decl.resource {
-			if let Ok(new_inner) = <Self as ElementTrait<State>>::create_inner(
-				self,
-				&inner.parent,
-				&inner.dbus_connection,
-				_resource,
-			) {
+			if let Ok(new_inner) = ModelInner::create(&inner.parent, &inner.dbus_connection, self) {
 				*inner = new_inner;
 			}
 		}

@@ -1,6 +1,6 @@
 use crate::{
 	custom::{ElementTrait, FnWrapper, Transformable},
-	ValidState,
+	Context, ValidState,
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -10,7 +10,6 @@ use stardust_xr_fusion::{
 	spatial::{SpatialRef, Transform},
 };
 use stardust_xr_molecules::keyboard::{KeyboardHandler as MoleculesKeyboardHandler, KeypressInfo};
-use zbus::Connection;
 
 #[derive_where::derive_where(Debug, PartialEq)]
 #[derive(Setters)]
@@ -55,11 +54,12 @@ impl<State: ValidState> ElementTrait<State> for KeyboardHandler<State> {
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
-		dbus_connection: &Connection,
+		context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(spatial_parent, self.transform, self.field_shape.clone())?;
-		let handler = MoleculesKeyboardHandler::create(dbus_connection.clone(), None, &field);
+		let handler =
+			MoleculesKeyboardHandler::create(context.dbus_connection.clone(), None, &field);
 		Ok(KeyboardElementInner { field, handler })
 	}
 

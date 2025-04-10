@@ -1,4 +1,5 @@
 use crate::{
+	context::Context,
 	custom::{ElementTrait, FnWrapper, Transformable},
 	ValidState,
 };
@@ -12,7 +13,6 @@ use stardust_xr_fusion::{
 	values::color::rgba_linear,
 };
 use stardust_xr_molecules::{button::ButtonVisualSettings, DebugSettings, UIElement, VisualDebug};
-use zbus::Connection;
 
 #[derive_where::derive_where(Debug, PartialEq)]
 #[derive(Setters)]
@@ -55,7 +55,7 @@ impl<State: ValidState> ElementTrait<State> for Button<State> {
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let mut button = stardust_xr_molecules::button::Button::create(
@@ -110,7 +110,6 @@ async fn asteroids_button_element() {
 		client::{self, ClientState},
 		custom::ElementTrait,
 		elements::Button,
-		Element,
 	};
 	use serde::{Deserialize, Serialize};
 
@@ -124,7 +123,7 @@ async fn asteroids_button_element() {
 		const ORGANIZATION: &'static str = "asteroids";
 		const NAME: &'static str = "button";
 
-		fn reify(&self) -> Element<Self> {
+		fn reify(&self) -> crate::scenegraph::Element<Self> {
 			Button::new(|_| {
 				std::process::exit(0);
 			})

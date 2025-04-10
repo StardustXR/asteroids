@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
 	custom::{ElementTrait, Transformable},
-	ValidState,
+	Context, ValidState,
 };
 use derive_setters::Setters;
 use glam::Vec3;
@@ -17,7 +17,6 @@ use stardust_xr_fusion::{
 };
 use stardust_xr_molecules::lines::{line_from_points, LineExt};
 use tokio::{sync::mpsc, task::JoinSet};
-use zbus::Connection;
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
 pub struct FieldViz {
@@ -175,7 +174,7 @@ impl<State: ValidState> ElementTrait<State> for FieldViz {
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(parent_space, Transform::identity(), self.shape.clone())?;

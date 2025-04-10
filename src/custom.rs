@@ -1,11 +1,12 @@
-use crate::{Element, ElementWrapper, ValidState};
+use crate::context::Context;
+use crate::scenegraph::{Element, ElementWrapper};
+use crate::ValidState;
 pub use derive_setters;
 use stardust_xr_fusion::root::FrameInfo;
 use stardust_xr_fusion::spatial::{SpatialAspect, SpatialRef, Transform};
 use std::any::Any;
 use std::fmt::Debug;
 use std::sync::OnceLock;
-use zbus::Connection;
 
 pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
 	/// The imperative struct containing non-saved state
@@ -17,7 +18,7 @@ pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + '
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
-		dbus_connection: &Connection,
+		context: &Context,
 		resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error>;
 	/// Update the inner imperative struct with the new state of the node.

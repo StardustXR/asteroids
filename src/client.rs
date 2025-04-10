@@ -1,6 +1,7 @@
 use crate::{
+	scenegraph::Element,
 	util::{Migrate, RonFile},
-	Element, Reify, View,
+	Context, Reify, View,
 };
 use convert_case::{Case, Casing};
 use serde::{de::DeserializeOwned, Serialize};
@@ -73,8 +74,7 @@ async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
 
 	let state = saved_state
 		.data
-		.as_ref()
-		.and_then(|m| flexbuffers::from_slice(m).ok())
+		.and_then(|m| flexbuffers::from_slice(&m).ok())
 		.unwrap_or_else(initial_state);
 	Some(state)
 }
@@ -86,13 +86,15 @@ pub async fn run<State: ClientState>(resources: &[&Path]) {
 	if !resources.is_empty() {
 		let _ = client.setup_resources(resources);
 	}
-	let dbus_connection = connect_client().await.unwrap();
+	let context = Context {
+		dbus_connection: connect_client().await.unwrap(),
+	};
 
 	let Some(mut state): Option<State> = state(&mut client).await else {
 		return;
 	};
 
-	let mut view = View::new(&state, dbus_connection, client.get_root());
+	let mut view = View::new(&state, &context, client.get_root());
 
 	let event_loop_future = client.sync_event_loop(|client, _| {
 		while let Some(root_event) = client.get_root().recv_root_event() {
@@ -101,7 +103,7 @@ pub async fn run<State: ClientState>(resources: &[&Path]) {
 				RootEvent::Frame { info } => {
 					state.on_frame(&info);
 					view.frame(&info, &mut state);
-					view.update(&mut state);
+					view.update(&context, &mut state);
 				}
 				RootEvent::SaveState { response } => response.wrap(|| {
 					stardust_xr_fusion::root::ClientState::from_data_root(

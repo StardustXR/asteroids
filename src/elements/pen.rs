@@ -1,6 +1,6 @@
 use crate::{
 	custom::{ElementTrait, FnWrapper},
-	ValidState,
+	Context, ValidState,
 };
 use derive_setters::Setters;
 use glam::{Quat, Vec3};
@@ -17,7 +17,6 @@ use stardust_xr_molecules::input_action::{
 	InputQueue, InputQueueable as _, SimpleAction, SingleAction,
 };
 use std::f32::consts::FRAC_PI_2;
-use zbus::Connection;
 
 #[derive(Debug)]
 pub enum PenState {
@@ -90,7 +89,7 @@ impl<State: ValidState> ElementTrait<State> for Pen<State> {
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		PenInner::create(parent_space, self)
@@ -217,17 +216,15 @@ impl PenInner {
 		let pen_state = if !self.draw_action.currently_acting().is_empty() {
 			if !self.drawing {
 				self.drawing = true;
-				PenState::StartedDrawing(self.get_pressure(&actor))
+				PenState::StartedDrawing(self.get_pressure(actor))
 			} else {
-				PenState::Drawing(self.get_pressure(&actor))
+				PenState::Drawing(self.get_pressure(actor))
 			}
+		} else if self.drawing {
+			self.drawing = false;
+			PenState::StoppedDrawing
 		} else {
-			if self.drawing {
-				self.drawing = false;
-				PenState::StoppedDrawing
-			} else {
-				PenState::Grabbed
-			}
+			PenState::Grabbed
 		};
 
 		Some((pen_state, pos, rot))

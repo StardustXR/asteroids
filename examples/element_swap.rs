@@ -1,8 +1,7 @@
 use asteroids::{
-	client::{self, ClientState},
-	custom::{ElementTrait, Transformable},
+	client,
 	elements::{Spatial, Text},
-	util::Migrate,
+	ClientState, Element, ElementTrait, Migrate, Transformable,
 };
 use glam::Quat;
 use serde::{Deserialize, Serialize};
@@ -35,7 +34,7 @@ impl ClientState for State {
 		self.elapsed = info.elapsed;
 	}
 
-	fn reify(&self) -> asteroids::Element<Self> {
+	fn reify(&self) -> Element<Self> {
 		// every odd second
 		let odd_second = self.elapsed % 2.0 > 1.0;
 		let text = Text::default()

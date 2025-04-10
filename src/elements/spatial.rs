@@ -1,6 +1,6 @@
 use crate::{
 	custom::{ElementTrait, Transformable},
-	ValidState,
+	Context, ValidState,
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -8,7 +8,6 @@ use stardust_xr_fusion::{
 	spatial::{SpatialAspect, SpatialRef, Transform},
 };
 use std::fmt::Debug;
-use zbus::Connection;
 
 #[derive(Debug, Clone, Copy, PartialEq, Setters)]
 #[setters(into, strip_option)]
@@ -24,7 +23,7 @@ impl<State: ValidState> ElementTrait<State> for Spatial {
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::spatial::Spatial::create(spatial_parent, self.transform, self.zoneable)

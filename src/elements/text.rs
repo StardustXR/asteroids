@@ -1,6 +1,6 @@
 use crate::{
 	custom::{ElementTrait, Transformable},
-	ValidState,
+	Context, ValidState,
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -11,7 +11,6 @@ use stardust_xr_fusion::{
 	values::color::rgba_linear,
 };
 use std::fmt::Debug;
-use zbus::Connection;
 
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
@@ -33,7 +32,7 @@ impl<State: ValidState> ElementTrait<State> for Text {
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Text::create(

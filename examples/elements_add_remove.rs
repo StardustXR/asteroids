@@ -1,9 +1,7 @@
 use asteroids::{
-	client::{self, ClientState},
-	custom::{ElementTrait, Transformable},
+	client,
 	elements::{Button, Spatial, Text},
-	util::Migrate,
-	Element,
+	ClientState, Element, ElementTrait, Migrate, Transformable,
 };
 use derive_setters::Setters;
 use glam::Quat;

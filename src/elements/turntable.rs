@@ -1,12 +1,11 @@
 use crate::{
 	custom::{derive_setters::Setters, ElementTrait, FnWrapper, Transformable},
-	ValidState,
+	Context, ValidState,
 };
 use derive_where::derive_where;
 use glam::{Quat, Vec3};
 use map_range::MapRange;
 use stardust_xr_fusion::{
-	core::schemas::zbus::Connection,
 	drawable::{Line, LinePoint, Lines, LinesAspect},
 	fields::{CylinderShape, Field, FieldAspect, Shape},
 	input::{InputData, InputDataType, InputHandler},
@@ -50,7 +49,7 @@ impl<State: ValidState> ElementTrait<State> for Turntable<State> {
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		TurntableInner::create(parent_space, self.transform, self)

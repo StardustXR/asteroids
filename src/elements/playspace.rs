@@ -1,10 +1,9 @@
-use crate::{custom::ElementTrait, ValidState};
+use crate::{custom::ElementTrait, Context, ValidState};
 use stardust_xr_fusion::{
 	node::{NodeError, NodeType},
 	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
 };
 use std::fmt::Debug;
-use zbus::Connection;
 
 // TODO: implement bounds
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -17,7 +16,7 @@ impl<State: ValidState> ElementTrait<State> for PlaySpace {
 	fn create_inner(
 		&self,
 		spatial_parent: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let client = spatial_parent.client().unwrap();

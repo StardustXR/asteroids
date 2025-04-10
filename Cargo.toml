@@ -24,6 +24,8 @@ ron = "0.8.1"
 map-range = "0.1.2"
 inotify = "0.11.0"
 futures-util = "0.3.31"
+ashpd = "0.11.0"
+tracing = "0.1.41"
 
 
 [dependencies.stardust-xr-fusion]

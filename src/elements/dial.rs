@@ -1,6 +1,6 @@
 use crate::{
 	custom::{ElementTrait, FnWrapper, Transformable},
-	ValidState,
+	Context, ValidState,
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -19,7 +19,6 @@ use stardust_xr_molecules::{
 	lines::{circle, line_from_points, LineExt},
 };
 use std::{f32::consts::TAU, ops::Range};
-use zbus::Connection;
 
 pub type OnChangeFn<State> = FnWrapper<dyn Fn(&mut State, f32) + Send + Sync>;
 
@@ -75,7 +74,7 @@ impl<State: ValidState> ElementTrait<State> for Dial<State> {
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		DialInner::create(

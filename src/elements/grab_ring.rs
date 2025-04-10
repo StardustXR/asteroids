@@ -1,21 +1,20 @@
 use crate::{
 	custom::{derive_setters::Setters, ElementTrait, FnWrapper},
-	ValidState,
+	Context, ValidState,
 };
 use derive_where::derive_where;
 use glam::{Quat, Vec3};
 use mint::Vector3;
 
 use stardust_xr_fusion::{
-	core::schemas::zbus::Connection,
+	drawable::{Line, Lines, LinesAspect},
+	fields::FieldAspect,
+};
+use stardust_xr_fusion::{
 	fields::{Field, Shape, TorusShape},
 	input::{InputData, InputDataType, InputHandler},
 	node::NodeResult,
 	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
-};
-use stardust_xr_fusion::{
-	drawable::{Line, Lines, LinesAspect},
-	fields::FieldAspect,
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
@@ -57,7 +56,7 @@ impl<State: ValidState> ElementTrait<State> for GrabRing<State> {
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		GrabRingInner::new(parent_space, self.radius, self.thickness, self.pos)

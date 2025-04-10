@@ -1,6 +1,6 @@
 use crate::{
 	custom::{ElementTrait, Transformable},
-	ValidState,
+	Context, ValidState,
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -9,7 +9,6 @@ use stardust_xr_fusion::{
 	spatial::{SpatialRef, Transform},
 };
 use std::fmt::Debug;
-use zbus::Connection;
 
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
@@ -25,7 +24,7 @@ impl<State: ValidState> ElementTrait<State> for Lines {
 	fn create_inner(
 		&self,
 		parent_space: &SpatialRef,
-		_dbus_connection: &Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Lines::create(parent_space, self.transform, &self.lines)

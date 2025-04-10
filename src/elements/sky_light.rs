@@ -5,7 +5,7 @@ use stardust_xr_fusion::{
 	values::ResourceID,
 };
 
-use crate::{custom::ElementTrait, ValidState};
+use crate::{custom::ElementTrait, Context, ValidState};
 
 #[derive(Debug)]
 pub struct SkyLight(pub ResourceID);
@@ -19,7 +19,7 @@ impl<State: ValidState> ElementTrait<State> for SkyLight {
 	fn create_inner(
 		&self,
 		parent_space: &stardust_xr_fusion::spatial::SpatialRef,
-		_dbus_connection: &stardust_xr_fusion::core::schemas::zbus::Connection,
+		_context: &Context,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		set_sky_light(&parent_space.client()?, Some(&self.0))?;
