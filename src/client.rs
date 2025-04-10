@@ -11,10 +11,7 @@ use stardust_xr_fusion::{
 	root::{FrameInfo, RootAspect, RootEvent},
 	Client,
 };
-use std::{
-	fs::read_to_string,
-	path::{Path, PathBuf},
-};
+use std::fs::read_to_string;
 
 /// Represents a client that connects to the stardust server
 pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned {
@@ -46,9 +43,11 @@ fn initial_state<State: ClientState>() -> State {
 
 	// this is a dumb heuristic for determining if it's installed or not, may wanna replace
 	#[cfg(debug_assertions)]
-	let initial_state_path = PathBuf::from("/tmp/asteroids_config").join(qualified_name + ".ron");
+	let initial_state_path =
+		std::path::PathBuf::from("/tmp/asteroids_config").join(qualified_name + ".ron");
 	#[cfg(not(debug_assertions))]
-	let initial_state_path = directories::BaseDirs::new()?
+	let initial_state_path = directories::BaseDirs::new()
+		.unwrap()
 		.config_dir()
 		.join(qualified_name)
 		.join("initial_state.ron");
@@ -79,7 +78,7 @@ async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
 	Some(state)
 }
 
-pub async fn run<State: ClientState>(resources: &[&Path]) {
+pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 	let Ok(mut client) = stardust_xr_fusion::client::Client::connect().await else {
 		return;
 	};
