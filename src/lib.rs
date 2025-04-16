@@ -33,7 +33,7 @@ pub trait Reify: ValidState + Sized + Send + Sync + 'static {
 }
 
 pub struct View<State: Reify> {
-	_root: Spatial,
+	root: Spatial,
 	vdom_root: Element<State>,
 	inner_map: ElementInnerMap,
 	resources: ResourceRegistry,
@@ -44,22 +44,22 @@ impl<State: Reify> View<State> {
 		context: &Context,
 		parent_spatial: &impl SpatialRefAspect,
 	) -> View<State> {
-		let _root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
+		let root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
 		let mut inner_map = ElementInnerMap::default();
-		let vdom_root = elements::Spatial::default().with_children([state.reify()]);
+		let vdom_root = state.reify();
 		vdom_root.0.apply_element_keys(&[], 0);
 		let mut resources = ResourceRegistry::default();
 		vdom_root
 			.0
 			.create_inner_recursive(
-				&_root.clone().as_spatial_ref(),
+				&root.clone().as_spatial_ref(),
 				&mut inner_map,
 				context,
 				&mut resources,
 			)
 			.unwrap();
 		View {
-			_root,
+			root,
 			vdom_root,
 			inner_map,
 			resources,
@@ -68,10 +68,10 @@ impl<State: Reify> View<State> {
 
 	#[tracing::instrument(level = "debug", skip_all)]
 	pub fn update(&mut self, context: &Context, state: &mut State) {
-		let new_vdom = elements::Spatial::default().with_children([state.reify()]);
+		let new_vdom = state.reify();
 		new_vdom.0.apply_element_keys(&[], 0);
 		new_vdom.0.diff_and_apply(
-			self.vdom_root.0.spatial_aspect(&self.inner_map),
+			self.root.clone().as_spatial_ref(),
 			&self.vdom_root,
 			context,
 			state,

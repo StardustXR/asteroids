@@ -362,11 +362,15 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
-		let old_wrapper: &ElementWrapper<State, E> = old
-			.0
-			.as_any()
-			.downcast_ref()
-			.unwrap_or_else(|| panic!("old:{:?}\nnew:{:?}\n", old, self));
+		let old_wrapper: &ElementWrapper<State, E> =
+			old.0.as_any().downcast_ref().unwrap_or_else(|| {
+				old.0.destroy_inner_recursive(inner_map);
+				self.create_inner_recursive(&parent_spatial, inner_map, context, resources)
+					.expect("Could not create inner for new root element for swap");
+
+				// panic!("old:{:#?}\nnew:{:#?}\n", old, self)
+				self
+			});
 		let inner_key = *self.inner_key.get().unwrap();
 		let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
 		self.params.update(
