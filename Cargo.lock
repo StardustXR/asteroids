@@ -69,7 +69,6 @@ dependencies = [
  "lazy_static",
  "map-range",
  "mint",
- "regex",
  "ron",
  "rustc-hash 2.1.1",
  "serde",

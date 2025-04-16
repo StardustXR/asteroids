@@ -1,5 +1,4 @@
 use crate::{Context, ValidState, custom::ElementTrait, util::DeltaSet};
-use regex::Regex;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
@@ -10,7 +9,7 @@ use std::{
 	hash::{Hash, Hasher},
 	marker::PhantomData,
 	path::Path,
-	sync::{LazyLock, OnceLock},
+	sync::OnceLock,
 };
 
 #[derive(Default)]
@@ -108,7 +107,7 @@ impl<
 		GenericElement::type_id(&*self.element.0)
 	}
 
-	fn type_name(&self) -> String {
+	fn type_name(&self) -> &'static str {
 		GenericElement::type_name(&*self.element.0)
 	}
 
@@ -147,7 +146,7 @@ impl<
 	fn inner_key(&self) -> Option<ElementInnerKey> {
 		self.element.0.inner_key()
 	}
-	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, String)], order: usize) {
+	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, &'static str)], order: usize) {
 		self.element.0.apply_element_keys(parent_path, order)
 	}
 	fn identify(&mut self, key: ElementInnerKey) {
@@ -190,7 +189,7 @@ impl<
 
 pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 	fn type_id(&self) -> TypeId;
-	fn type_name(&self) -> String;
+	fn type_name(&self) -> &'static str;
 	fn create_inner_recursive(
 		&self,
 		parent: &SpatialRef,
@@ -203,7 +202,7 @@ pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
 	fn as_any(&self) -> &dyn Any;
 	fn inner_key(&self) -> Option<ElementInnerKey>;
-	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, String)], order: usize);
+	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, &'static str)], order: usize);
 	fn identify(&mut self, key: ElementInnerKey);
 	fn diff_and_apply(
 		&self,
@@ -219,19 +218,24 @@ pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 #[derive_where::derive_where(Debug)]
 pub(crate) struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
 	pub(crate) params: E,
-	pub(crate) path: OnceLock<Vec<(usize, TypeId, String)>>,
+	pub(crate) path: OnceLock<Vec<(usize, TypeId, &'static str)>>,
 	pub(crate) inner_key: OnceLock<ElementInnerKey>,
 	pub(crate) children: Vec<Element<State>>,
 }
-static NAME_REGEX: LazyLock<Regex> =
-	LazyLock::new(|| Regex::new(r"([^<>:]+::)*(?<name>[^<:]+).*").unwrap());
 impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
 	fn type_id(&self) -> TypeId {
 		self.params.type_id()
 	}
-	fn type_name(&self) -> String {
+	fn type_name(&self) -> &'static str {
 		let type_name = std::any::type_name::<E>();
-		NAME_REGEX.replace_all(type_name, "$name").to_string()
+
+		// Find end boundary (first < or end of string)
+		let end = type_name.find('<').unwrap_or(type_name.len());
+
+		// Find start boundary (last : before end)
+		let start = type_name[..end].rfind(':').map(|i| i + 1).unwrap_or(0);
+
+		&type_name[start..end]
 	}
 	#[tracing::instrument(level = "debug", skip(inner_map, context, resources))]
 	fn create_inner_recursive(
@@ -315,7 +319,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 	}
 
 	#[tracing::instrument(level = "debug")]
-	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, String)], order: usize) {
+	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, &'static str)], order: usize) {
 		let self_path_segment = (
 			self.inner_key.get().map(|k| k.0 as usize).unwrap_or(order),
 			GenericElement::type_id(self),

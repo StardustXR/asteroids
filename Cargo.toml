@@ -27,7 +27,6 @@ inotify = "0.11.0"
 futures-util = "0.3.31"
 ashpd = "0.11.0"
 tracing = "0.1.41"
-regex = "1.11.1"
 
 
 [dependencies.stardust-xr-fusion]
