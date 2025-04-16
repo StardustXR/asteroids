@@ -1,13 +1,13 @@
 use crate::{
-	custom::{ElementTrait, Transformable},
 	Context, ValidState,
+	custom::{ElementTrait, Transformable},
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
 	node::NodeError,
 	spatial::{SpatialAspect, SpatialRef, Transform},
 };
-use std::fmt::Debug;
+use std::{fmt::Debug, path::Path};
 
 #[derive(Debug, Clone, Copy, PartialEq, Setters)]
 #[setters(into, strip_option)]
@@ -24,6 +24,7 @@ impl<State: ValidState> ElementTrait<State> for Spatial {
 		&self,
 		spatial_parent: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::spatial::Spatial::create(spatial_parent, self.transform, self.zoneable)

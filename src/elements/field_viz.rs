@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use crate::{
-	custom::{ElementTrait, Transformable},
 	Context, ValidState,
+	custom::{ElementTrait, Transformable},
 };
 use derive_setters::Setters;
 use glam::Vec3;
@@ -15,7 +15,7 @@ use stardust_xr_fusion::{
 	spatial::{SpatialAspect, SpatialRef, Transform},
 	values::color::rgba_linear,
 };
-use stardust_xr_molecules::lines::{line_from_points, LineExt};
+use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use tokio::{sync::mpsc, task::JoinSet};
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
@@ -175,6 +175,7 @@ impl<State: ValidState> ElementTrait<State> for FieldViz {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(parent_space, Transform::identity(), self.shape.clone())?;
@@ -268,9 +269,9 @@ impl Transformable for FieldViz {
 #[tokio::test]
 async fn asteroids_field_viz_element() {
 	use crate::{
+		Element,
 		client::{self, ClientState},
 		elements::FieldViz,
-		Element,
 	};
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::{

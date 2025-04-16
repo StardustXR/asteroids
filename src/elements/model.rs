@@ -1,6 +1,6 @@
 use crate::{
-	custom::{ElementTrait, Transformable},
 	Context, ValidState,
+	custom::{ElementTrait, Transformable},
 };
 use derive_setters::Setters;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -104,6 +104,7 @@ impl<State: ValidState> ElementTrait<State> for Model {
 		&self,
 		spatial_parent: &SpatialRef,
 		context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		ModelInner::create(spatial_parent, &context.dbus_connection, self)

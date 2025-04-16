@@ -1,10 +1,10 @@
 use crate::{
-	custom::{ElementTrait, FnWrapper, Transformable},
 	Context, ValidState,
+	custom::{ElementTrait, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
-use glam::{vec3, Mat4, Vec2, Vec3, Vec3Swizzles};
+use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, vec3};
 use stardust_xr_fusion::{
 	core::values::Color,
 	drawable::{Line, Lines, LinesAspect},
@@ -16,9 +16,9 @@ use stardust_xr_fusion::{
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
-	lines::{circle, line_from_points, LineExt},
+	lines::{LineExt, circle, line_from_points},
 };
-use std::{f32::consts::TAU, ops::Range};
+use std::{f32::consts::TAU, ops::Range, path::Path};
 
 pub type OnChangeFn<State> = FnWrapper<dyn Fn(&mut State, f32) + Send + Sync>;
 
@@ -75,6 +75,7 @@ impl<State: ValidState> ElementTrait<State> for Dial<State> {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		DialInner::create(
@@ -280,9 +281,9 @@ impl DialInner {
 #[tokio::test]
 async fn asteroids_dial_element() {
 	use crate::{
+		Element,
 		client::{self, ClientState},
 		elements::Dial,
-		Element,
 	};
 	use serde::{Deserialize, Serialize};
 

@@ -1,6 +1,8 @@
+use std::path::Path;
+
 use crate::{
-	custom::{ElementTrait, Transformable},
 	Context, ValidState,
+	custom::{ElementTrait, Transformable},
 };
 use stardust_xr_fusion::{
 	node::NodeError,
@@ -8,7 +10,7 @@ use stardust_xr_fusion::{
 	spatial::{BoundingBox, Spatial, SpatialRef, SpatialRefAspect, Transform},
 };
 use tokio::sync::mpsc;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 pub struct BoundsInner {
 	spatial: Spatial,
@@ -46,6 +48,7 @@ impl<State: ValidState> ElementTrait<State> for Bounds<State> {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let (bounds_tx, bounds_rx) = mpsc::channel(1);

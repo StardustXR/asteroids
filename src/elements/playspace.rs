@@ -1,9 +1,9 @@
-use crate::{custom::ElementTrait, Context, ValidState};
+use crate::{Context, ValidState, custom::ElementTrait};
 use stardust_xr_fusion::{
 	node::{NodeError, NodeType},
 	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
 };
-use std::fmt::Debug;
+use std::{fmt::Debug, path::Path};
 
 // TODO: implement bounds
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -17,6 +17,7 @@ impl<State: ValidState> ElementTrait<State> for PlaySpace {
 		&self,
 		spatial_parent: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let client = spatial_parent.client().unwrap();

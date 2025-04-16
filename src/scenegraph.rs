@@ -1,4 +1,5 @@
-use crate::{custom::ElementTrait, util::DeltaSet, Context, ValidState};
+use crate::{Context, ValidState, custom::ElementTrait, util::DeltaSet};
+use regex::Regex;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
@@ -8,6 +9,7 @@ use std::{
 	fmt::Debug,
 	hash::{Hash, Hasher},
 	marker::PhantomData,
+	path::PathBuf,
 	sync::OnceLock,
 };
 
@@ -97,13 +99,17 @@ struct MappedElement<
 	data: PhantomData<State>,
 }
 impl<
-		State: ValidState,
-		SubState: ValidState,
-		F: Fn(&mut State) -> Option<&mut SubState> + Send + Sync + 'static,
-	> GenericElement<State> for MappedElement<State, SubState, F>
+	State: ValidState,
+	SubState: ValidState,
+	F: Fn(&mut State) -> Option<&mut SubState> + Send + Sync + 'static,
+> GenericElement<State> for MappedElement<State, SubState, F>
 {
 	fn type_id(&self) -> TypeId {
-		TypeId::of::<(State, SubState)>()
+		GenericElement::type_id(&*self.element.0)
+	}
+
+	fn type_name(&self) -> String {
+		GenericElement::type_name(&*self.element.0)
 	}
 
 	fn create_inner_recursive(
@@ -141,7 +147,7 @@ impl<
 	fn inner_key(&self) -> Option<ElementInnerKey> {
 		self.element.0.inner_key()
 	}
-	fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
+	fn apply_element_keys(&self, path: Vec<(usize, TypeId, String)>) {
 		self.element.0.apply_element_keys(path)
 	}
 	fn identify(&mut self, key: ElementInnerKey) {
@@ -172,10 +178,10 @@ impl<
 }
 
 impl<
-		State: ValidState,
-		SubState: ValidState,
-		F: Fn(&mut State) -> Option<&mut SubState> + Send + Sync + 'static,
-	> Debug for MappedElement<State, SubState, F>
+	State: ValidState,
+	SubState: ValidState,
+	F: Fn(&mut State) -> Option<&mut SubState> + Send + Sync + 'static,
+> Debug for MappedElement<State, SubState, F>
 {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_tuple("MappedElement").field(&self.element).finish()
@@ -184,6 +190,7 @@ impl<
 
 pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 	fn type_id(&self) -> TypeId;
+	fn type_name(&self) -> String;
 	fn create_inner_recursive(
 		&self,
 		parent: &SpatialRef,
@@ -196,7 +203,7 @@ pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
 	fn as_any(&self) -> &dyn Any;
 	fn inner_key(&self) -> Option<ElementInnerKey>;
-	fn apply_element_keys(&self, path: Vec<(usize, TypeId)>);
+	fn apply_element_keys(&self, path: Vec<(usize, TypeId, String)>);
 	fn identify(&mut self, key: ElementInnerKey);
 	fn diff_and_apply(
 		&self,
@@ -212,12 +219,20 @@ pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 #[derive_where::derive_where(Debug)]
 pub(crate) struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
 	pub(crate) params: E,
+	pub(crate) path: OnceLock<Vec<(usize, TypeId)>>,
 	pub(crate) inner_key: OnceLock<ElementInnerKey>,
+	pub(crate) element_path: OnceLock<PathBuf>,
 	pub(crate) children: Vec<Element<State>>,
 }
 impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
 	fn type_id(&self) -> TypeId {
 		self.params.type_id()
+	}
+	fn type_name(&self) -> String {
+		let regex = Regex::new(r"([^<>:]+::)*(?<name>[^<:]+).*").unwrap();
+		let type_name = std::any::type_name::<E>();
+		regex.replace_all(type_name, "$name").to_string()
+		// type_name.to_string()
 	}
 	fn create_inner_recursive(
 		&self,
@@ -226,10 +241,14 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		context: &Context,
 		resources: &mut ResourceRegistry,
 	) -> Result<(), String> {
+		let Some(element_path) = self.element_path.get() else {
+			return Err("Internal: Couldn't get element path?".to_string());
+		};
 		let inner = E::create_inner(
 			&self.params,
 			parent,
 			context,
+			element_path,
 			resources.get::<E::Resource>(),
 		)
 		.map_err(|e| e.to_string())?;
@@ -288,20 +307,40 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		self.inner_key.get().cloned()
 	}
 
-	fn apply_element_keys(&self, path: Vec<(usize, TypeId)>) {
+	fn apply_element_keys(&self, path: Vec<(usize, TypeId, String)>) {
 		let path = if let Some(key) = self.inner_key.get().cloned() {
-			vec![(key.0 as usize, GenericElement::type_id(self))]
+			vec![(
+				key.0 as usize,
+				GenericElement::type_id(self),
+				GenericElement::type_name(self).to_string(),
+			)]
 		} else {
 			let mut hasher = DefaultHasher::new();
 			path.hash(&mut hasher);
 			let key = ElementInnerKey(hasher.finish());
 			let _ = self.inner_key.set(key);
+
+			// Construct the element path
+			let element_path =
+				PathBuf::from("/").join(format!("{}_{}", GenericElement::type_name(self), key.0));
+			let _ = self.element_path.set(element_path);
+
+			let _ = self.path.get_or_init(|| {
+				path.iter()
+					.map(|(order, _type, _name)| (*order, *_type))
+					.collect()
+			});
 			path
 		};
 
+		// Apply keys to children recursively
 		for (i, child) in self.children.iter().enumerate() {
 			let mut child_path = path.clone();
-			child_path.push((i, GenericElement::type_id(child.0.as_ref())));
+			child_path.push((
+				i,
+				GenericElement::type_id(child.0.as_ref()),
+				GenericElement::type_name(child.0.as_ref()).to_string(),
+			));
 			child.0.apply_element_keys(child_path);
 		}
 	}

@@ -1,6 +1,8 @@
+use std::path::Path;
+
 use crate::{
-	custom::{ElementTrait, FnWrapper, Transformable},
 	Context, ValidState,
+	custom::{ElementTrait, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -9,7 +11,11 @@ use stardust_xr_fusion::{
 	node::NodeError,
 	spatial::{SpatialRef, Transform},
 };
-use stardust_xr_molecules::keyboard::{KeyboardHandler as MoleculesKeyboardHandler, KeypressInfo};
+use stardust_xr_molecules::{
+	dbus::DbusObjectHandles,
+	keyboard::{KeyboardHandler as MoleculesKeyboardHandler, KeypressInfo},
+};
+use tokio::sync::mpsc;
 
 #[derive_where::derive_where(Debug, PartialEq)]
 #[derive(Setters)]
@@ -44,7 +50,8 @@ impl<State: ValidState> KeyboardHandler<State> {
 }
 pub struct KeyboardElementInner {
 	field: Field,
-	handler: MoleculesKeyboardHandler,
+	_dbus_object_handles: DbusObjectHandles,
+	key_rx: mpsc::UnboundedReceiver<KeypressInfo>,
 }
 impl<State: ValidState> ElementTrait<State> for KeyboardHandler<State> {
 	type Inner = KeyboardElementInner;
@@ -55,12 +62,25 @@ impl<State: ValidState> ElementTrait<State> for KeyboardHandler<State> {
 		&self,
 		spatial_parent: &SpatialRef,
 		context: &Context,
+		path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(spatial_parent, self.transform, self.field_shape.clone())?;
-		let handler =
-			MoleculesKeyboardHandler::create(context.dbus_connection.clone(), None, &field);
-		Ok(KeyboardElementInner { field, handler })
+		let (key_tx, key_rx) = mpsc::unbounded_channel();
+		let _dbus_object_handles = MoleculesKeyboardHandler::create(
+			context.dbus_connection.clone(),
+			path,
+			None,
+			&field,
+			move |key_info| {
+				let _ = key_tx.send(key_info);
+			},
+		);
+		Ok(KeyboardElementInner {
+			field,
+			_dbus_object_handles,
+			key_rx,
+		})
 	}
 
 	fn update(
@@ -76,7 +96,7 @@ impl<State: ValidState> ElementTrait<State> for KeyboardHandler<State> {
 			let _ = inner.field.set_shape(self.field_shape.clone());
 		}
 
-		while let Ok(key_info) = inner.handler.key_rx.try_recv() {
+		while let Ok(key_info) = inner.key_rx.try_recv() {
 			(self.on_key.0)(state, key_info);
 		}
 	}
@@ -96,10 +116,10 @@ impl<State: ValidState> Transformable for KeyboardHandler<State> {
 #[tokio::test]
 async fn asteroids_keyboard_element() {
 	use crate::{
+		Element,
 		client::{self, ClientState},
 		custom::ElementTrait,
 		elements::{KeyboardHandler, Spatial, Text},
-		Element,
 	};
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::fields::Shape;

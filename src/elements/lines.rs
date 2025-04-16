@@ -1,6 +1,6 @@
 use crate::{
-	custom::{ElementTrait, Transformable},
 	Context, ValidState,
+	custom::{ElementTrait, Transformable},
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -8,7 +8,7 @@ use stardust_xr_fusion::{
 	node::NodeError,
 	spatial::{SpatialRef, Transform},
 };
-use std::fmt::Debug;
+use std::{fmt::Debug, path::Path};
 
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
@@ -25,6 +25,7 @@ impl<State: ValidState> ElementTrait<State> for Lines {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Lines::create(parent_space, self.transform, &self.lines)

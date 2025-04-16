@@ -1,16 +1,16 @@
 use crate::{
-	custom::{ElementTrait, FnWrapper},
 	Context, ValidState,
+	custom::{ElementTrait, FnWrapper},
 };
 use derive_where::derive_where;
 use futures_util::StreamExt;
 use inotify::{EventMask, Inotify, WatchMask};
 use stardust_xr_fusion::spatial::SpatialRef;
 use std::{
-	path::PathBuf,
+	path::{Path, PathBuf},
 	sync::{
-		atomic::{AtomicBool, Ordering},
 		Arc,
+		atomic::{AtomicBool, Ordering},
 	},
 };
 use tokio::task::AbortHandle;
@@ -66,6 +66,7 @@ impl<State: ValidState> ElementTrait<State> for FileWatcher<State> {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let modified = Arc::new(AtomicBool::new(false));

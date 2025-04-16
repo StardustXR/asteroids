@@ -1,7 +1,8 @@
 [package]
 name = "asteroids"
 version = "2.0.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.86"
 authors = ["Nova King <technobaboo@proton.me>"]
 description = "Declarative UI for Stardust XR"
 license = "MIT"
@@ -20,12 +21,13 @@ zbus = "5.1.1"
 glam = { version = "0.28.0", features = ["mint"] }
 directories = "6.0.0"
 convert_case = "0.8.0"
-ron = "0.8.1"
+ron = "0.10.1"
 map-range = "0.1.2"
 inotify = "0.11.0"
 futures-util = "0.3.31"
 ashpd = "0.11.0"
 tracing = "0.1.41"
+regex = "1.11.1"
 
 
 [dependencies.stardust-xr-fusion]

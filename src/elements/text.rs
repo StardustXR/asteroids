@@ -1,6 +1,6 @@
 use crate::{
-	custom::{ElementTrait, Transformable},
 	Context, ValidState,
+	custom::{ElementTrait, Transformable},
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -10,7 +10,7 @@ use stardust_xr_fusion::{
 	spatial::{SpatialRef, Transform},
 	values::color::rgba_linear,
 };
-use std::fmt::Debug;
+use std::{fmt::Debug, path::Path};
 
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
@@ -33,6 +33,7 @@ impl<State: ValidState> ElementTrait<State> for Text {
 		&self,
 		spatial_parent: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Text::create(

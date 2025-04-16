@@ -1,17 +1,19 @@
+use std::path::Path;
+
 use crate::{
-	custom::{ElementTrait, FnWrapper},
 	Context, ValidState,
+	custom::{ElementTrait, FnWrapper},
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
 	fields::Field,
 	items::{
+		ItemUiAspect,
+		ItemUiEvent::*,
 		panel::{
 			PanelItem, PanelItemAcceptor, PanelItemInitData, PanelItemUi, PanelItemUiAspect,
 			PanelItemUiEvent::*,
 		},
-		ItemUiAspect,
-		ItemUiEvent::*,
 	},
 	node::{NodeError, NodeType},
 	spatial::SpatialRef,
@@ -50,6 +52,7 @@ impl<State: ValidState> ElementTrait<State> for PanelUI<State> {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let panel_item_ui = PanelItemUi::register(&parent_space.client()?)?;

@@ -1,7 +1,9 @@
+use std::path::Path;
+
 use crate::{
+	ValidState,
 	context::Context,
 	custom::{ElementTrait, FnWrapper, Transformable},
-	ValidState,
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -12,7 +14,7 @@ use stardust_xr_fusion::{
 	spatial::{SpatialRef, Transform},
 	values::color::rgba_linear,
 };
-use stardust_xr_molecules::{button::ButtonVisualSettings, DebugSettings, UIElement, VisualDebug};
+use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
 
 #[derive_where::derive_where(Debug, PartialEq)]
 #[derive(Setters)]
@@ -56,6 +58,7 @@ impl<State: ValidState> ElementTrait<State> for Button<State> {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let mut button = stardust_xr_molecules::button::Button::create(

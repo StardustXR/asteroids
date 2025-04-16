@@ -1,14 +1,16 @@
+use std::path::Path;
+
 use crate::{
+	ValidState,
 	context::Context,
 	custom::{ElementTrait, FnWrapper},
-	ValidState,
 };
 use ashpd::desktop::settings::Settings;
 use futures_util::StreamExt;
 use stardust_xr_fusion::{
 	node::NodeError,
 	spatial::SpatialRef,
-	values::{color::rgba_linear, Color},
+	values::{Color, color::rgba_linear},
 };
 use tokio::{sync::watch, task::AbortHandle};
 
@@ -89,6 +91,7 @@ impl<State: ValidState> ElementTrait<State> for AccentColorListener<State> {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_element_path: &Path,
 		resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		Ok(AccentColorInner {

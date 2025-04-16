@@ -1,6 +1,6 @@
 use crate::{
-	custom::{ElementTrait, FnWrapper},
 	Context, ValidState,
+	custom::{ElementTrait, FnWrapper},
 };
 use derive_setters::Setters;
 use glam::{Quat, Vec3};
@@ -11,12 +11,12 @@ use stardust_xr_fusion::{
 	input::{InputData, InputDataType, InputHandler},
 	node::{NodeError, NodeResult},
 	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
-	values::color::{color_space::LinearRgb, rgba_linear, AlphaColor, Rgb},
+	values::color::{AlphaColor, Rgb, color_space::LinearRgb, rgba_linear},
 };
 use stardust_xr_molecules::input_action::{
 	InputQueue, InputQueueable as _, SimpleAction, SingleAction,
 };
-use std::f32::consts::FRAC_PI_2;
+use std::{f32::consts::FRAC_PI_2, path::Path};
 
 #[derive(Debug)]
 pub enum PenState {
@@ -90,6 +90,7 @@ impl<State: ValidState> ElementTrait<State> for Pen<State> {
 		&self,
 		parent_space: &SpatialRef,
 		_context: &Context,
+		_path: &Path,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		PenInner::create(parent_space, self)
