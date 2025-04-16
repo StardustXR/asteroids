@@ -14,6 +14,7 @@ mod_expose!(field_viz);
 mod_expose!(keyboard);
 mod_expose!(lines);
 mod_expose!(model);
+mod_expose!(mouse);
 mod_expose!(panel_ui);
 mod_expose!(playspace);
 mod_expose!(pen);
