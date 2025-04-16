@@ -1,4 +1,4 @@
-use scenegraph::{ElementInnerMap, GenericElement, ResourceRegistry};
+use scenegraph::{ElementInnerMap, ResourceRegistry};
 use stardust_xr_fusion::root::FrameInfo;
 use stardust_xr_fusion::spatial::{Spatial, SpatialRefAspect, Transform};
 
@@ -47,11 +47,7 @@ impl<State: Reify> View<State> {
 		let _root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
 		let mut inner_map = ElementInnerMap::default();
 		let vdom_root = elements::Spatial::default().with_children([state.reify()]);
-		vdom_root.0.apply_element_keys(vec![(
-			0,
-			GenericElement::type_id(vdom_root.0.as_ref()),
-			String::new(),
-		)]);
+		vdom_root.0.apply_element_keys(&[], 0);
 		let mut resources = ResourceRegistry::default();
 		vdom_root
 			.0
@@ -70,13 +66,10 @@ impl<State: Reify> View<State> {
 		}
 	}
 
+	#[tracing::instrument(level = "debug", skip_all)]
 	pub fn update(&mut self, context: &Context, state: &mut State) {
 		let new_vdom = elements::Spatial::default().with_children([state.reify()]);
-		new_vdom.0.apply_element_keys(vec![(
-			0,
-			GenericElement::type_id(new_vdom.0.as_ref()),
-			String::new(),
-		)]);
+		new_vdom.0.apply_element_keys(&[], 0);
 		new_vdom.0.diff_and_apply(
 			self.vdom_root.0.spatial_aspect(&self.inner_map),
 			&self.vdom_root,

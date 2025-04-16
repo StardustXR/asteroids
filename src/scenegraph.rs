@@ -9,8 +9,8 @@ use std::{
 	fmt::Debug,
 	hash::{Hash, Hasher},
 	marker::PhantomData,
-	path::PathBuf,
-	sync::OnceLock,
+	path::Path,
+	sync::{LazyLock, OnceLock},
 };
 
 #[derive(Default)]
@@ -147,8 +147,8 @@ impl<
 	fn inner_key(&self) -> Option<ElementInnerKey> {
 		self.element.0.inner_key()
 	}
-	fn apply_element_keys(&self, path: Vec<(usize, TypeId, String)>) {
-		self.element.0.apply_element_keys(path)
+	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, String)], order: usize) {
+		self.element.0.apply_element_keys(parent_path, order)
 	}
 	fn identify(&mut self, key: ElementInnerKey) {
 		self.element.0.identify(key);
@@ -203,7 +203,7 @@ pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
 	fn as_any(&self) -> &dyn Any;
 	fn inner_key(&self) -> Option<ElementInnerKey>;
-	fn apply_element_keys(&self, path: Vec<(usize, TypeId, String)>);
+	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, String)], order: usize);
 	fn identify(&mut self, key: ElementInnerKey);
 	fn diff_and_apply(
 		&self,
@@ -219,21 +219,21 @@ pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 #[derive_where::derive_where(Debug)]
 pub(crate) struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
 	pub(crate) params: E,
-	pub(crate) path: OnceLock<Vec<(usize, TypeId)>>,
+	pub(crate) path: OnceLock<Vec<(usize, TypeId, String)>>,
 	pub(crate) inner_key: OnceLock<ElementInnerKey>,
-	pub(crate) element_path: OnceLock<PathBuf>,
 	pub(crate) children: Vec<Element<State>>,
 }
+static NAME_REGEX: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"([^<>:]+::)*(?<name>[^<:]+).*").unwrap());
 impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
 	fn type_id(&self) -> TypeId {
 		self.params.type_id()
 	}
 	fn type_name(&self) -> String {
-		let regex = Regex::new(r"([^<>:]+::)*(?<name>[^<:]+).*").unwrap();
 		let type_name = std::any::type_name::<E>();
-		regex.replace_all(type_name, "$name").to_string()
-		// type_name.to_string()
+		NAME_REGEX.replace_all(type_name, "$name").to_string()
 	}
+	#[tracing::instrument(level = "debug", skip(inner_map, context, resources))]
 	fn create_inner_recursive(
 		&self,
 		parent: &SpatialRef,
@@ -241,14 +241,19 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		context: &Context,
 		resources: &mut ResourceRegistry,
 	) -> Result<(), String> {
-		let Some(element_path) = self.element_path.get() else {
-			return Err("Internal: Couldn't get element path?".to_string());
+		let Some(path) = self.path.get() else {
+			return Err("Internal: Couldn't get path?".to_string());
 		};
+		let element_path = path
+			.iter()
+			.map(|(order, _, name)| format!("/{name}_{order}"))
+			.reduce(|acc, item| acc + &item)
+			.unwrap_or("/Unknown_0".to_string());
 		let inner = E::create_inner(
 			&self.params,
 			parent,
 			context,
-			element_path,
+			Path::new(&element_path),
 			resources.get::<E::Resource>(),
 		)
 		.map_err(|e| e.to_string())?;
@@ -265,6 +270,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		}
 		Ok(())
 	}
+	#[tracing::instrument(level = "debug", skip(inner_map, state))]
 	fn frame_recursive(
 		&self,
 		info: &FrameInfo,
@@ -283,6 +289,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 			child.0.frame_recursive(info, state, inner_map);
 		}
 	}
+	#[tracing::instrument(level = "debug", skip(inner_map))]
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
 		for child in &self.children {
 			child.0.destroy_inner_recursive(inner_map);
@@ -307,41 +314,33 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		self.inner_key.get().cloned()
 	}
 
-	fn apply_element_keys(&self, path: Vec<(usize, TypeId, String)>) {
-		let path = if let Some(key) = self.inner_key.get().cloned() {
-			vec![(
-				key.0 as usize,
-				GenericElement::type_id(self),
-				GenericElement::type_name(self).to_string(),
-			)]
-		} else {
+	#[tracing::instrument(level = "debug")]
+	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, String)], order: usize) {
+		let self_path_segment = (
+			self.inner_key.get().map(|k| k.0 as usize).unwrap_or(order),
+			GenericElement::type_id(self),
+			GenericElement::type_name(self),
+		);
+
+		let path = self.path.get_or_init(|| {
+			if self.inner_key.get().is_some() {
+				vec![self_path_segment]
+			} else {
+				let mut path = parent_path.to_vec();
+				path.push(self_path_segment);
+				path
+			}
+		});
+
+		let _ = self.inner_key.get_or_init(|| {
 			let mut hasher = DefaultHasher::new();
 			path.hash(&mut hasher);
-			let key = ElementInnerKey(hasher.finish());
-			let _ = self.inner_key.set(key);
-
-			// Construct the element path
-			let element_path =
-				PathBuf::from("/").join(format!("{}_{}", GenericElement::type_name(self), key.0));
-			let _ = self.element_path.set(element_path);
-
-			let _ = self.path.get_or_init(|| {
-				path.iter()
-					.map(|(order, _type, _name)| (*order, *_type))
-					.collect()
-			});
-			path
-		};
+			ElementInnerKey(hasher.finish())
+		});
 
 		// Apply keys to children recursively
 		for (i, child) in self.children.iter().enumerate() {
-			let mut child_path = path.clone();
-			child_path.push((
-				i,
-				GenericElement::type_id(child.0.as_ref()),
-				GenericElement::type_name(child.0.as_ref()).to_string(),
-			));
-			child.0.apply_element_keys(child_path);
+			child.0.apply_element_keys(path, i);
 		}
 	}
 
@@ -349,6 +348,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		let _ = self.inner_key.set(key);
 	}
 
+	#[tracing::instrument(level = "debug", skip_all)]
 	fn diff_and_apply(
 		&self,
 		parent_spatial: SpatialRef,

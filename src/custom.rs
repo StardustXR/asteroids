@@ -46,7 +46,6 @@ pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + '
 			params: self,
 			path: OnceLock::new(),
 			inner_key: OnceLock::new(),
-			element_path: OnceLock::new(),
 			children: children.into_iter().collect(),
 		}))
 	}

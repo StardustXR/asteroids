@@ -1,7 +1,6 @@
 use asteroids::{
-	client,
+	ClientState, Element, ElementTrait, Migrate, Transformable, client,
 	elements::{Button, Lines, Model, Spatial, Text},
-	ClientState, Element, ElementTrait, Migrate, Transformable,
 };
 use glam::Quat;
 use map_range::MapRange;
@@ -14,18 +13,28 @@ use stardust_xr_fusion::{
 	values::color::{Deg, Hsv, ToRgba},
 };
 use stardust_xr_molecules::{
-	lines::{self, LineExt},
 	DebugSettings,
+	lines::{self, LineExt},
 };
 use std::f32::consts::PI;
-use tracing_subscriber::EnvFilter;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{EnvFilter, Layer};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-	tracing_subscriber::fmt()
-		.compact()
-		.with_env_filter(EnvFilter::from_default_env())
-		.init();
+	let registry = tracing_subscriber::registry();
+	let registry = registry.with(
+		tracing_tracy::TracyLayer::new(tracing_tracy::DefaultConfig::default())
+			.with_filter(LevelFilter::DEBUG),
+	);
+	let log_layer = tracing_subscriber::fmt::Layer::new()
+		.with_thread_names(true)
+		.with_ansi(true)
+		.with_line_number(true)
+		.with_filter(EnvFilter::from_default_env());
+	registry.with(log_layer).init();
+
 	client::run::<State>(&[&project_local_resources!("res")]).await
 }
 
