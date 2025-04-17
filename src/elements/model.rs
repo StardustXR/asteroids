@@ -54,6 +54,7 @@ pub struct ModelPart {
 	path: String,
 	material_parameter_overrides: FxHashMap<String, MaterialParameter>,
 	panel_item_override: Option<(PanelItem, SurfaceId)>,
+	panel_item_cursor_override: Option<PanelItem>,
 }
 impl ModelPart {
 	pub fn new(path: &str) -> Self {
@@ -61,6 +62,7 @@ impl ModelPart {
 			path: path.to_string(),
 			material_parameter_overrides: FxHashMap::default(),
 			panel_item_override: None,
+			panel_item_cursor_override: None,
 		}
 	}
 	pub fn mat_param(mut self, name: &str, value: MaterialParameter) -> Self {
@@ -70,6 +72,10 @@ impl ModelPart {
 	}
 	pub fn apply_panel_item(mut self, panel_item: PanelItem, surface_id: SurfaceId) -> Self {
 		self.panel_item_override.replace((panel_item, surface_id));
+		self
+	}
+	pub fn apply_panel_item_cursor(mut self, panel_item: PanelItem) -> Self {
+		self.panel_item_cursor_override.replace(panel_item);
 		self
 	}
 	fn apply_material_parameters(
@@ -139,6 +145,9 @@ impl<State: ValidState> ElementTrait<State> for Model {
 			};
 			if let Some((panel_override, surface_id)) = &part_info.panel_item_override {
 				let _ = panel_override.apply_surface_material(surface_id.clone(), model_part);
+			}
+			if let Some(panel_item_cursor) = &part_info.panel_item_cursor_override {
+				let _ = panel_item_cursor.apply_cursor_material(model_part);
 			}
 			if let Some(old_part_info) = old_decl.model_parts.get(part_info) {
 				if part_info.material_parameter_overrides
