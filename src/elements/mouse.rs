@@ -37,18 +37,6 @@ pub struct MouseHandler<State: ValidState> {
 	on_scroll_continuous: FnWrapper<dyn Fn(&mut State, Vector2<f32>) + Send + Sync + 'static>,
 }
 
-impl<State: ValidState> Default for MouseHandler<State> {
-	fn default() -> Self {
-		MouseHandler {
-			transform: Transform::none(),
-			field_shape: stardust_xr_fusion::fields::Shape::Sphere(1.0),
-			on_button: FnWrapper(Box::new(|_, _, _| {})),
-			on_motion: FnWrapper(Box::new(|_, _| {})),
-			on_scroll_discrete: FnWrapper(Box::new(|_, _| {})),
-			on_scroll_continuous: FnWrapper(Box::new(|_, _| {})),
-		}
-	}
-}
 impl<State: ValidState> MouseHandler<State> {
 	pub fn new(
 		field_shape: Shape,

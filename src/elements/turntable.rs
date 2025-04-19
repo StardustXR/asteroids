@@ -11,13 +11,10 @@ use stardust_xr_fusion::{
 	input::{InputData, InputDataType, InputHandler},
 	node::NodeError,
 	root::FrameInfo,
-	spatial::{BoundingBox, Spatial, SpatialAspect, SpatialRef, SpatialRefAspect, Transform},
+	spatial::{Spatial, SpatialAspect, SpatialRef, SpatialRefAspect, Transform},
 	values::color::rgba_linear,
 };
-use stardust_xr_molecules::{
-	input_action::{InputQueue, InputQueueable, SimpleAction, SingleAction},
-	lines::{LineExt, bounding_box},
-};
+use stardust_xr_molecules::input_action::{InputQueue, InputQueueable, SimpleAction, SingleAction};
 use std::{
 	f32::consts::{FRAC_PI_2, TAU},
 	path::Path,
@@ -398,6 +395,8 @@ async fn asteroids_turntable_element() {
 		elements::{Lines, Turntable},
 	};
 	use serde::{Deserialize, Serialize};
+	use stardust_xr_fusion::spatial::BoundingBox;
+	use stardust_xr_molecules::lines::{LineExt, bounding_box};
 
 	#[derive(Default, Serialize, Deserialize)]
 	struct TestState {
