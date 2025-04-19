@@ -11,10 +11,13 @@ use stardust_xr_fusion::{
 	input::{InputData, InputDataType, InputHandler},
 	node::NodeError,
 	root::FrameInfo,
-	spatial::{Spatial, SpatialAspect, SpatialRef, SpatialRefAspect, Transform},
+	spatial::{BoundingBox, Spatial, SpatialAspect, SpatialRef, SpatialRefAspect, Transform},
 	values::color::rgba_linear,
 };
-use stardust_xr_molecules::input_action::{InputQueue, InputQueueable, SimpleAction, SingleAction};
+use stardust_xr_molecules::{
+	input_action::{InputQueue, InputQueueable, SimpleAction, SingleAction},
+	lines::{LineExt, bounding_box},
+};
 use std::{
 	f32::consts::{FRAC_PI_2, TAU},
 	path::Path,
@@ -299,9 +302,14 @@ impl TurntableInner {
 			|_| true,
 			|input| {
 				let slope_condition = interact_points(input).into_iter().any(|p| {
-					let h = p.y + settings.height;
-					let r = p.x.hypot(p.z) - settings.inner_radius;
-					h < r.max(0.0)
+					// p.y is always negative since input handler is center top of turntable, so this gets it relative to bottom
+					let interact_point_height = p.y;
+					// distance on XZ plane from center
+					let interact_point_radius = p.x.hypot(p.z);
+					// treat it as a cone so we can compare height to width for slope
+					let interact_point_radius_slope =
+						(interact_point_radius - settings.inner_radius).max(0.0);
+					interact_point_height.abs() > interact_point_radius_slope
 				});
 				let distance_condition = input.distance < 0.0;
 				slope_condition && distance_condition
@@ -379,4 +387,65 @@ impl TurntableInner {
 		}
 		self.grip.set_lines(&self.grip_lines).unwrap();
 	}
+}
+
+#[tokio::test]
+async fn asteroids_turntable_element() {
+	use crate::{
+		Element,
+		client::{self, ClientState},
+		custom::ElementTrait,
+		elements::{Lines, Turntable},
+	};
+	use serde::{Deserialize, Serialize};
+
+	#[derive(Default, Serialize, Deserialize)]
+	struct TestState {
+		#[serde(skip)]
+		rotation: f32,
+	}
+
+	impl TestState {
+		pub fn handle_rotation(&mut self, rotation: f32) {
+			self.rotation = rotation;
+		}
+	}
+
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
+
+	impl ClientState for TestState {
+		const QUALIFIER: &'static str = "org";
+		const ORGANIZATION: &'static str = "asteroids";
+		const NAME: &'static str = "turntable";
+
+		fn reify(&self) -> Element<Self> {
+			let lines = Lines::default()
+				.lines(
+					bounding_box(BoundingBox {
+						center: [0.0; 3].into(),
+						size: [0.05; 3].into(),
+					})
+					.into_iter()
+					.map(|l| l.thickness(0.002))
+					.collect::<Vec<_>>(),
+				)
+				.pos([0.0, 0.025, 0.0])
+				.build();
+			let turntable = Turntable::new(self.rotation, Self::handle_rotation)
+				.line_count(64)
+				.line_thickness(0.002)
+				.height(0.03)
+				.inner_radius(0.1)
+				.scroll_multiplier(1.0_f32.to_radians())
+				.with_children([lines]);
+
+			crate::elements::Spatial::default()
+				.zoneable(true)
+				.with_children([turntable])
+		}
+	}
+
+	client::run::<TestState>(&[]).await
 }
