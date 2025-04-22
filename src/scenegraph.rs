@@ -1,4 +1,4 @@
-use crate::{Context, ValidState, custom::ElementTrait, util::DeltaSet};
+use crate::{Context, CreateInnerInfo, ValidState, custom::ElementTrait, util::DeltaSet};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
@@ -240,7 +240,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 	#[tracing::instrument(level = "debug", skip(inner_map, context, resources))]
 	fn create_inner_recursive(
 		&self,
-		parent: &SpatialRef,
+		parent_space: &SpatialRef,
 		inner_map: &mut ElementInnerMap,
 		context: &Context,
 		resources: &mut ResourceRegistry,
@@ -253,11 +253,14 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 			.map(|(order, _, name)| format!("/{name}_{order}"))
 			.reduce(|acc, item| acc + &item)
 			.unwrap_or("/Unknown_0".to_string());
+		let create_info = CreateInnerInfo {
+			parent_space: parent_space,
+			element_path: Path::new(&element_path),
+		};
 		let inner = E::create_inner(
 			&self.params,
-			parent,
 			context,
-			Path::new(&element_path),
+			create_info,
 			resources.get::<E::Resource>(),
 		)
 		.map_err(|e| e.to_string())?;

@@ -1,7 +1,5 @@
-use std::path::Path;
-
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
@@ -60,16 +58,15 @@ impl<State: ValidState> ElementTrait<State> for KeyboardHandler<State> {
 
 	fn create_inner(
 		&self,
-		spatial_parent: &SpatialRef,
 		context: &Context,
-		path: &Path,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let field = Field::create(spatial_parent, self.transform, self.field_shape.clone())?;
+		let field = Field::create(info.parent_space, self.transform, self.field_shape.clone())?;
 		let (key_tx, key_rx) = mpsc::unbounded_channel();
 		let _dbus_object_handles = MoleculesKeyboardHandler::create(
 			context.dbus_connection.clone(),
-			path,
+			info.element_path,
 			None,
 			&field,
 			move |key_info| {

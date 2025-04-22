@@ -1,5 +1,5 @@
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, Transformable},
 };
 use derive_setters::Setters;
@@ -22,12 +22,12 @@ pub struct ModelInner {
 }
 impl ModelInner {
 	pub fn create(
-		spatial_parent: &SpatialRef,
+		parent_space: &SpatialRef,
 		dbus_connection: &Connection,
 		decl: &Model,
 	) -> NodeResult<Self> {
 		let model = stardust_xr_fusion::drawable::Model::create(
-			spatial_parent,
+			parent_space,
 			decl.transform,
 			&decl.resource,
 		)?;
@@ -42,7 +42,7 @@ impl ModelInner {
 			.collect();
 		let inner = ModelInner {
 			dbus_connection: dbus_connection.clone(),
-			parent: spatial_parent.clone(),
+			parent: parent_space.clone(),
 			model,
 			model_parts,
 		};
@@ -108,12 +108,11 @@ impl<State: ValidState> ElementTrait<State> for Model {
 
 	fn create_inner(
 		&self,
-		spatial_parent: &SpatialRef,
 		context: &Context,
-		_path: &Path,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		ModelInner::create(spatial_parent, &context.dbus_connection, self)
+		ModelInner::create(info.parent_space, &context.dbus_connection, self)
 	}
 	fn update(
 		&self,

@@ -1,5 +1,5 @@
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
@@ -18,7 +18,7 @@ use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
 	lines::{LineExt, circle, line_from_points},
 };
-use std::{f32::consts::TAU, ops::Range, path::Path};
+use std::{f32::consts::TAU, ops::Range};
 
 pub type OnChangeFn<State> = FnWrapper<dyn Fn(&mut State, f32) + Send + Sync>;
 
@@ -73,13 +73,12 @@ impl<State: ValidState> ElementTrait<State> for Dial<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		DialInner::create(
-			parent_space,
+			info.parent_space,
 			*self.transform(),
 			self.radius,
 			self.thickness,

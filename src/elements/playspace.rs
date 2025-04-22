@@ -1,9 +1,9 @@
-use crate::{Context, ValidState, custom::ElementTrait};
+use crate::{Context, CreateInnerInfo, ValidState, custom::ElementTrait};
 use stardust_xr_fusion::{
 	node::{NodeError, NodeType},
 	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
 };
-use std::{fmt::Debug, path::Path};
+use std::fmt::Debug;
 
 // TODO: implement bounds
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -15,13 +15,12 @@ impl<State: ValidState> ElementTrait<State> for PlaySpace {
 
 	fn create_inner(
 		&self,
-		spatial_parent: &SpatialRef,
 		_context: &Context,
-		_path: &Path,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let client = spatial_parent.client().unwrap();
-		let spatial = Spatial::create(spatial_parent, Transform::identity(), false)?;
+		let client = info.parent_space.client().unwrap();
+		let spatial = Spatial::create(info.parent_space, Transform::identity(), false)?;
 		tokio::spawn({
 			let spatial = spatial.clone();
 			async move {

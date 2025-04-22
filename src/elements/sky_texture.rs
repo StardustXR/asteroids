@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use stardust_xr_fusion::{
 	drawable::set_sky_tex,
 	node::{NodeError, NodeType},
@@ -7,7 +5,7 @@ use stardust_xr_fusion::{
 	values::ResourceID,
 };
 
-use crate::{Context, ValidState, custom::ElementTrait};
+use crate::{Context, CreateInnerInfo, ValidState, custom::ElementTrait};
 
 #[derive(Debug)]
 pub struct SkyTexture(pub ResourceID);
@@ -20,13 +18,12 @@ impl<State: ValidState> ElementTrait<State> for SkyTexture {
 
 	fn create_inner(
 		&self,
-		parent_space: &stardust_xr_fusion::spatial::SpatialRef,
 		_context: &Context,
-		_path: &Path,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		set_sky_tex(&parent_space.client()?, Some(&self.0))?;
-		Ok(SkyTexInner(parent_space.clone()))
+		set_sky_tex(&info.parent_space.client()?, Some(&self.0))?;
+		Ok(SkyTexInner(info.parent_space.clone()))
 	}
 
 	fn update(

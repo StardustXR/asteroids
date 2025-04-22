@@ -1,7 +1,5 @@
-use std::path::Path;
-
 use crate::{
-	ValidState,
+	CreateInnerInfo, ValidState,
 	context::Context,
 	custom::{ElementTrait, FnWrapper},
 };
@@ -89,13 +87,12 @@ impl<State: ValidState> ElementTrait<State> for AccentColorListener<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_element_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		Ok(AccentColorInner {
-			spatial: parent_space.clone(),
+			spatial: info.parent_space.clone(),
 			color_rx: resource.accent_color.clone(),
 		})
 	}

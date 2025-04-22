@@ -1,7 +1,5 @@
-use std::path::Path;
-
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
@@ -70,19 +68,18 @@ impl<State: ValidState> ElementTrait<State> for MouseHandler<State> {
 
 	fn create_inner(
 		&self,
-		spatial_parent: &SpatialRef,
 		context: &Context,
-		path: &Path,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let field = Field::create(spatial_parent, self.transform, self.field_shape.clone())?;
+		let field = Field::create(info.parent_space, self.transform, self.field_shape.clone())?;
 		let (button_tx, button_rx) = mpsc::unbounded_channel();
 		let (motion_tx, motion_rx) = mpsc::unbounded_channel();
 		let (scroll_discrete_tx, scroll_discrete_rx) = mpsc::unbounded_channel();
 		let (scroll_continuous_tx, scroll_continuous_rx) = mpsc::unbounded_channel();
 		let _dbus_object_handles = MoleculesMouseHandler::create(
 			context.dbus_connection.clone(),
-			path,
+			info.element_path,
 			None,
 			&field,
 			move |button, pressed| {

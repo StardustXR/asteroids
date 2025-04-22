@@ -1,7 +1,7 @@
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, Transformable},
 };
 use derive_setters::Setters;
@@ -173,13 +173,13 @@ impl<State: ValidState> ElementTrait<State> for FieldViz {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let field = Field::create(parent_space, Transform::identity(), self.shape.clone())?;
-		let lines = stardust_xr_fusion::drawable::Lines::create(parent_space, self.transform, &[])?;
+		let field = Field::create(info.parent_space, Transform::identity(), self.shape.clone())?;
+		let lines =
+			stardust_xr_fusion::drawable::Lines::create(info.parent_space, self.transform, &[])?;
 		field.set_spatial_parent(&lines)?;
 
 		let (update_tx, update_rx) = mpsc::channel(1);

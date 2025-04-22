@@ -1,5 +1,5 @@
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, FnWrapper, Transformable, derive_setters::Setters},
 };
 use derive_where::derive_where;
@@ -15,10 +15,7 @@ use stardust_xr_fusion::{
 	values::color::rgba_linear,
 };
 use stardust_xr_molecules::input_action::{InputQueue, InputQueueable, SimpleAction, SingleAction};
-use std::{
-	f32::consts::{FRAC_PI_2, TAU},
-	path::Path,
-};
+use std::f32::consts::{FRAC_PI_2, TAU};
 
 type OnRotate<State> = FnWrapper<dyn Fn(&mut State, f32) + Send + Sync>;
 #[derive(Setters)]
@@ -51,12 +48,11 @@ impl<State: ValidState> ElementTrait<State> for Turntable<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		TurntableInner::create(parent_space, self.transform, self)
+		TurntableInner::create(info.parent_space, self.transform, self)
 	}
 
 	fn update(

@@ -1,7 +1,5 @@
-use std::path::Path;
-
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, FnWrapper},
 };
 use derive_setters::Setters;
@@ -50,13 +48,12 @@ impl<State: ValidState> ElementTrait<State> for PanelUI<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let panel_item_ui = PanelItemUi::register(&parent_space.client()?)?;
-		Ok((panel_item_ui, parent_space.clone()))
+		let panel_item_ui = PanelItemUi::register(&info.parent_space.client()?)?;
+		Ok((panel_item_ui, info.parent_space.clone()))
 	}
 
 	fn update(

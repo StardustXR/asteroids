@@ -1,7 +1,5 @@
-use std::path::Path;
-
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, Transformable},
 };
 use stardust_xr_fusion::{
@@ -46,13 +44,12 @@ impl<State: ValidState> ElementTrait<State> for Bounds<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let (bounds_tx, bounds_rx) = mpsc::channel(1);
-		let spatial = Spatial::create(parent_space, self.transform, false)?;
+		let spatial = Spatial::create(info.parent_space, self.transform, false)?;
 
 		tokio::spawn({
 			let spatial = spatial.clone();

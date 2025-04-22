@@ -1,5 +1,5 @@
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, Transformable},
 };
 use derive_setters::Setters;
@@ -10,7 +10,7 @@ use stardust_xr_fusion::{
 	spatial::{SpatialRef, Transform},
 	values::color::rgba_linear,
 };
-use std::{fmt::Debug, path::Path};
+use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
@@ -31,13 +31,12 @@ impl<State: ValidState> ElementTrait<State> for Text {
 
 	fn create_inner(
 		&self,
-		spatial_parent: &SpatialRef,
 		_context: &Context,
-		_path: &Path,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Text::create(
-			spatial_parent,
+			info.parent_space,
 			self.transform,
 			&self.text,
 			TextStyle {

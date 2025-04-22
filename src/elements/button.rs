@@ -1,7 +1,5 @@
-use std::path::Path;
-
 use crate::{
-	ValidState,
+	CreateInnerInfo, ValidState,
 	context::Context,
 	custom::{ElementTrait, FnWrapper, Transformable},
 };
@@ -56,13 +54,12 @@ impl<State: ValidState> ElementTrait<State> for Button<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let mut button = stardust_xr_molecules::button::Button::create(
-			parent_space,
+			info.parent_space,
 			self.transform,
 			self.size,
 			stardust_xr_molecules::button::ButtonSettings {

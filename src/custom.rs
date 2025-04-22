@@ -9,6 +9,11 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::sync::OnceLock;
 
+pub struct CreateInnerInfo<'a> {
+	pub parent_space: &'a SpatialRef,
+	pub element_path: &'a Path,
+}
+
 pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
 	/// The imperative struct containing non-saved state
 	type Inner: Send + Sync + 'static;
@@ -18,9 +23,8 @@ pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + '
 	/// Create the inner imperative struct
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		context: &Context,
-		element_path: &Path,
+		asteroids_context: &Context,
+		info: CreateInnerInfo,
 		resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error>;
 	/// Update the inner imperative struct with the new state of the node.

@@ -1,5 +1,5 @@
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, FnWrapper},
 };
 use derive_setters::Setters;
@@ -16,7 +16,7 @@ use stardust_xr_fusion::{
 use stardust_xr_molecules::input_action::{
 	InputQueue, InputQueueable as _, SimpleAction, SingleAction,
 };
-use std::{f32::consts::FRAC_PI_2, path::Path};
+use std::f32::consts::FRAC_PI_2;
 
 #[derive(Debug)]
 pub enum PenState {
@@ -88,12 +88,11 @@ impl<State: ValidState> ElementTrait<State> for Pen<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		PenInner::create(parent_space, self)
+		PenInner::create(info.parent_space, self)
 	}
 
 	fn update(

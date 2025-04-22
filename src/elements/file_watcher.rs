@@ -1,5 +1,5 @@
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, FnWrapper},
 };
 use derive_where::derive_where;
@@ -7,7 +7,7 @@ use futures_util::StreamExt;
 use inotify::{EventMask, Inotify, WatchMask};
 use stardust_xr_fusion::spatial::SpatialRef;
 use std::{
-	path::{Path, PathBuf},
+	path::PathBuf,
 	sync::{
 		Arc,
 		atomic::{AtomicBool, Ordering},
@@ -64,9 +64,8 @@ impl<State: ValidState> ElementTrait<State> for FileWatcher<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
 		_context: &Context,
-		_path: &Path,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let modified = Arc::new(AtomicBool::new(false));
@@ -74,7 +73,7 @@ impl<State: ValidState> ElementTrait<State> for FileWatcher<State> {
 			tokio::spawn(Self::watch_loop(self.file_path.clone(), modified.clone())).abort_handle();
 
 		Ok(FileWatcherInner {
-			spatial: parent_space.clone(),
+			spatial: info.parent_space.clone(),
 			watch_loop,
 			modified,
 		})

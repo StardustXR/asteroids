@@ -1,5 +1,5 @@
 use crate::{
-	Context, ValidState,
+	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
@@ -20,7 +20,7 @@ use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
 	lines::{LineExt, circle},
 };
-use std::{f32::consts::FRAC_PI_2, path::Path};
+use std::f32::consts::FRAC_PI_2;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 #[derive(Setters)]
@@ -55,12 +55,11 @@ impl<State: ValidState> ElementTrait<State> for GrabRing<State> {
 
 	fn create_inner(
 		&self,
-		parent_space: &SpatialRef,
-		_context: &Context,
-		_path: &Path,
+		_asteroids_context: &Context,
+		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		GrabRingInner::new(parent_space, self.radius, self.thickness, self.pos)
+		GrabRingInner::new(info.parent_space, self.radius, self.thickness, self.pos)
 	}
 
 	fn update(
@@ -95,20 +94,20 @@ pub struct GrabRingInner {
 }
 impl GrabRingInner {
 	pub fn new(
-		spatial_parent: &SpatialRef,
+		parent_space: &SpatialRef,
 		radius: f32,
 		thickness: f32,
 		pos: Vector3<f32>,
 	) -> NodeResult<Self> {
 		let field = Field::create(
-			spatial_parent,
+			parent_space,
 			Transform::identity(),
 			Shape::Torus(TorusShape {
 				radius_a: radius,
 				radius_b: thickness,
 			}),
 		)?;
-		let input = InputHandler::create(spatial_parent, Transform::identity(), &field)?.queue()?;
+		let input = InputHandler::create(parent_space, Transform::identity(), &field)?.queue()?;
 		let content_root =
 			Spatial::create(input.handler(), Transform::from_translation(pos), true)?;
 		field.set_spatial_parent(&content_root)?;
