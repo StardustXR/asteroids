@@ -11,6 +11,7 @@ use stardust_xr_fusion::{
 	root::{FrameInfo, RootAspect, RootEvent},
 };
 use std::fs::read_to_string;
+use tokio::signal::unix::{SignalKind, signal};
 
 /// Represents a client that connects to the stardust server
 pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned {
@@ -53,6 +54,10 @@ fn initial_state<State: ClientState>() -> State {
 }
 
 async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
+	if let Some(state) = load_dev_state() {
+		return Some(state);
+	}
+
 	let saved_state = client
 		.await_method(client.handle().get_root().get_state())
 		.await
@@ -64,6 +69,29 @@ async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
 		.and_then(|m| flexbuffers::from_slice(&m).ok())
 		.unwrap_or_else(initial_state);
 	Some(state)
+}
+
+fn load_dev_state<State: ClientState>() -> Option<State> {
+	if std::env::var("ASTEROIDS_DEV").is_err() {
+		return None;
+	}
+
+	let initial_state_path = std::path::PathBuf::from("/tmp/asteroids_config")
+		.join(State::APP_ID.to_string() + "_dev.ron");
+
+	let serialized = std::fs::read_to_string(initial_state_path).ok()?;
+	ron::from_str(&serialized).ok()
+}
+fn save_dev_state<State: ClientState>(state: &State) {
+	if std::env::var("ASTEROIDS_DEV").is_err() {
+		return;
+	}
+
+	let initial_state_path = std::path::PathBuf::from("/tmp/asteroids_config")
+		.join(State::APP_ID.to_string() + "_dev.ron");
+
+	let _ = std::fs::create_dir_all(initial_state_path.parent().unwrap());
+	let _ = std::fs::write(&initial_state_path, ron::to_string(&state).unwrap());
 }
 
 pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
@@ -101,11 +129,14 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 			}
 		}
 	});
+	let mut sigterm = signal(SignalKind::terminate()).unwrap();
 	// make sure we call Drop impls
 	tokio::select! {
 		_ = event_loop_future => {}
 		_ = tokio::signal::ctrl_c() => {}
+		_ = sigterm.recv() => {}
 	}
+	save_dev_state(&state);
 	drop(view);
 	_ = client.try_flush().await;
 }

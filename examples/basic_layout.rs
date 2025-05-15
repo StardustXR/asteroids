@@ -64,7 +64,7 @@ impl ClientState for State {
 	}
 
 	fn on_frame(&mut self, info: &FrameInfo) {
-		self.elapsed = info.elapsed;
+		self.elapsed += info.delta;
 	}
 
 	fn reify(&self) -> Element<Self> {
