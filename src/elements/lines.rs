@@ -10,6 +10,8 @@ use stardust_xr_fusion::{
 };
 use std::fmt::Debug;
 
+pub use stardust_xr_molecules::lines::*;
+
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct Lines {

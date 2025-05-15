@@ -1874,7 +1874,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.45.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=dev#28fbcdd1408d055014f5cb919007f45a55aeafff"
+source = "git+https://github.com/StardustXR/molecules.git?branch=dev#4cab488881f21077383a7a00330bb44e2ca0e06d"
 dependencies = [
  "futures-util",
  "glam 0.27.0",
