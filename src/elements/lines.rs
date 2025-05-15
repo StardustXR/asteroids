@@ -2,7 +2,6 @@ use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{ElementTrait, Transformable},
 };
-use derive_setters::Setters;
 use stardust_xr_fusion::{
 	drawable::{Line, LinesAspect},
 	node::NodeError,
@@ -12,11 +11,18 @@ use std::fmt::Debug;
 
 pub use stardust_xr_molecules::lines::*;
 
-#[derive(Debug, Clone, PartialEq, Setters)]
-#[setters(into, strip_option)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Lines {
 	transform: Transform,
 	lines: Vec<Line>,
+}
+impl Lines {
+	pub fn new(lines: impl IntoIterator<Item = Line>) -> Self {
+		Lines {
+			transform: Transform::identity(),
+			lines: lines.into_iter().collect(),
+		}
+	}
 }
 impl<State: ValidState> ElementTrait<State> for Lines {
 	type Inner = stardust_xr_fusion::drawable::Lines;
@@ -46,14 +52,6 @@ impl<State: ValidState> ElementTrait<State> for Lines {
 	}
 	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
 		inner.clone().as_spatial().as_spatial_ref()
-	}
-}
-impl Default for Lines {
-	fn default() -> Self {
-		Lines {
-			transform: Transform::none(),
-			lines: vec![],
-		}
 	}
 }
 impl Transformable for Lines {

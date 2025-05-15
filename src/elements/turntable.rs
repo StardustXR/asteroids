@@ -416,18 +416,16 @@ async fn asteroids_turntable_element() {
 		const NAME: &'static str = "turntable";
 
 		fn reify(&self) -> Element<Self> {
-			let lines = Lines::default()
-				.lines(
-					bounding_box(BoundingBox {
-						center: [0.0; 3].into(),
-						size: [0.05; 3].into(),
-					})
-					.into_iter()
-					.map(|l| l.thickness(0.002))
-					.collect::<Vec<_>>(),
-				)
-				.pos([0.0, 0.025, 0.0])
-				.build();
+			let lines = Lines::new(
+				bounding_box(BoundingBox {
+					center: [0.0; 3].into(),
+					size: [0.05; 3].into(),
+				})
+				.into_iter()
+				.map(|l| l.thickness(0.002)),
+			)
+			.pos([0.0, 0.025, 0.0])
+			.build();
 			let turntable = Turntable::new(self.rotation, Self::handle_rotation)
 				.line_count(64)
 				.line_thickness(0.002)
