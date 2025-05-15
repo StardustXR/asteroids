@@ -1,7 +1,6 @@
 use asteroids::{
-	client,
+	ClientState, Element, ElementTrait, Migrate, Transformable, client,
 	elements::{Button, Spatial, Text},
-	ClientState, Element, ElementTrait, Migrate, Transformable,
 };
 use derive_setters::Setters;
 use glam::Quat;
@@ -38,9 +37,7 @@ impl Migrate for State {
 	type Old = Self;
 }
 impl ClientState for State {
-	const QUALIFIER: &'static str = "org";
-	const ORGANIZATION: &'static str = "asteroids";
-	const NAME: &'static str = "elements_add_remove";
+	const APP_ID: &'static str = "org.asteroids.elements_add_remove";
 
 	fn reify(&self) -> Element<Self> {
 		Spatial::default().zoneable(true).with_children([

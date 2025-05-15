@@ -294,9 +294,7 @@ async fn asteroids_dial_element() {
 		type Old = Self;
 	}
 	impl ClientState for TestState {
-		const QUALIFIER: &'static str = "org";
-		const ORGANIZATION: &'static str = "asteroids";
-		const NAME: &'static str = "dial";
+		const APP_ID: &'static str = "org.asteroids.dial";
 
 		fn reify(&self) -> Element<Self> {
 			let hours = (self.value / 60.0).floor();

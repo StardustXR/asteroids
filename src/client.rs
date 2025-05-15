@@ -1,26 +1,21 @@
 use crate::{
+	Context, Reify, View,
 	scenegraph::Element,
 	util::{Migrate, RonFile},
-	Context, Reify, View,
 };
-use convert_case::{Case, Casing};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use stardust_xr_fusion::{
+	Client,
 	core::schemas::flex::flexbuffers,
 	objects::connect_client,
 	root::{FrameInfo, RootAspect, RootEvent},
-	Client,
 };
 use std::fs::read_to_string;
 
 /// Represents a client that connects to the stardust server
 pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned {
-	/// Domain qualifier e.g. "com", "org", "net", etc.
-	const QUALIFIER: &'static str;
-	/// Organization name e.g. "stardustxr"
-	const ORGANIZATION: &'static str;
-	/// Client name e.g. "flatland"
-	const NAME: &'static str;
+	/// App ID, inverse domain name e.g. "org.stardustxr.asteroids_test".
+	const APP_ID: &'static str;
 
 	/// Update the client state when newly launched (e.g. for program arguments)
 	fn initial_state_update(&mut self) {}
@@ -34,17 +29,10 @@ impl<T: ClientState> Reify for T {
 }
 
 fn initial_state<State: ClientState>() -> State {
-	let qualified_name = format!(
-		"{}.{}.{}",
-		State::QUALIFIER,
-		State::ORGANIZATION.to_case(Case::Pascal),
-		State::NAME.to_case(Case::Pascal)
-	);
-
 	// this is a dumb heuristic for determining if it's installed or not, may wanna replace
 	#[cfg(debug_assertions)]
 	let initial_state_path =
-		std::path::PathBuf::from("/tmp/asteroids_config").join(qualified_name + ".ron");
+		std::path::PathBuf::from("/tmp/asteroids_config").join(State::APP_ID.to_string() + ".ron");
 	#[cfg(not(debug_assertions))]
 	let initial_state_path = directories::BaseDirs::new()
 		.unwrap()

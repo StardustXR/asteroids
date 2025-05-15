@@ -254,7 +254,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 			.reduce(|acc, item| acc + &item)
 			.unwrap_or("/Unknown_0".to_string());
 		let create_info = CreateInnerInfo {
-			parent_space: parent_space,
+			parent_space,
 			element_path: Path::new(&element_path),
 		};
 		let inner = E::create_inner(

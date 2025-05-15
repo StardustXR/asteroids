@@ -1,7 +1,6 @@
 use asteroids::{
-	client,
+	ClientState, Element, ElementTrait, Migrate, Transformable, client,
 	elements::{Spatial, Text},
-	ClientState, Element, ElementTrait, Migrate, Transformable,
 };
 use glam::Quat;
 use serde::{Deserialize, Serialize};
@@ -26,9 +25,7 @@ impl Migrate for State {
 	type Old = Self;
 }
 impl ClientState for State {
-	const QUALIFIER: &'static str = "org";
-	const ORGANIZATION: &'static str = "asteroids";
-	const NAME: &'static str = "element_swap";
+	const APP_ID: &'static str = "org.asteroids.element_swap";
 
 	fn on_frame(&mut self, info: &stardust_xr_fusion::root::FrameInfo) {
 		self.elapsed = info.elapsed;

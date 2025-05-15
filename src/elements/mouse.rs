@@ -188,9 +188,7 @@ async fn asteroids_mouse_element() {
 		type Old = Self;
 	}
 	impl ClientState for TestState {
-		const QUALIFIER: &'static str = "org";
-		const ORGANIZATION: &'static str = "asteroids";
-		const NAME: &'static str = "mouse";
+		const APP_ID: &'static str = "org.asteroids.mouse";
 
 		fn reify(&self) -> Element<Self> {
 			// Create a container spatial

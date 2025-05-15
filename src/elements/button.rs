@@ -119,9 +119,7 @@ async fn asteroids_button_element() {
 		type Old = Self;
 	}
 	impl ClientState for TestState {
-		const QUALIFIER: &'static str = "org";
-		const ORGANIZATION: &'static str = "asteroids";
-		const NAME: &'static str = "button";
+		const APP_ID: &'static str = "org.asteroids.button";
 
 		fn reify(&self) -> crate::scenegraph::Element<Self> {
 			Button::new(|_| {

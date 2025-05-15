@@ -411,9 +411,7 @@ async fn asteroids_turntable_element() {
 	}
 
 	impl ClientState for TestState {
-		const QUALIFIER: &'static str = "org";
-		const ORGANIZATION: &'static str = "asteroids";
-		const NAME: &'static str = "turntable";
+		const APP_ID: &'static str = "org.asteroids.turntable";
 
 		fn reify(&self) -> Element<Self> {
 			let lines = Lines::new(

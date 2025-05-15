@@ -57,9 +57,7 @@ impl Migrate for State {
 	type Old = Self;
 }
 impl ClientState for State {
-	const QUALIFIER: &'static str = "org";
-	const ORGANIZATION: &'static str = "asteroids";
-	const NAME: &'static str = "basic_layout";
+	const APP_ID: &'static str = "org.asteroids.basic_layout";
 
 	fn initial_state_update(&mut self) {
 		println!("Initial state yippee");

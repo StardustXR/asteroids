@@ -59,7 +59,6 @@ name = "asteroids"
 version = "2.0.0"
 dependencies = [
  "ashpd",
- "convert_case 0.8.0",
  "derive-where",
  "derive_setters",
  "directories",
@@ -370,15 +369,6 @@ name = "convert_case"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
-dependencies = [
- "unicode-segmentation",
-]
-
-[[package]]
-name = "convert_case"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baaaa0ecca5b51987b9423ccdc971514dd8b0bb7b4060b983d3664dad3f1f89f"
 dependencies = [
  "unicode-segmentation",
 ]
@@ -1863,7 +1853,7 @@ name = "stardust-xr-fusion-codegen"
 version = "0.1.0"
 source = "git+https://github.com/StardustXR/core.git?branch=dev#d2964d8db079afaadb7faa4987e34814e62d6279"
 dependencies = [
- "convert_case 0.6.0",
+ "convert_case",
  "mint",
  "proc-macro2",
  "quote",

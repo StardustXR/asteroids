@@ -285,9 +285,7 @@ async fn asteroids_field_viz_element() {
 		type Old = Self;
 	}
 	impl ClientState for TestState {
-		const QUALIFIER: &'static str = "org";
-		const ORGANIZATION: &'static str = "asteroids";
-		const NAME: &'static str = "field_viz";
+		const APP_ID: &'static str = "org.asteroids.field_viz";
 
 		fn on_frame(&mut self, info: &FrameInfo) {
 			self.0 = info.elapsed;
