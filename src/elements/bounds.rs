@@ -112,3 +112,48 @@ impl<State: ValidState> Transformable for Bounds<State> {
 		&mut self.transform
 	}
 }
+
+#[tokio::test]
+async fn asteroids_bounds_element() {
+	use crate::{
+		client::{self, ClientState},
+		custom::ElementTrait,
+		elements::Bounds,
+	};
+	use serde::{Deserialize, Serialize};
+	use stardust_xr_fusion::spatial::BoundingBox;
+
+	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+	struct TestState {
+		latest_bounds: Option<BoundingBox>,
+	}
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
+	impl ClientState for TestState {
+		const APP_ID: &'static str = "org.asteroids.bounds";
+
+		fn reify(&self) -> crate::scenegraph::Element<Self> {
+			let bounding_box = BoundingBox {
+				center: [0.02, 0.5, 0.7].into(),
+				size: [0.2, 0.6, 5.3].into(),
+			};
+			let lines = crate::elements::Lines::new(crate::elements::lines::bounding_box(
+				bounding_box.clone(),
+			))
+			.build();
+			Bounds::new(move |state: &mut TestState, bounds| {
+				assert!((bounds.center.x - bounding_box.center.x).abs() < 0.01);
+				assert!((bounds.center.y - bounding_box.center.y).abs() < 0.01);
+				assert!((bounds.center.z - bounding_box.center.z).abs() < 0.01);
+				assert!((bounds.size.x - bounding_box.size.x).abs() < 0.01);
+				assert!((bounds.size.y - bounding_box.size.y).abs() < 0.01);
+				assert!((bounds.size.z - bounding_box.size.z).abs() < 0.01);
+				state.latest_bounds.replace(bounds);
+			})
+			.with_children([lines])
+		}
+	}
+
+	client::run::<TestState>(&[]).await
+}

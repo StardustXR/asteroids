@@ -10,7 +10,7 @@ repository = "https://github.com/StardustXR/asteroids/"
 homepage = "https://stardustxr.org"
 
 [dependencies]
-tokio = { version = "1.28.0", features = ["macros", "time", "sync"] }
+tokio = { version = "1.45.0", features = ["macros", "time", "sync"] }
 mint = "0.5.9"
 lazy_static = "1.4.0"
 rustc-hash = "2.0.0"
@@ -37,7 +37,7 @@ git = "https://github.com/StardustXR/molecules.git"
 branch = "dev"
 
 [dev-dependencies]
-tokio = { version = "1.28.0", features = ["full"] }
+tokio = { version = "1.45.0", features = ["full"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-tracy = "0.11.4"
 xkbcommon = "0.8.0"

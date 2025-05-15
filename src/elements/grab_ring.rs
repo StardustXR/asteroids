@@ -3,9 +3,8 @@ use crate::{
 	custom::{ElementTrait, FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
-use glam::{Quat, Vec3};
+use glam::Vec3;
 use mint::Vector3;
-
 use stardust_xr_fusion::{
 	drawable::{Line, Lines, LinesAspect},
 	fields::FieldAspect,
@@ -20,7 +19,6 @@ use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
 	lines::{LineExt, circle},
 };
-use std::f32::consts::FRAC_PI_2;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 #[derive(Setters)]
@@ -113,11 +111,8 @@ impl GrabRingInner {
 		field.set_spatial_parent(&content_root)?;
 
 		let ring_line = circle(64, 0.0, radius).thickness(thickness);
-		let ring_visual = Lines::create(
-			&content_root,
-			Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2)),
-			&[ring_line.clone()],
-		)?;
+		let ring_visual =
+			Lines::create(&content_root, Transform::identity(), &[ring_line.clone()])?;
 
 		Ok(GrabRingInner {
 			field,
@@ -273,18 +268,44 @@ impl GrabRingInner {
 	}
 }
 
-// fn interact_points(input: &InputData) -> Vec<Vec3> {
-//     match &input.input {
-//         InputDataType::Hand(h) => {
-//             vec![
-//                 h.thumb.tip.position.into(),
-//                 h.index.tip.position.into(),
-//                 h.ring.tip.position.into(),
-//                 h.middle.tip.position.into(),
-//                 h.little.tip.position.into(),
-//             ]
-//         }
-//         InputDataType::Tip(t) => vec![t.origin.into()],
-//         InputDataType::Pointer(p) => vec![p.deepest_point.into()],
-//     }
-// }
+#[tokio::test]
+async fn asteroids_grab_ring_element() {
+	use crate::{
+		Element,
+		client::{self, ClientState},
+		elements::GrabRing,
+	};
+	use mint::Vector3;
+	use serde::{Deserialize, Serialize};
+
+	#[derive(Serialize, Deserialize)]
+	struct TestState {
+		grab_pos: Vector3<f32>,
+	}
+	impl Default for TestState {
+		fn default() -> Self {
+			TestState {
+				grab_pos: [0.0; 3].into(),
+			}
+		}
+	}
+
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
+
+	impl ClientState for TestState {
+		const APP_ID: &'static str = "org.asteroids.grab_ring";
+
+		fn reify(&self) -> Element<Self> {
+			GrabRing::new(self.grab_pos, |state: &mut Self, pos| {
+				state.grab_pos = pos;
+			})
+			.radius(0.05)
+			.thickness(0.004)
+			.build()
+		}
+	}
+
+	client::run::<TestState>(&[]).await
+}

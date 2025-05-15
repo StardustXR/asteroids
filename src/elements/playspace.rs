@@ -5,7 +5,6 @@ use stardust_xr_fusion::{
 };
 use std::fmt::Debug;
 
-// TODO: implement bounds
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlaySpace;
 impl<State: ValidState> ElementTrait<State> for PlaySpace {
@@ -42,4 +41,32 @@ impl<State: ValidState> ElementTrait<State> for PlaySpace {
 	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
 		inner.clone().as_spatial_ref()
 	}
+}
+
+#[tokio::test]
+async fn asteroids_playspace_element() {
+	use crate::{
+		Element,
+		client::{self, ClientState},
+		elements::PlaySpace,
+	};
+	use serde::{Deserialize, Serialize};
+
+	#[derive(Default, Serialize, Deserialize)]
+	struct TestState;
+
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
+
+	impl ClientState for TestState {
+		const APP_ID: &'static str = "org.asteroids.playspace";
+
+		fn reify(&self) -> Element<Self> {
+			let lines = crate::elements::Lines::new([crate::elements::circle(4, 0.0, 0.1)]).build();
+			PlaySpace.with_children([lines])
+		}
+	}
+
+	client::run::<TestState>(&[]).await
 }

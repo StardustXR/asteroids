@@ -238,3 +238,61 @@ impl PenInner {
 		})
 	}
 }
+
+#[tokio::test]
+async fn asteroids_pen_test() {
+	use crate::{
+		Element,
+		client::{self, ClientState},
+		custom::ElementTrait,
+		elements::{Pen, Spatial},
+	};
+	use mint::{Quaternion, Vector3};
+	use serde::{Deserialize, Serialize};
+
+	#[derive(Default, Serialize, Deserialize)]
+	struct TestState {
+		#[serde(skip)]
+		pen_state: Option<String>,
+	}
+
+	impl TestState {
+		pub fn update_pen_state(&mut self, state: String) {
+			self.pen_state = Some(state);
+		}
+	}
+
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
+
+	impl ClientState for TestState {
+		const APP_ID: &'static str = "org.asteroids.pen";
+
+		fn reify(&self) -> Element<Self> {
+			Spatial::default().with_children([Pen::new(
+				Vector3 {
+					x: 0.0,
+					y: 0.0,
+					z: 0.0,
+				},
+				Quaternion {
+					v: Vector3 {
+						x: 0.0,
+						y: 0.0,
+						z: 0.0,
+					},
+					s: 1.0,
+				},
+				|state: &mut TestState, pen_state, pos, rot| {
+					state.update_pen_state(format!("{:?} at {:?} {:?}", pen_state, pos, rot));
+				},
+			)
+			.length(0.1)
+			.thickness(0.01)
+			.build()])
+		}
+	}
+
+	client::run::<TestState>(&[]).await;
+}
