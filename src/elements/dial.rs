@@ -4,7 +4,7 @@ use crate::{
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
-use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, vec3};
+use glam::{Mat4, Quat, Vec2, Vec3, Vec3Swizzles, vec3};
 use stardust_xr_fusion::{
 	core::values::Color,
 	drawable::{Line, Lines, LinesAspect},
@@ -18,7 +18,10 @@ use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
 	lines::{LineExt, circle, line_from_points},
 };
-use std::{f32::consts::TAU, ops::Range};
+use std::{
+	f32::consts::{FRAC_PI_2, TAU},
+	ops::Range,
+};
 
 pub type OnChangeFn<State> = FnWrapper<dyn Fn(&mut State, f32) + Send + Sync>;
 
@@ -137,7 +140,7 @@ impl DialInner {
 		let root = Spatial::create(parent, transform, false)?;
 		let field = Field::create(
 			&root,
-			Transform::identity(),
+			Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2)),
 			Shape::Cylinder(CylinderShape {
 				radius,
 				length: thickness,
@@ -150,9 +153,12 @@ impl DialInner {
 			Transform::identity(),
 			&[
 				// circles are z-facing
-				circle(32, 0.0, radius).color(accent_color),
 				circle(32, 0.0, radius)
 					.color(accent_color)
+					.transform(Mat4::from_rotation_x(FRAC_PI_2)),
+				circle(32, 0.0, radius)
+					.color(accent_color)
+					.transform(Mat4::from_rotation_x(FRAC_PI_2))
 					.transform(Mat4::from_translation(vec3(0.0, 0.0, thickness))),
 			],
 		)?;
@@ -255,10 +261,14 @@ impl DialInner {
 		};
 		let mut lines = vec![
 			// circles are z-facing
-			circle(32, 0.0, decl.radius).color(color).thickness(0.001),
 			circle(32, 0.0, decl.radius)
 				.color(color)
 				.thickness(0.001)
+				.transform(Mat4::from_rotation_x(FRAC_PI_2)),
+			circle(32, 0.0, decl.radius)
+				.color(color)
+				.thickness(0.001)
+				.transform(Mat4::from_rotation_x(FRAC_PI_2))
 				.transform(Mat4::from_translation(vec3(0.0, 0.0, decl.thickness))),
 		];
 
