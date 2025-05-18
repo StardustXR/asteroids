@@ -16,7 +16,7 @@ use stardust_xr_molecules::{
 	DebugSettings,
 	lines::{self, LineExt},
 };
-use std::f32::consts::PI;
+use std::f32::consts::{FRAC_PI_2, PI};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -126,6 +126,7 @@ fn make_triangles(
 			.pos([
 				0.0, 0.0, offset,
 			])
+			.rot(Quat::from_rotation_x(-FRAC_PI_2))
 			.build()
 	})
 }
