@@ -3,6 +3,7 @@ use crate::{
 	custom::{ElementTrait, FnWrapper},
 };
 use derive_setters::Setters;
+use glam::Affine3A;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
 	fields::{Field, FieldAspect, Shape},
@@ -124,10 +125,18 @@ impl<State: ValidState> ElementTrait<State> for Grabbable<State> {
 		if self.field_shape != old_decl.field_shape {
 			let _ = inner.field().set_shape(self.field_shape.clone());
 		}
+		let (_, rot, pos) = inner.pose.to_scale_rotation_translation();
+		if self.pos != pos.into() || self.rot != rot.into() {
+			let _ = inner
+				.content_parent()
+				.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot));
+		}
+		inner.pose = Affine3A::from_rotation_translation(self.rot.into(), self.pos.into());
 		if inner.handle_events() {
 			let (_, rot, pos) = inner.pose.to_scale_rotation_translation();
 			(self.on_change_pose.0)(state, pos.into(), rot.into())
 		}
+
 		if inner.grab_action().actor_started() {
 			(self.grab_start.0)(state);
 		}
@@ -204,6 +213,8 @@ async fn asteroids_grabbable_element() {
 			})
 			.grab_stop(|state: &mut Self| {
 				state.grabbed = false;
+				state.pos = [0.0; 3].into();
+				state.rot = glam::Quat::IDENTITY.into();
 			})
 			.pointer_mode(PointerMode::Move)
 			.with_children([lines])

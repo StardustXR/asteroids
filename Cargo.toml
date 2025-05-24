@@ -18,7 +18,7 @@ serde = { version = "1.0.197", features = ["serde_derive"] }
 derive_setters = "0.1.6"
 derive-where = "1.2.7"
 zbus = "5.1.1"
-glam = { version = "0.28.0", features = ["mint"] }
+glam = { version = "0.30.0", features = ["mint"] }
 directories = "6.0.0"
 ron = "0.10.1"
 map-range = "0.1.2"

@@ -63,7 +63,7 @@ dependencies = [
  "derive_setters",
  "directories",
  "futures-util",
- "glam 0.28.0",
+ "glam",
  "inotify",
  "lazy_static",
  "map-range",
@@ -719,24 +719,6 @@ name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
-
-[[package]]
-name = "glam"
-version = "0.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e05e7e6723e3455f4818c7b26e855439f7546cf617ef669d1adedb8669e5cb9"
-dependencies = [
- "mint",
-]
-
-[[package]]
-name = "glam"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "779ae4bf7e8421cf91c0b3b64e7e8b40b862fba4d393f59150042de7c4965a94"
-dependencies = [
- "mint",
-]
 
 [[package]]
 name = "glam"
@@ -1800,7 +1782,7 @@ source = "git+https://github.com/StardustXR/core.git?branch=dev#d2964d8db079afaa
 dependencies = [
  "color-eyre",
  "dashmap",
- "glam 0.30.3",
+ "glam",
  "global_counter",
  "parking_lot 0.12.3",
  "rustc-hash 1.1.0",
@@ -1831,10 +1813,10 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.45.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=dev#fbc0a2712b7538896b342cd6df656c38e911be01"
+source = "git+https://github.com/StardustXR/molecules.git?branch=dev#682d611386502546756e3afb722e9e3cfecf394c"
 dependencies = [
  "futures-util",
- "glam 0.27.0",
+ "glam",
  "lazy_static",
  "lerp",
  "map-range",
