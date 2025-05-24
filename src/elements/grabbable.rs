@@ -26,6 +26,7 @@ pub struct Grabbable<State: ValidState> {
 	#[setters(skip)]
 	field_shape: Shape,
 	#[setters(skip)]
+	#[allow(clippy::type_complexity)]
 	on_change_pose: FnWrapper<dyn Fn(&mut State, Vector3<f32>, Quaternion<f32>) + Send + Sync>,
 	#[setters(skip)]
 	grab_start: FnWrapper<dyn Fn(&mut State) + Send + Sync>,
