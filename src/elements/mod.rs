@@ -10,7 +10,7 @@ mod_expose!(accent_color_listener);
 mod_expose!(button);
 mod_expose!(dial);
 mod_expose!(field_viz);
-// mod_expose!(grabbable);
+mod_expose!(grabbable);
 mod_expose!(keyboard);
 mod_expose!(lines);
 mod_expose!(model);

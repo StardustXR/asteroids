@@ -1831,7 +1831,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.45.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=dev#b1601c634728cadfa1849b2efe3f0497451b47a0"
+source = "git+https://github.com/StardustXR/molecules.git?branch=dev#fbc0a2712b7538896b342cd6df656c38e911be01"
 dependencies = [
  "futures-util",
  "glam 0.27.0",
@@ -2142,7 +2142,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69fff37da548239c3bf9e64a12193d261e8b22b660991c6fd2df057c168f435f"
 dependencies = [
  "cc",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
