@@ -38,7 +38,7 @@ fn initial_state<State: ClientState>() -> State {
 	let initial_state_path = directories::BaseDirs::new()
 		.unwrap()
 		.config_dir()
-		.join(qualified_name)
+		.join(State::APP_ID)
 		.join("initial_state.ron");
 	let mut state = match read_to_string(&initial_state_path).ok().map(RonFile) {
 		Some(initial_state_string) => State::deserialize_with_migrate(&initial_state_string)
