@@ -1,5 +1,5 @@
 use asteroids::{
-	ClientState, Element, ElementTrait, Migrate, Transformable, client,
+	ClientState, CustomElement, Element, Migrate, Transformable, client,
 	elements::{Button, Lines, Model, Spatial, Text},
 };
 use glam::Quat;
@@ -9,7 +9,6 @@ use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	project_local_resources,
 	root::FrameInfo,
-	spatial::Transform,
 	values::color::{Deg, Hsv, ToRgba},
 };
 use stardust_xr_molecules::{

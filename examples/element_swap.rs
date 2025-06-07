@@ -1,5 +1,5 @@
 use asteroids::{
-	ClientState, Element, ElementTrait, Migrate, Transformable, client,
+	ClientState, CustomElement, Element, Migrate, Transformable, client,
 	elements::{Spatial, Text},
 };
 use glam::Quat;
