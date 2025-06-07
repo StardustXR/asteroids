@@ -140,9 +140,6 @@ impl<
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
 		self.element.0.spatial_aspect(inner_map)
 	}
-	fn as_any(&self) -> &dyn Any {
-		self
-	}
 	fn inner_key(&self) -> Option<ElementInnerKey> {
 		self.element.0.inner_key()
 	}
@@ -161,7 +158,8 @@ impl<
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
-		let old_mapper: &Self = old.0.as_any().downcast_ref().unwrap();
+		let old_upcast: &(dyn Any + 'static) = &*old.0;
+		let old_mapper: &Self = old_upcast.downcast_ref().unwrap();
 		let Some(mapped) = (self.mapper)(state) else {
 			return;
 		};
@@ -200,7 +198,6 @@ pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 	fn frame_recursive(&self, info: &FrameInfo, state: &mut State, inner_map: &mut ElementInnerMap);
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef;
-	fn as_any(&self) -> &dyn Any;
 	fn inner_key(&self) -> Option<ElementInnerKey>;
 	fn apply_element_keys(&self, parent_path: &[(usize, TypeId, &'static str)], order: usize);
 	fn identify(&mut self, key: ElementInnerKey);
@@ -365,8 +362,9 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
+		let old_upcast: &(dyn Any + 'static) = &*old.0;
 		let old_wrapper: &ElementWrapper<State, E> =
-			old.0.as_any().downcast_ref().unwrap_or_else(|| {
+			old_upcast.downcast_ref().unwrap_or_else(|| {
 				old.0.destroy_inner_recursive(inner_map);
 				self.create_inner_recursive(&parent_spatial, inner_map, context, resources)
 					.expect("Could not create inner for new root element for swap");
