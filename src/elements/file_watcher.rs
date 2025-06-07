@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, FnWrapper},
+	custom::{CustomElement, FnWrapper},
 };
 use derive_where::derive_where;
 use futures_util::StreamExt;
@@ -57,7 +57,7 @@ impl<State: ValidState> FileWatcher<State> {
 	}
 }
 // TODO: make one watch_loop as a resource to only have one Inotify instance
-impl<State: ValidState> ElementTrait<State> for FileWatcher<State> {
+impl<State: ValidState> CustomElement<State> for FileWatcher<State> {
 	type Inner = FileWatcherInner;
 	type Resource = ();
 	type Error = std::io::Error;

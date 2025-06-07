@@ -1,5 +1,5 @@
 use crate::{
-	Context, Reify, View,
+	Context, Projector, Reify,
 	scenegraph::Element,
 	util::{Migrate, RonFile},
 };
@@ -111,7 +111,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 
 	dioxus_devtools::connect_subsecond();
 
-	let mut view = View::new(&state, &context, client.get_root());
+	let mut view = Projector::new(&state, &context, client.get_root());
 
 	let event_loop_future = client.sync_event_loop(|client, _| {
 		while let Some(root_event) = client.get_root().recv_root_event() {

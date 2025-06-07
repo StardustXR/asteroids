@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, FnWrapper, derive_setters::Setters},
+	custom::{CustomElement, FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
 use glam::Vec3;
@@ -46,7 +46,7 @@ impl<State: ValidState> GrabRing<State> {
 		}
 	}
 }
-impl<State: ValidState> ElementTrait<State> for GrabRing<State> {
+impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 	type Inner = GrabRingInner;
 	type Resource = ();
 	type Error = stardust_xr_fusion::node::NodeError;

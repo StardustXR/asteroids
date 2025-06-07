@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, Transformable},
+	custom::{CustomElement, Transformable},
 };
 use stardust_xr_fusion::{
 	drawable::{Line, LinesAspect},
@@ -24,7 +24,7 @@ impl Lines {
 		}
 	}
 }
-impl<State: ValidState> ElementTrait<State> for Lines {
+impl<State: ValidState> CustomElement<State> for Lines {
 	type Inner = stardust_xr_fusion::drawable::Lines;
 	type Resource = ();
 	type Error = NodeError;

@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, Transformable},
+	custom::{CustomElement, Transformable},
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -15,7 +15,7 @@ pub struct Spatial {
 	transform: Transform,
 	zoneable: bool,
 }
-impl<State: ValidState> ElementTrait<State> for Spatial {
+impl<State: ValidState> CustomElement<State> for Spatial {
 	type Inner = stardust_xr_fusion::spatial::Spatial;
 	type Resource = ();
 	type Error = NodeError;

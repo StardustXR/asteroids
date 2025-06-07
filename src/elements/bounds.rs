@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, Transformable},
+	custom::{CustomElement, Transformable},
 };
 use stardust_xr_fusion::{
 	node::NodeError,
@@ -37,7 +37,7 @@ impl<State: ValidState> Bounds<State> {
 		}
 	}
 }
-impl<State: ValidState> ElementTrait<State> for Bounds<State> {
+impl<State: ValidState> CustomElement<State> for Bounds<State> {
 	type Inner = BoundsInner;
 	type Resource = ();
 	type Error = NodeError;
@@ -117,7 +117,7 @@ impl<State: ValidState> Transformable for Bounds<State> {
 async fn asteroids_bounds_element() {
 	use crate::{
 		client::{self, ClientState},
-		custom::ElementTrait,
+		custom::CustomElement,
 		elements::Bounds,
 	};
 	use serde::{Deserialize, Serialize};

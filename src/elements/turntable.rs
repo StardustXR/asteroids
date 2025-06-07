@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, FnWrapper, Transformable, derive_setters::Setters},
+	custom::{CustomElement, FnWrapper, Transformable, derive_setters::Setters},
 };
 use derive_where::derive_where;
 use glam::{Quat, Vec3};
@@ -41,7 +41,7 @@ impl<State: ValidState> Transformable for Turntable<State> {
 		&mut self.transform
 	}
 }
-impl<State: ValidState> ElementTrait<State> for Turntable<State> {
+impl<State: ValidState> CustomElement<State> for Turntable<State> {
 	type Inner = TurntableInner;
 	type Resource = ();
 	type Error = stardust_xr_fusion::node::NodeError;
@@ -387,7 +387,7 @@ async fn asteroids_turntable_element() {
 	use crate::{
 		Element,
 		client::{self, ClientState},
-		custom::ElementTrait,
+		custom::CustomElement,
 		elements::{Lines, Turntable},
 	};
 	use serde::{Deserialize, Serialize};

@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, Transformable},
+	custom::{CustomElement, Transformable},
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -24,7 +24,7 @@ pub struct Text {
 	text_align_y: YAlign,
 	bounds: Option<TextBounds>,
 }
-impl<State: ValidState> ElementTrait<State> for Text {
+impl<State: ValidState> CustomElement<State> for Text {
 	type Inner = stardust_xr_fusion::drawable::Text;
 	type Resource = ();
 	type Error = NodeError;

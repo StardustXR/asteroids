@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, FnWrapper},
+	custom::{CustomElement, FnWrapper},
 };
 use derive_setters::Setters;
 use glam::{Quat, Vec3};
@@ -81,7 +81,7 @@ impl<State: ValidState> Pen<State> {
 		}
 	}
 }
-impl<State: ValidState> ElementTrait<State> for Pen<State> {
+impl<State: ValidState> CustomElement<State> for Pen<State> {
 	type Inner = PenInner;
 	type Resource = ();
 	type Error = NodeError;
@@ -244,7 +244,7 @@ async fn asteroids_pen_test() {
 	use crate::{
 		Element,
 		client::{self, ClientState},
-		custom::ElementTrait,
+		custom::CustomElement,
 		elements::Pen,
 	};
 	use mint::{Quaternion, Vector3};

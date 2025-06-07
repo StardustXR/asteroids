@@ -1,4 +1,4 @@
-use crate::{Context, CreateInnerInfo, ValidState, custom::ElementTrait};
+use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 use stardust_xr_fusion::{
 	node::{NodeError, NodeType},
 	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
@@ -7,7 +7,7 @@ use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlaySpace;
-impl<State: ValidState> ElementTrait<State> for PlaySpace {
+impl<State: ValidState> CustomElement<State> for PlaySpace {
 	type Inner = Spatial;
 	type Resource = ();
 	type Error = NodeError;

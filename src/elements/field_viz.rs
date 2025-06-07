@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, Transformable},
+	custom::{CustomElement, Transformable},
 };
 use derive_setters::Setters;
 use glam::Vec3;
@@ -166,7 +166,7 @@ impl FieldVizInner {
 	}
 }
 
-impl<State: ValidState> ElementTrait<State> for FieldViz {
+impl<State: ValidState> CustomElement<State> for FieldViz {
 	type Inner = FieldVizInner;
 	type Resource = ();
 	type Error = NodeError;

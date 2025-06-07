@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, Transformable},
+	custom::{CustomElement, Transformable},
 };
 use derive_setters::Setters;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -101,7 +101,7 @@ pub struct Model {
 	pub resource: ResourceID,
 	pub model_parts: FxHashSet<ModelPart>,
 }
-impl<State: ValidState> ElementTrait<State> for Model {
+impl<State: ValidState> CustomElement<State> for Model {
 	type Inner = ModelInner;
 	type Resource = ();
 	type Error = NodeError;

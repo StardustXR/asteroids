@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, FnWrapper, Transformable},
+	custom::{CustomElement, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -51,7 +51,7 @@ pub struct KeyboardElementInner {
 	_dbus_object_handles: DbusObjectHandles,
 	key_rx: mpsc::UnboundedReceiver<KeypressInfo>,
 }
-impl<State: ValidState> ElementTrait<State> for KeyboardHandler<State> {
+impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 	type Inner = KeyboardElementInner;
 	type Resource = ();
 	type Error = NodeError;
@@ -115,7 +115,7 @@ async fn asteroids_keyboard_element() {
 	use crate::{
 		Element,
 		client::{self, ClientState},
-		custom::ElementTrait,
+		custom::CustomElement,
 		elements::{KeyboardHandler, Text},
 	};
 	use serde::{Deserialize, Serialize};

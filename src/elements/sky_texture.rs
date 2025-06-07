@@ -5,11 +5,11 @@ use stardust_xr_fusion::{
 	values::ResourceID,
 };
 
-use crate::{Context, CreateInnerInfo, ValidState, custom::ElementTrait};
+use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 
 #[derive(Debug)]
 pub struct SkyTexture(pub ResourceID);
-impl<State: ValidState> ElementTrait<State> for SkyTexture {
+impl<State: ValidState> CustomElement<State> for SkyTexture {
 	type Inner = SkyTexInner;
 
 	type Resource = ();

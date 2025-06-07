@@ -1,7 +1,7 @@
 use crate::{
 	CreateInnerInfo, ValidState,
 	context::Context,
-	custom::{ElementTrait, FnWrapper},
+	custom::{CustomElement, FnWrapper},
 };
 use ashpd::desktop::settings::Settings;
 use futures_util::StreamExt;
@@ -80,7 +80,7 @@ impl<State: ValidState> AccentColorListener<State> {
 		}
 	}
 }
-impl<State: ValidState> ElementTrait<State> for AccentColorListener<State> {
+impl<State: ValidState> CustomElement<State> for AccentColorListener<State> {
 	type Inner = AccentColorInner;
 	type Resource = AccentColorListenerResource;
 	type Error = NodeError;

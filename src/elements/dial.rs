@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, FnWrapper, Transformable},
+	custom::{CustomElement, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -68,7 +68,7 @@ impl<State: ValidState> Dial<State> {
 	}
 }
 
-impl<State: ValidState> ElementTrait<State> for Dial<State> {
+impl<State: ValidState> CustomElement<State> for Dial<State> {
 	// You'll need to create this type in stardust_xr_molecules
 	type Inner = DialInner;
 	type Resource = ();

@@ -1,4 +1,4 @@
-use crate::{Context, CreateInnerInfo, ValidState, custom::ElementTrait, util::DeltaSet};
+use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement, util::DeltaSet};
 use dioxus_devtools::subsecond::HotFn;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
@@ -27,25 +27,25 @@ impl ResourceRegistry {
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct ElementInnerKey(u64);
+pub(crate) struct ElementInnerKey(pub u64);
 
 #[derive(Debug, Default)]
 pub(crate) struct ElementInnerMap(FxHashMap<ElementInnerKey, Box<dyn Any + Send + Sync>>);
 impl ElementInnerMap {
-	fn insert<State: ValidState, E: ElementTrait<State>>(
+	fn insert<State: ValidState, E: CustomElement<State>>(
 		&mut self,
 		key: ElementInnerKey,
 		inner: E::Inner,
 	) {
 		self.0.insert(key, Box::new(inner));
 	}
-	fn get<State: ValidState, E: ElementTrait<State>>(
+	fn get<State: ValidState, E: CustomElement<State>>(
 		&self,
 		key: ElementInnerKey,
 	) -> Option<&E::Inner> {
 		self.0.get(&key)?.downcast_ref()
 	}
-	fn get_mut<State: ValidState, E: ElementTrait<State>>(
+	fn get_mut<State: ValidState, E: CustomElement<State>>(
 		&mut self,
 		key: ElementInnerKey,
 	) -> Option<&mut E::Inner> {
@@ -93,6 +93,7 @@ impl<State: ValidState> Element<State> {
 		self
 	}
 }
+
 impl<State: ValidState> Hash for Element<State> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.0.inner_key().hash(state);
@@ -234,13 +235,15 @@ pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 }
 
 #[derive_where::derive_where(Debug)]
-pub(crate) struct ElementWrapper<State: ValidState, E: ElementTrait<State>> {
+pub(crate) struct ElementWrapper<State: ValidState, E: CustomElement<State>> {
 	pub(crate) params: E,
 	pub(crate) path: OnceLock<Vec<(usize, TypeId, &'static str)>>,
 	pub(crate) inner_key: OnceLock<ElementInnerKey>,
 	pub(crate) children: Vec<Element<State>>,
 }
-impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for ElementWrapper<State, E> {
+impl<State: ValidState, E: CustomElement<State>> GenericElement<State>
+	for ElementWrapper<State, E>
+{
 	fn type_id(&self) -> TypeId {
 		self.params.type_id()
 	}

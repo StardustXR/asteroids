@@ -1,7 +1,7 @@
 use crate::{
 	CreateInnerInfo, ValidState,
 	context::Context,
-	custom::{ElementTrait, FnWrapper, Transformable},
+	custom::{CustomElement, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -47,7 +47,7 @@ impl<State: ValidState> Button<State> {
 		}
 	}
 }
-impl<State: ValidState> ElementTrait<State> for Button<State> {
+impl<State: ValidState> CustomElement<State> for Button<State> {
 	type Inner = stardust_xr_molecules::button::Button;
 	type Resource = ();
 	type Error = NodeError;
@@ -108,7 +108,7 @@ impl<State: ValidState> Transformable for Button<State> {
 async fn asteroids_button_element() {
 	use crate::{
 		client::{self, ClientState},
-		custom::ElementTrait,
+		custom::CustomElement,
 		elements::Button,
 	};
 	use serde::{Deserialize, Serialize};

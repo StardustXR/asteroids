@@ -14,11 +14,12 @@ pub struct CreateInnerInfo<'a> {
 	pub element_path: &'a Path,
 }
 
-pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
+pub trait CustomElement<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
 	/// The imperative struct containing non-saved state
 	type Inner: Send + Sync + 'static;
 	/// A global shared across the whole View
 	type Resource: Default + Send + Sync + 'static;
+	/// Error type for the element
 	type Error: ToString;
 	/// Create the inner imperative struct
 	fn create_inner(

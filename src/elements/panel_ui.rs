@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, FnWrapper},
+	custom::{CustomElement, FnWrapper},
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -41,7 +41,7 @@ impl<State: ValidState> Default for PanelUI<State> {
 		}
 	}
 }
-impl<State: ValidState> ElementTrait<State> for PanelUI<State> {
+impl<State: ValidState> CustomElement<State> for PanelUI<State> {
 	type Inner = (PanelItemUi, SpatialRef);
 	type Resource = ();
 	type Error = NodeError;

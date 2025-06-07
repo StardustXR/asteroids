@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{ElementTrait, FnWrapper, Transformable},
+	custom::{CustomElement, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
 use derive_where::derive_where;
@@ -61,7 +61,7 @@ pub struct MouseElementInner {
 	scroll_discrete_rx: mpsc::UnboundedReceiver<Vector2<f32>>,
 	scroll_continuous_rx: mpsc::UnboundedReceiver<Vector2<f32>>,
 }
-impl<State: ValidState> ElementTrait<State> for MouseHandler<State> {
+impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 	type Inner = MouseElementInner;
 	type Resource = ();
 	type Error = NodeError;
@@ -149,7 +149,7 @@ async fn asteroids_mouse_element() {
 	use crate::{
 		Element,
 		client::{self, ClientState},
-		custom::ElementTrait,
+		custom::CustomElement,
 		elements::{MouseHandler, Text},
 	};
 	use mint::Vector2;

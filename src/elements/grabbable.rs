@@ -1,6 +1,6 @@
 use crate::{
 	ValidState,
-	custom::{ElementTrait, FnWrapper},
+	custom::{CustomElement, FnWrapper},
 };
 use derive_setters::Setters;
 use glam::Affine3A;
@@ -83,7 +83,7 @@ impl<State: ValidState> Grabbable<State> {
 		self
 	}
 }
-impl<State: ValidState> ElementTrait<State> for Grabbable<State> {
+impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 	type Inner = stardust_xr_molecules::Grabbable;
 	type Resource = ();
 	type Error = NodeError;
