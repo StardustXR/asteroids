@@ -1,3 +1,4 @@
+use dioxus_devtools::subsecond::HotFn;
 use scenegraph::{ElementInnerMap, ResourceRegistry};
 use stardust_xr_fusion::root::FrameInfo;
 use stardust_xr_fusion::spatial::{Spatial, SpatialRefAspect, Transform};
@@ -68,7 +69,7 @@ impl<State: Reify> View<State> {
 
 	#[tracing::instrument(level = "debug", skip_all)]
 	pub fn update(&mut self, context: &Context, state: &mut State) {
-		let new_vdom = state.reify();
+		let new_vdom = HotFn::current(State::reify).call((state,));
 		new_vdom.0.apply_element_keys(&[], 0);
 		new_vdom.0.diff_and_apply(
 			self.root.clone().as_spatial_ref(),

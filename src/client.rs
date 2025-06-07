@@ -109,6 +109,8 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 		return;
 	};
 
+	dioxus_devtools::connect_subsecond();
+
 	let mut view = View::new(&state, &context, client.get_root());
 
 	let event_loop_future = client.sync_event_loop(|client, _| {

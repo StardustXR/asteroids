@@ -26,7 +26,7 @@ inotify = "0.11.0"
 futures-util = "0.3.31"
 ashpd = "0.11.0"
 tracing = "0.1.41"
-
+dioxus-devtools = "0.7.0-alpha.1"
 
 [dependencies.stardust-xr-fusion]
 git = "https://github.com/StardustXR/core.git"
@@ -41,3 +41,15 @@ tokio = { version = "1.45.0", features = ["full"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-tracy = "0.11.4"
 xkbcommon = "0.8.0"
+
+[profile]
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+
+[profile.server-dev]
+inherits = "dev"
+
+[profile.android-dev]
+inherits = "dev"
