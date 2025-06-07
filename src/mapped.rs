@@ -6,8 +6,8 @@ use std::{
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
 
 use crate::{
-	Context, Element, ElementInnerKey, ElementInnerMap, ResourceRegistry, ValidState,
-	scenegraph::GenericElement,
+	Context, Element, ElementInnerMap, ResourceRegistry, ValidState,
+	scenegraph::{ElementInnerKey, GenericElement},
 };
 pub(crate) struct MappedElement<
 	State: ValidState,
