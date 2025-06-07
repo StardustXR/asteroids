@@ -116,7 +116,7 @@ async fn asteroids_keyboard_element() {
 		Element,
 		client::{self, ClientState},
 		custom::ElementTrait,
-		elements::{KeyboardHandler, Spatial, Text},
+		elements::{KeyboardHandler, Text},
 	};
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::fields::Shape;
@@ -139,19 +139,19 @@ async fn asteroids_keyboard_element() {
 		const APP_ID: &'static str = "org.asteroids.keyboard";
 
 		fn reify(&self) -> Element<Self> {
-			// Create a container spatial
-			Spatial::default().with_children([
-				Text::default()
-					.text(
-						self.latest_key
-							.as_ref()
-							.map(|key| format!("Latest key: {:?}", key.key))
-							.unwrap_or_default(),
-					)
-					.character_height(0.05)
-					.build(),
-				KeyboardHandler::new(Shape::Sphere(0.5), Self::key_press).build(),
-			])
+			KeyboardHandler::new(Shape::Sphere(0.5), Self::key_press)
+				.build()
+				.child(
+					Text::default()
+						.text(
+							self.latest_key
+								.as_ref()
+								.map(|key| format!("Latest key: {:?}", key.key))
+								.unwrap_or_default(),
+						)
+						.character_height(0.05)
+						.build(),
+				)
 		}
 	}
 	client::run::<TestState>(&[]).await

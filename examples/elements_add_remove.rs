@@ -40,32 +40,37 @@ impl ClientState for State {
 	const APP_ID: &'static str = "org.asteroids.elements_add_remove";
 
 	fn reify(&self) -> Element<Self> {
-		Spatial::default().zoneable(true).with_children([
-			Spatial::default().with_children(
+		Spatial::default()
+			.zoneable(true)
+			.build()
+			.child(
+				LabeledButton::new(|state: &mut State| {
+					state.list.push(format!("List item {}", state.list.len()));
+				})
+				.height(0.01)
+				.padding(0.0025)
+				.label("add")
+				.pos([
+					-0.03, 0.02, 0.0,
+				])
+				.build(),
+			)
+			.child(
+				LabeledButton::new(|state: &mut State| {
+					state.list.pop();
+				})
+				.height(0.01)
+				.padding(0.0025)
+				.label("remove")
+				.pos([0.03, 0.02, 0.0])
+				.build(),
+			)
+			.children(
 				self.list
 					.iter()
 					.enumerate()
 					.map(|(i, t)| make_list_item(i, t).identify(&i)),
-			),
-			LabeledButton::new(|state: &mut State| {
-				state.list.push(format!("List item {}", state.list.len()));
-			})
-			.height(0.01)
-			.padding(0.0025)
-			.label("add")
-			.pos([
-				-0.03, 0.02, 0.0,
-			])
-			.build(),
-			LabeledButton::new(|state: &mut State| {
-				state.list.pop();
-			})
-			.height(0.01)
-			.padding(0.0025)
-			.label("remove")
-			.pos([0.03, 0.02, 0.0])
-			.build(),
-		])
+			)
 	}
 }
 
@@ -96,13 +101,16 @@ impl LabeledButton {
 				padding + (self.label.len() as f32 * self.height),
 				padding + self.height,
 			])
-			.with_children([Text::default()
-				.text(&self.label)
-				.character_height(self.height)
-				.text_align_x(XAlign::Center)
-				.text_align_y(YAlign::Center)
-				.rot(Quat::from_rotation_y(PI))
-				.build()])
+			.build()
+			.child(
+				Text::default()
+					.text(&self.label)
+					.character_height(self.height)
+					.text_align_x(XAlign::Center)
+					.text_align_y(YAlign::Center)
+					.rot(Quat::from_rotation_y(PI))
+					.build(),
+			)
 	}
 }
 impl Transformable for LabeledButton {
@@ -123,13 +131,16 @@ fn make_list_item(index: usize, text: &String) -> Element<State> {
 			(index as f32) * -(size + padding),
 			0.0,
 		])
-		.with_children([
+		.build()
+		.child(
 			Button::new(move |state: &mut State| {
 				state.list.remove(index);
 			})
 			.size([size; 2])
 			.pos([-0.05, 0.0, 0.0])
 			.build(),
+		)
+		.child(
 			Text::default()
 				.text("-")
 				.character_height(size)
@@ -137,11 +148,13 @@ fn make_list_item(index: usize, text: &String) -> Element<State> {
 				.pos([-0.05, 0.0, 0.0])
 				.rot(Quat::from_rotation_y(PI))
 				.build(),
+		)
+		.child(
 			Text::default()
 				.text(text)
 				.character_height(size)
 				.text_align_x(XAlign::Left)
 				.rot(Quat::from_rotation_y(PI))
 				.build(),
-		])
+		)
 }

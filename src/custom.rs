@@ -42,15 +42,11 @@ pub trait ElementTrait<State: ValidState>: Any + Debug + Send + Sync + Sized + '
 	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef;
 	/// Call this to add the element as a child of another one.
 	fn build(self) -> Element<State> {
-		self.with_children([])
-	}
-	/// Build this element and add the elements as children.
-	fn with_children(self, children: impl IntoIterator<Item = Element<State>>) -> Element<State> {
 		Element(Box::new(ElementWrapper::<State, Self> {
 			params: self,
 			path: OnceLock::new(),
 			inner_key: OnceLock::new(),
-			children: children.into_iter().collect(),
+			children: vec![],
 		}))
 	}
 }

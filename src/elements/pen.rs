@@ -245,7 +245,7 @@ async fn asteroids_pen_test() {
 		Element,
 		client::{self, ClientState},
 		custom::ElementTrait,
-		elements::{Pen, Spatial},
+		elements::Pen,
 	};
 	use mint::{Quaternion, Vector3};
 	use serde::{Deserialize, Serialize};
@@ -270,7 +270,7 @@ async fn asteroids_pen_test() {
 		const APP_ID: &'static str = "org.asteroids.pen";
 
 		fn reify(&self) -> Element<Self> {
-			Spatial::default().with_children([Pen::new(
+			Pen::new(
 				Vector3 {
 					x: 0.0,
 					y: 0.0,
@@ -290,7 +290,7 @@ async fn asteroids_pen_test() {
 			)
 			.length(0.1)
 			.thickness(0.01)
-			.build()])
+			.build()
 		}
 	}
 

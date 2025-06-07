@@ -414,27 +414,30 @@ async fn asteroids_turntable_element() {
 		const APP_ID: &'static str = "org.asteroids.turntable";
 
 		fn reify(&self) -> Element<Self> {
-			let lines = Lines::new(
-				bounding_box(BoundingBox {
-					center: [0.0; 3].into(),
-					size: [0.05; 3].into(),
-				})
-				.into_iter()
-				.map(|l| l.thickness(0.002)),
-			)
-			.pos([0.0, 0.025, 0.0])
-			.build();
-			let turntable = Turntable::new(self.rotation, Self::handle_rotation)
-				.line_count(64)
-				.line_thickness(0.002)
-				.height(0.03)
-				.inner_radius(0.1)
-				.scroll_multiplier(1.0_f32.to_radians())
-				.with_children([lines]);
-
 			crate::elements::Spatial::default()
 				.zoneable(true)
-				.with_children([turntable])
+				.build()
+				.child(
+					Turntable::new(self.rotation, Self::handle_rotation)
+						.line_count(64)
+						.line_thickness(0.002)
+						.height(0.03)
+						.inner_radius(0.1)
+						.scroll_multiplier(1.0_f32.to_radians())
+						.build()
+						.child(
+							Lines::new(
+								bounding_box(BoundingBox {
+									center: [0.0; 3].into(),
+									size: [0.05; 3].into(),
+								})
+								.into_iter()
+								.map(|l| l.thickness(0.002)),
+							)
+							.pos([0.0, 0.025, 0.0])
+							.build(),
+						),
+				)
 		}
 	}
 

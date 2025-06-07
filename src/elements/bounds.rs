@@ -138,10 +138,6 @@ async fn asteroids_bounds_element() {
 				center: [0.02, 0.5, 0.7].into(),
 				size: [0.2, 0.6, 5.3].into(),
 			};
-			let lines = crate::elements::Lines::new(crate::elements::lines::bounding_box(
-				bounding_box.clone(),
-			))
-			.build();
 			Bounds::new(move |state: &mut TestState, bounds| {
 				assert!((bounds.center.x - bounding_box.center.x).abs() < 0.01);
 				assert!((bounds.center.y - bounding_box.center.y).abs() < 0.01);
@@ -151,7 +147,13 @@ async fn asteroids_bounds_element() {
 				assert!((bounds.size.z - bounding_box.size.z).abs() < 0.01);
 				state.latest_bounds.replace(bounds);
 			})
-			.with_children([lines])
+			.build()
+			.child(
+				crate::elements::Lines::new(crate::elements::lines::bounding_box(
+					bounding_box.clone(),
+				))
+				.build(),
+			)
 		}
 	}
 

@@ -317,35 +317,41 @@ async fn asteroids_dial_element() {
 			} else {
 				hours
 			};
-			crate::elements::Spatial::default().with_children([
-				Dial::create(self.value, |state: &mut TestState, value| {
-					state.value = value;
-				})
-				.radius(0.02)
-				.thickness(0.01)
-				.current_value(self.value)
-				.turn_unit_amount(12.0 * 60.0)
-				.range(0.0..(24.0 * 60.0))
-				.build(),
-				Dial::create(self.value, |state: &mut TestState, value| {
-					state.value = value;
-				})
-				.radius(0.025)
-				.thickness(0.005)
-				.current_value(self.value)
-				.turn_unit_amount(60.0)
-				.range(0.0..(24.0 * 60.0))
-				.build(),
-				crate::elements::Text::default()
-					.text(format!(
-						"{:02.0}:{:02.0} {}",
-						formatted_hours, minutes, period
-					))
-					.character_height(0.005)
-					.pos([0.0, 0.0, 0.01])
-					.rot(glam::Quat::from_rotation_y(std::f32::consts::PI))
+			crate::elements::Spatial::default()
+				.build()
+				.child(
+					Dial::create(self.value, |state: &mut TestState, value| {
+						state.value = value;
+					})
+					.radius(0.02)
+					.thickness(0.01)
+					.current_value(self.value)
+					.turn_unit_amount(12.0 * 60.0)
+					.range(0.0..(24.0 * 60.0))
 					.build(),
-			])
+				)
+				.child(
+					Dial::create(self.value, |state: &mut TestState, value| {
+						state.value = value;
+					})
+					.radius(0.025)
+					.thickness(0.005)
+					.current_value(self.value)
+					.turn_unit_amount(60.0)
+					.range(0.0..(24.0 * 60.0))
+					.build(),
+				)
+				.child(
+					crate::elements::Text::default()
+						.text(format!(
+							"{:02.0}:{:02.0} {}",
+							formatted_hours, minutes, period
+						))
+						.character_height(0.005)
+						.pos([0.0, 0.0, 0.01])
+						.rot(glam::Quat::from_rotation_y(std::f32::consts::PI))
+						.build(),
+				)
 		}
 	}
 	client::run::<TestState>(&[]).await

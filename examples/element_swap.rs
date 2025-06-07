@@ -45,7 +45,7 @@ impl ClientState for State {
 			.build();
 
 		if odd_second {
-			Spatial::default().with_children([text])
+			Spatial::default().build().child(text)
 		} else {
 			text
 		}

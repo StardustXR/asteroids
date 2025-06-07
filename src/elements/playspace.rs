@@ -63,8 +63,9 @@ async fn asteroids_playspace_element() {
 		const APP_ID: &'static str = "org.asteroids.playspace";
 
 		fn reify(&self) -> Element<Self> {
-			let lines = crate::elements::Lines::new([crate::elements::circle(4, 0.0, 0.1)]).build();
-			PlaySpace.with_children([lines])
+			PlaySpace
+				.build()
+				.child(crate::elements::Lines::new([crate::elements::circle(4, 0.0, 0.1)]).build())
 		}
 	}
 

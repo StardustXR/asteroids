@@ -193,22 +193,15 @@ async fn asteroids_grabbable_element() {
 		fn reify(&self) -> Element<Self> {
 			let shape = Shape::Box([0.1; 3].into());
 
-			let lines = stardust_xr_molecules::lines::shape(shape.clone())
-				.into_iter()
-				.map(|l| {
-					l.color(if self.grabbed {
-						rgba_linear!(0.0, 1.0, 0.5, 1.0)
-					} else {
-						rgba_linear!(1.0, 1.0, 1.0, 1.0)
-					})
-					.thickness(if self.grabbed { 0.01 } else { 0.005 })
-				});
-			let lines = crate::elements::Lines::new(lines).build();
-
-			Grabbable::new(shape, self.pos, self.rot, |state: &mut Self, pos, rot| {
-				state.pos = pos;
-				state.rot = rot;
-			})
+			Grabbable::new(
+				shape.clone(),
+				self.pos,
+				self.rot,
+				|state: &mut Self, pos, rot| {
+					state.pos = pos;
+					state.rot = rot;
+				},
+			)
 			.grab_start(|state: &mut Self| {
 				state.grabbed = true;
 			})
@@ -218,7 +211,22 @@ async fn asteroids_grabbable_element() {
 				state.rot = glam::Quat::IDENTITY.into();
 			})
 			.pointer_mode(PointerMode::Move)
-			.with_children([lines])
+			.build()
+			.child(
+				crate::elements::Lines::new(
+					stardust_xr_molecules::lines::shape(shape.clone())
+						.into_iter()
+						.map(|l| {
+							l.color(if self.grabbed {
+								rgba_linear!(0.0, 1.0, 0.5, 1.0)
+							} else {
+								rgba_linear!(1.0, 1.0, 1.0, 1.0)
+							})
+							.thickness(if self.grabbed { 0.01 } else { 0.005 })
+						}),
+				)
+				.build(),
+			)
 		}
 	}
 

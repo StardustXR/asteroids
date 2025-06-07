@@ -150,7 +150,7 @@ async fn asteroids_mouse_element() {
 		Element,
 		client::{self, ClientState},
 		custom::ElementTrait,
-		elements::{MouseHandler, Spatial, Text},
+		elements::{MouseHandler, Text},
 	};
 	use mint::Vector2;
 	use serde::{Deserialize, Serialize};
@@ -191,9 +191,14 @@ async fn asteroids_mouse_element() {
 		const APP_ID: &'static str = "org.asteroids.mouse";
 
 		fn reify(&self) -> Element<Self> {
-			// Create a container spatial
-			Spatial::default().with_children([
-				Text::default()
+			MouseHandler::new(
+					Shape::Sphere(0.5),
+					Self::handle_button,
+					Self::handle_motion,
+					Self::handle_scroll_discrete,
+					Self::handle_scroll_continuous,
+				)
+				.build().child(Text::default()
 					.text(format!(
 						"Latest button: {:?}\nLatest motion: {:?}\nLatest discrete scroll: {:?}\nLatest continuous scroll: {:?}",
 						self.latest_button,
@@ -202,16 +207,7 @@ async fn asteroids_mouse_element() {
 						self.latest_scroll_continuous
 					))
 					.character_height(0.05)
-					.build(),
-				MouseHandler::new(
-					Shape::Sphere(0.5),
-					Self::handle_button,
-					Self::handle_motion,
-					Self::handle_scroll_discrete,
-					Self::handle_scroll_continuous,
-				)
-				.build(),
-			])
+					.build())
 		}
 	}
 	client::run::<TestState>(&[]).await
