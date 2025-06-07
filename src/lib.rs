@@ -7,6 +7,7 @@ pub mod client;
 mod context;
 mod custom;
 pub mod elements;
+mod mapped;
 mod scenegraph;
 mod util;
 
@@ -15,6 +16,8 @@ pub use context::*;
 pub use custom::*;
 pub use scenegraph::Element;
 pub use util::*;
+
+use crate::mapped::MappedElement;
 
 pub trait ValidState: Sized + Send + Sync + 'static {}
 impl<T: Sized + Send + Sync + 'static> ValidState for T {}
@@ -33,18 +36,18 @@ pub trait Reify: ValidState + Sized + Send + Sync + 'static {
 	}
 }
 
-pub struct View<State: Reify> {
+pub struct Projector<State: Reify> {
 	root: Spatial,
 	vdom_root: Element<State>,
 	inner_map: ElementInnerMap,
 	resources: ResourceRegistry,
 }
-impl<State: Reify> View<State> {
+impl<State: Reify> Projector<State> {
 	pub fn new(
 		state: &State,
 		context: &Context,
 		parent_spatial: &impl SpatialRefAspect,
-	) -> View<State> {
+	) -> Projector<State> {
 		let root = Spatial::create(parent_spatial, Transform::identity(), false).unwrap();
 		let mut inner_map = ElementInnerMap::default();
 		let vdom_root = state.reify();
@@ -59,7 +62,7 @@ impl<State: Reify> View<State> {
 				&mut resources,
 			)
 			.unwrap();
-		View {
+		Projector {
 			root,
 			vdom_root,
 			inner_map,
