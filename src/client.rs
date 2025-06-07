@@ -119,6 +119,12 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 				RootEvent::Ping { response: pong } => pong.send(Ok(())),
 				RootEvent::Frame { info } => {
 					state.on_frame(&info);
+					#[cfg(feature = "tracy")]
+					{
+						use tracing::info;
+						info!("frame info {info:#?}");
+						tracy_client::frame_mark();
+					}
 					view.frame(&info, &mut state);
 					view.update(&context, &mut state);
 				}
