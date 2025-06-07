@@ -1,4 +1,5 @@
 use crate::{Context, CreateInnerInfo, ValidState, custom::ElementTrait, util::DeltaSet};
+use dioxus_devtools::subsecond::HotFn;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
@@ -254,13 +255,14 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 			parent_space,
 			element_path: Path::new(&element_path),
 		};
-		let inner = E::create_inner(
-			&self.params,
-			context,
-			create_info,
-			resources.get::<E::Resource>(),
-		)
-		.map_err(|e| e.to_string())?;
+		let inner = HotFn::current(E::create_inner)
+			.call((
+				&self.params,
+				context,
+				create_info,
+				resources.get::<E::Resource>(),
+			))
+			.map_err(|e| e.to_string())?;
 		let Some(inner_key) = self.inner_key.get() else {
 			return Err("Internal: Couldn't get inner key?".to_string());
 		};
@@ -287,7 +289,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		let Some(inner) = inner_map.get_mut::<State, E>(*inner_key) else {
 			return;
 		};
-		self.params.frame(info, state, inner);
+		HotFn::current(E::frame).call((&self.params, info, state, inner));
 
 		for child in &self.children {
 			child.0.frame_recursive(info, state, inner_map);
@@ -307,11 +309,7 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
 		let inner_key = *self.inner_key.get().unwrap();
 		let inner = inner_map.get::<State, E>(inner_key).unwrap();
-		self.params.spatial_aspect(inner)
-	}
-
-	fn as_any(&self) -> &dyn Any {
-		self
+		HotFn::current(E::spatial_aspect).call((&self.params, inner))
 	}
 
 	fn inner_key(&self) -> Option<ElementInnerKey> {
@@ -374,12 +372,13 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 			});
 		let inner_key = *self.inner_key.get().unwrap();
 		let inner = inner_map.get_mut::<State, E>(inner_key).unwrap();
-		self.params.update(
+		HotFn::current(E::update).call((
+			&self.params,
 			&old_wrapper.params,
 			state,
 			inner,
 			resources.get::<E::Resource>(),
-		);
+		));
 
 		let mut delta_set = DeltaSet::default();
 		delta_set.push_new(old_wrapper.children.iter());
