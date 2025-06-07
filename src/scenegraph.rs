@@ -56,6 +56,22 @@ impl ElementInnerMap {
 #[derive_where::derive_where(Debug)]
 pub struct Element<State: ValidState>(pub(crate) Box<dyn GenericElement<State>>);
 impl<State: ValidState> Element<State> {
+	pub fn child(mut self, child: Element<State>) -> Self {
+		self.0.add_child(child);
+		self
+	}
+	pub fn children(mut self, children: impl IntoIterator<Item = Element<State>>) -> Self {
+		for child in children {
+			self.0.add_child(child);
+		}
+		self
+	}
+	pub fn maybe_child(mut self, child: Option<Element<State>>) -> Self {
+		if let Some(child) = child {
+			self.0.add_child(child);
+		}
+		self
+	}
 	pub fn map<
 		NewState: ValidState,
 		F: Fn(&mut NewState) -> Option<&mut State> + Send + Sync + 'static,
@@ -107,9 +123,12 @@ impl<
 	fn type_id(&self) -> TypeId {
 		GenericElement::type_id(&*self.element.0)
 	}
-
 	fn type_name(&self) -> &'static str {
 		GenericElement::type_name(&*self.element.0)
+	}
+
+	fn add_child(&mut self, _child: Element<State>) {
+		panic!("can't add a child to a mapped element yet... sorry! try adding it before mapping")
 	}
 
 	fn create_inner_recursive(
@@ -189,6 +208,7 @@ impl<
 pub(crate) trait GenericElement<State: ValidState>: Any + Debug + Send + Sync {
 	fn type_id(&self) -> TypeId;
 	fn type_name(&self) -> &'static str;
+	fn add_child(&mut self, child: Element<State>);
 	fn create_inner_recursive(
 		&self,
 		parent: &SpatialRef,
@@ -234,6 +254,9 @@ impl<State: ValidState, E: ElementTrait<State>> GenericElement<State> for Elemen
 		let start = type_name[..end].rfind(':').map(|i| i + 1).unwrap_or(0);
 
 		&type_name[start..end]
+	}
+	fn add_child(&mut self, child: Element<State>) {
+		self.children.push(child);
 	}
 	#[tracing::instrument(level = "debug", skip(inner_map, context, resources))]
 	fn create_inner_recursive(

@@ -69,7 +69,7 @@ impl ClientState for State {
 
 	fn reify(&self) -> Element<Self> {
 		let model = Model::namespaced("asteroids", "grabbable").build();
-		let button = if self.elapsed - self.pressed_time > 1.0 {
+		let button = (self.elapsed - self.pressed_time > 1.0).then(|| {
 			Button::new(|state: &mut State| {
 				state.text = "button press".to_string();
 				state.pressed_time = state.elapsed;
@@ -77,11 +77,7 @@ impl ClientState for State {
 			.size([0.15, 0.3])
 			.debug(DebugSettings::default())
 			.build()
-		} else {
-			Spatial::default().build()
-		};
-
-		let triangles = Spatial::default().with_children(make_triangles(0.3, 25, 0.01));
+		});
 
 		let text = Text::default()
 			.pos([0.0, -0.2, 0.0])
@@ -98,12 +94,13 @@ impl ClientState for State {
 				0.0,
 				self.elapsed.cos() * 0.1,
 			]))
-			.with_children([
-				model, button, triangles, // yummy text nom nom nom
-				text,
-			]);
+			.build()
+			.child(model)
+			.maybe_child(button)
+			.children(make_triangles(0.3, 25, 0.01))
+			.child(text);
 
-		Spatial::default().zoneable(true).with_children([bobber])
+		Spatial::default().zoneable(true).build().child(bobber)
 	}
 }
 
