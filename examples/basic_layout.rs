@@ -68,39 +68,36 @@ impl ClientState for State {
 	}
 
 	fn reify(&self) -> Element<Self> {
-		let model = Model::namespaced("asteroids", "grabbable").build();
-		let button = (self.elapsed - self.pressed_time > 1.0).then(|| {
-			Button::new(|state: &mut State| {
-				state.text = "button press".to_string();
-				state.pressed_time = state.elapsed;
-			})
-			.size([0.15, 0.3])
-			.debug(DebugSettings::default())
-			.build()
-		});
-
-		let text = Text::default()
-			.pos([0.0, -0.2, 0.0])
-			.rot(Quat::from_rotation_y(PI))
-			.text(&self.text)
-			.text_align_x(XAlign::Center)
-			.text_align_y(YAlign::Top)
-			.character_height(0.1)
-			.build();
-
-		let bobber = Spatial::default()
-			.transform(Transform::from_translation([
-				self.elapsed.sin() * 0.1,
-				0.0,
-				self.elapsed.cos() * 0.1,
-			]))
-			.build()
-			.child(model)
-			.maybe_child(button)
-			.children(make_triangles(0.3, 25, 0.01))
-			.child(text);
-
-		Spatial::default().zoneable(true).build().child(bobber)
+		Spatial::default().zoneable(true).build().child(
+			Spatial::default()
+				.pos([
+					self.elapsed.sin() * 0.1,
+					0.0,
+					self.elapsed.cos() * 0.1,
+				])
+				.build()
+				.child(Model::namespaced("asteroids", "grabbable").build())
+				.maybe_child((self.elapsed - self.pressed_time > 1.0).then(|| {
+					Button::new(|state: &mut State| {
+						state.text = "button press".to_string();
+						state.pressed_time = state.elapsed;
+					})
+					.size([0.15, 0.3])
+					.debug(DebugSettings::default())
+					.build()
+				}))
+				.child(
+					Text::default()
+						.pos([0.0, -0.2, 0.0])
+						.rot(Quat::from_rotation_y(PI))
+						.text(&self.text)
+						.text_align_x(XAlign::Center)
+						.text_align_y(YAlign::Top)
+						.character_height(0.1)
+						.build(),
+				)
+				.children(make_triangles(0.3, 25, 0.01)),
+		)
 	}
 }
 
