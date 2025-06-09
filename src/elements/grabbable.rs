@@ -128,6 +128,7 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 		}
 		let (_, rot, pos) = inner.pose.to_scale_rotation_translation();
 		if self.pos != pos.into() || self.rot != rot.into() {
+			inner.pose = Affine3A::from_rotation_translation(self.rot.into(), self.pos.into());
 			let _ = inner
 				.content_parent()
 				.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot));
