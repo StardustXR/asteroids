@@ -22,6 +22,7 @@ pub struct Grabbable<State: ValidState> {
 	rot: Quaternion<f32>,
 	#[setters(skip)]
 	field_shape: Shape,
+	field_transform: Transform,
 	#[setters(skip)]
 	#[allow(clippy::type_complexity)]
 	on_change_pose: FnWrapper<dyn Fn(&mut State, Vector3<f32>, Quaternion<f32>) + Send + Sync>,
@@ -51,6 +52,7 @@ impl<State: ValidState> Grabbable<State> {
 	) -> Self {
 		Grabbable {
 			field_shape,
+			field_transform: Transform::identity(),
 			pos: pos.into(),
 			rot: rot.into(),
 			on_change_pose: FnWrapper(Box::new(on_change)),
@@ -93,7 +95,7 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(
 			info.parent_space,
-			Transform::identity(),
+			self.field_transform,
 			self.field_shape.clone(),
 		)?;
 		let grabbable = stardust_xr_molecules::Grabbable::create(
@@ -122,6 +124,9 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 	) {
 		if self.field_shape != old_decl.field_shape {
 			let _ = inner.field().set_shape(self.field_shape.clone());
+		}
+		if self.field_transform != old_decl.field_transform {
+			let _ = inner.field().set_local_transform(self.field_transform);
 		}
 		if (self.pos, self.rot) != inner.pose() {
 			inner.set_pose(self.pos, self.rot);
