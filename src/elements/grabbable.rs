@@ -1,9 +1,6 @@
-use crate::{
-	ValidState,
-	custom::{CustomElement, FnWrapper},
-};
+use crate::ValidState;
+use crate::custom::{CustomElement, FnWrapper};
 use derive_setters::Setters;
-use glam::Affine3A;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
 	fields::{Field, FieldAspect, Shape},
@@ -17,7 +14,7 @@ use stardust_xr_molecules::{
 
 #[derive_where::derive_where(Debug)]
 #[derive(Setters)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct Grabbable<State: ValidState> {
 	#[setters(skip)]
 	pos: Vector3<f32>,
@@ -112,7 +109,7 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 				zoneable: self.zoneable,
 			},
 		)?;
-		field.set_spatial_parent(grabbable.content_parent())?;
+		field.set_spatial_parent(&grabbable.content_parent())?;
 		Ok(grabbable)
 	}
 
@@ -126,17 +123,12 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 		if self.field_shape != old_decl.field_shape {
 			let _ = inner.field().set_shape(self.field_shape.clone());
 		}
-		let (_, rot, pos) = inner.pose.to_scale_rotation_translation();
-		if self.pos != pos.into() || self.rot != rot.into() {
-			inner.pose = Affine3A::from_rotation_translation(self.rot.into(), self.pos.into());
-			let _ = inner
-				.content_parent()
-				.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot));
+		if (self.pos, self.rot) != inner.pose() {
+			inner.set_pose(self.pos, self.rot);
 		}
-		inner.pose = Affine3A::from_rotation_translation(self.rot.into(), self.pos.into());
 		if inner.handle_events() {
-			let (_, rot, pos) = inner.pose.to_scale_rotation_translation();
-			(self.on_change_pose.0)(state, pos.into(), rot.into())
+			let (pos, rot) = inner.pose();
+			(self.on_change_pose.0)(state, pos, rot)
 		}
 
 		if inner.grab_action().actor_started() {
@@ -152,16 +144,16 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 	}
 
 	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.content_parent().clone().as_spatial_ref()
+		inner.content_parent()
 	}
 }
 
 #[tokio::test]
 async fn asteroids_grabbable_element() {
 	use crate::{
-		Element,
+		Element, Transformable,
 		client::{self, ClientState},
-		elements::Grabbable,
+		elements::{Grabbable, Spatial},
 	};
 	use mint::Vector3;
 	use serde::{Deserialize, Serialize};
@@ -193,40 +185,43 @@ async fn asteroids_grabbable_element() {
 
 		fn reify(&self) -> Element<Self> {
 			let shape = Shape::Box([0.1; 3].into());
-
-			Grabbable::new(
-				shape.clone(),
-				self.pos,
-				self.rot,
-				|state: &mut Self, pos, rot| {
-					state.pos = pos;
-					state.rot = rot;
-				},
-			)
-			.grab_start(|state: &mut Self| {
-				state.grabbed = true;
-			})
-			.grab_stop(|state: &mut Self| {
-				state.grabbed = false;
-				state.pos = [0.0; 3].into();
-				state.rot = glam::Quat::IDENTITY.into();
-			})
-			.pointer_mode(PointerMode::Move)
-			.build()
-			.child(
-				crate::elements::Lines::new(
-					stardust_xr_molecules::lines::shape(shape.clone())
-						.into_iter()
-						.map(|l| {
-							l.color(if self.grabbed {
-								rgba_linear!(0.0, 1.0, 0.5, 1.0)
-							} else {
-								rgba_linear!(1.0, 1.0, 1.0, 1.0)
-							})
-							.thickness(if self.grabbed { 0.01 } else { 0.005 })
-						}),
+			Spatial::default().pos([0.1, 0.0, 0.0]).build().child(
+				Grabbable::new(
+					shape.clone(),
+					self.pos,
+					self.rot,
+					|state: &mut Self, pos, rot| {
+						state.pos = pos;
+						state.rot = rot;
+					},
 				)
-				.build(),
+				.grab_start(|state: &mut Self| {
+					state.grabbed = true;
+				})
+				.grab_stop(|state: &mut Self| {
+					state.grabbed = false;
+					state.pos = [0.0; 3].into();
+					state.rot = glam::Quat::IDENTITY.into();
+				})
+				.pointer_mode(PointerMode::Move)
+				.linear_momentum(None)
+				.angular_momentum(None)
+				.build()
+				.child(
+					crate::elements::Lines::new(
+						stardust_xr_molecules::lines::shape(shape.clone())
+							.into_iter()
+							.map(|l| {
+								l.color(if self.grabbed {
+									rgba_linear!(0.0, 1.0, 0.5, 1.0)
+								} else {
+									rgba_linear!(1.0, 1.0, 1.0, 1.0)
+								})
+								.thickness(if self.grabbed { 0.01 } else { 0.005 })
+							}),
+					)
+					.build(),
+				),
 			)
 		}
 	}
