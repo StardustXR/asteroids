@@ -306,12 +306,22 @@ impl<State: ValidState, E: CustomElement<State>> GenericElement<State>
 		let old_children: FxHashSet<_> = delta_set.current().iter().cloned().collect();
 		delta_set.push_new(self.children.iter());
 
+		// just added
+		{
+			let parent_spatial = self.params.spatial_aspect(inner);
+			for child in delta_set.added() {
+				child
+					.0
+					.create_inner_recursive(&parent_spatial, inner_map, context, resources)
+					.unwrap();
+			}
+		}
 		// modified possibly
 		for new_child in delta_set.current().difference(delta_set.added()) {
 			let old_child = old_children.get(new_child).unwrap();
 
 			new_child.0.diff_and_apply(
-				old_child.0.spatial_aspect(inner_map),
+				new_child.0.spatial_aspect(inner_map),
 				old_child,
 				context,
 				state,
@@ -322,13 +332,6 @@ impl<State: ValidState, E: CustomElement<State>> GenericElement<State>
 		// just removed
 		for child in delta_set.removed() {
 			child.0.destroy_inner_recursive(inner_map);
-		}
-		// just added
-		for child in delta_set.added() {
-			child
-				.0
-				.create_inner_recursive(&parent_spatial, inner_map, context, resources)
-				.unwrap();
 		}
 	}
 }
