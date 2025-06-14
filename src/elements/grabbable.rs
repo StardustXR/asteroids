@@ -1,7 +1,6 @@
+use crate::ValidState;
 use crate::custom::{CustomElement, FnWrapper};
-use crate::{Reify, ValidState};
 use derive_setters::Setters;
-use glam::Quat;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
 	fields::{Field, FieldAspect, Shape},
@@ -9,9 +8,9 @@ use stardust_xr_fusion::{
 	root::FrameInfo,
 	spatial::{SpatialAspect, SpatialRef, Transform},
 };
-use stardust_xr_molecules::{
-	FrameSensitive, GrabbableSettings, MomentumSettings, PointerMode, UIElement,
-};
+use stardust_xr_molecules::{FrameSensitive, GrabbableSettings, UIElement};
+
+pub use stardust_xr_molecules::{MomentumSettings, PointerMode};
 
 #[derive_where::derive_where(Debug)]
 #[derive(Setters)]
@@ -157,10 +156,11 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 #[tokio::test]
 async fn asteroids_grabbable_element() {
 	use crate::{
-		Element, Transformable,
+		Element, Reify, Transformable,
 		client::{self, ClientState},
 		elements::{Grabbable, Spatial},
 	};
+	use glam::Quat;
 	use mint::Vector3;
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::values::color::rgba_linear;
