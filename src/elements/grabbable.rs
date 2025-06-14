@@ -1,6 +1,7 @@
-use crate::ValidState;
 use crate::custom::{CustomElement, FnWrapper};
+use crate::{Reify, ValidState};
 use derive_setters::Setters;
+use glam::Quat;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
 	fields::{Field, FieldAspect, Shape},
@@ -165,18 +166,25 @@ async fn asteroids_grabbable_element() {
 	use stardust_xr_fusion::values::color::rgba_linear;
 	use stardust_xr_molecules::lines::LineExt as _;
 
-	#[derive(Serialize, Deserialize)]
+	#[derive(Debug, Serialize, Deserialize)]
 	struct TestState {
 		pos: Vector3<f32>,
 		rot: Quaternion<f32>,
 		grabbed: bool,
+		second: Option<Box<TestState>>,
 	}
 	impl Default for TestState {
 		fn default() -> Self {
 			TestState {
 				pos: [0.0; 3].into(),
-				rot: glam::Quat::IDENTITY.into(),
+				rot: Quat::IDENTITY.into(),
 				grabbed: false,
+				second: Some(Box::new(TestState {
+					pos: [0.0; 3].into(),
+					rot: Quat::IDENTITY.into(),
+					grabbed: false,
+					second: None,
+				})),
 			}
 		}
 	}
@@ -188,9 +196,18 @@ async fn asteroids_grabbable_element() {
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.grabbable";
 
+		fn initial_state_update(&mut self) {
+			self.second = Some(Box::new(TestState {
+				pos: [0.0; 3].into(),
+				rot: Quat::IDENTITY.into(),
+				grabbed: false,
+				second: None,
+			}));
+		}
+
 		fn reify(&self) -> Element<Self> {
 			let shape = Shape::Box([0.1; 3].into());
-			Spatial::default().pos([0.1, 0.0, 0.0]).build().child(
+			Spatial::default().pos([0.0, 0.5, 0.0]).build().child(
 				Grabbable::new(
 					shape.clone(),
 					self.pos,
@@ -205,10 +222,9 @@ async fn asteroids_grabbable_element() {
 				})
 				.grab_stop(|state: &mut Self| {
 					state.grabbed = false;
-					state.pos = [0.0; 3].into();
-					state.rot = glam::Quat::IDENTITY.into();
+					// state.pos = [0.0; 3].into();
 				})
-				.pointer_mode(PointerMode::Move)
+				.pointer_mode(PointerMode::Align)
 				.linear_momentum(None)
 				.angular_momentum(None)
 				.build()
@@ -226,6 +242,11 @@ async fn asteroids_grabbable_element() {
 							}),
 					)
 					.build(),
+				)
+				.children(
+					self.second
+						.iter()
+						.map(|s| s.reify_substate(|state: &mut Self| state.second.as_deref_mut())),
 				),
 			)
 		}
