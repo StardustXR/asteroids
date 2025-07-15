@@ -285,7 +285,7 @@ async fn asteroids_pen_test() {
 					s: 1.0,
 				},
 				|state: &mut TestState, pen_state, pos, rot| {
-					state.update_pen_state(format!("{:?} at {:?} {:?}", pen_state, pos, rot));
+					state.update_pen_state(format!("{pen_state:?} at {pos:?} {rot:?}"));
 				},
 			)
 			.length(0.1)

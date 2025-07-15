@@ -343,10 +343,7 @@ async fn asteroids_dial_element() {
 				)
 				.child(
 					crate::elements::Text::default()
-						.text(format!(
-							"{:02.0}:{:02.0} {}",
-							formatted_hours, minutes, period
-						))
+						.text(format!("{formatted_hours:02.0}:{minutes:02.0} {period}",))
 						.character_height(0.005)
 						.pos([0.0, 0.0, 0.01])
 						.rot(glam::Quat::from_rotation_y(std::f32::consts::PI))
