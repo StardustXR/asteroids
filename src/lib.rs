@@ -1,5 +1,6 @@
 use dioxus_devtools::subsecond::HotFn;
-use scenegraph::{ElementInnerMap, ResourceRegistry};
+use inner::ElementInnerMap;
+use resource::ResourceRegistry;
 use stardust_xr_fusion::root::FrameInfo;
 use stardust_xr_fusion::spatial::{Spatial, SpatialRefAspect, Transform};
 
@@ -7,7 +8,9 @@ pub mod client;
 mod context;
 mod custom;
 pub mod elements;
+mod inner;
 mod mapped;
+mod resource;
 mod scenegraph;
 mod util;
 

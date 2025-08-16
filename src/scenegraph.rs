@@ -1,7 +1,11 @@
-use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement, util::DeltaSet};
+use crate::{
+	Context, CreateInnerInfo, ResourceRegistry, ValidState,
+	custom::CustomElement,
+	inner::{ElementInnerKey, ElementInnerMap},
+	util::DeltaSet,
+};
 use dioxus_devtools::subsecond::HotFn;
-use rustc_hash::{FxHashMap, FxHashSet};
-use serde::{Deserialize, Serialize};
+use rustc_hash::FxHashSet;
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
 use std::{
 	any::{Any, TypeId},
@@ -11,46 +15,6 @@ use std::{
 	path::Path,
 	sync::OnceLock,
 };
-
-#[derive(Default)]
-pub(crate) struct ResourceRegistry(FxHashMap<TypeId, Box<dyn Any>>);
-impl ResourceRegistry {
-	pub fn get<R: Default + Send + Sync + 'static>(&mut self) -> &mut R {
-		let type_id = TypeId::of::<R>();
-		self.0
-			.entry(type_id)
-			.or_insert_with(|| Box::new(R::default()))
-			.downcast_mut::<R>()
-			.unwrap()
-	}
-}
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct ElementInnerKey(pub u64);
-
-#[derive(Debug, Default)]
-pub(crate) struct ElementInnerMap(FxHashMap<ElementInnerKey, Box<dyn Any + Send + Sync>>);
-impl ElementInnerMap {
-	fn insert<State: ValidState, E: CustomElement<State>>(
-		&mut self,
-		key: ElementInnerKey,
-		inner: E::Inner,
-	) {
-		self.0.insert(key, Box::new(inner));
-	}
-	fn get<State: ValidState, E: CustomElement<State>>(
-		&self,
-		key: ElementInnerKey,
-	) -> Option<&E::Inner> {
-		self.0.get(&key)?.downcast_ref()
-	}
-	fn get_mut<State: ValidState, E: CustomElement<State>>(
-		&mut self,
-		key: ElementInnerKey,
-	) -> Option<&mut E::Inner> {
-		self.0.get_mut(&key)?.downcast_mut()
-	}
-}
 
 #[derive_where::derive_where(Debug)]
 pub struct Element<State: ValidState>(pub(crate) Box<dyn GenericElement<State>>);
@@ -224,7 +188,7 @@ impl<State: ValidState, E: CustomElement<State>> GenericElement<State>
 		let Some(inner_key) = self.inner_key() else {
 			return;
 		};
-		inner_map.0.remove(&inner_key);
+		inner_map.remove(&inner_key);
 	}
 
 	fn spatial_aspect(&self, inner_map: &ElementInnerMap) -> SpatialRef {
