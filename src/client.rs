@@ -1,6 +1,5 @@
 use crate::{
-	Context, Projector, Reify,
-	scenegraph::Element,
+	Context, Element, Projector, Reify,
 	util::{Migrate, RonFile},
 };
 use serde::{Serialize, de::DeserializeOwned};

@@ -133,7 +133,7 @@ async fn asteroids_bounds_element() {
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.bounds";
 
-		fn reify(&self) -> crate::scenegraph::Element<Self> {
+		fn reify(&self) -> crate::Element<Self> {
 			let bounding_box = BoundingBox {
 				center: [0.02, 0.5, 0.7].into(),
 				size: [0.2, 0.6, 5.3].into(),

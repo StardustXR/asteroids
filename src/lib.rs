@@ -7,6 +7,7 @@ use stardust_xr_fusion::spatial::{Spatial, SpatialRefAspect, Transform};
 pub mod client;
 mod context;
 mod custom;
+mod element;
 pub mod elements;
 mod inner;
 mod mapped;
@@ -17,7 +18,7 @@ mod util;
 pub use client::ClientState;
 pub use context::*;
 pub use custom::*;
-pub use scenegraph::Element;
+pub use element::Element;
 pub use util::*;
 
 use crate::mapped::MappedElement;

@@ -121,7 +121,7 @@ async fn asteroids_button_element() {
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.button";
 
-		fn reify(&self) -> crate::scenegraph::Element<Self> {
+		fn reify(&self) -> crate::Element<Self> {
 			Button::new(|_| {
 				std::process::exit(0);
 			})

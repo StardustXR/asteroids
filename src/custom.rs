@@ -1,6 +1,6 @@
-use crate::ValidState;
 use crate::context::Context;
-use crate::scenegraph::{Element, ElementWrapper};
+use crate::scenegraph::ElementWrapper;
+use crate::{Element, ValidState};
 pub use derive_setters;
 use stardust_xr_fusion::root::FrameInfo;
 use stardust_xr_fusion::spatial::{SpatialAspect, SpatialRef, Transform};
