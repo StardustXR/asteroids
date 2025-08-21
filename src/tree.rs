@@ -20,7 +20,7 @@ impl<State: ValidState> Trees<State> {
 		inner_map: &mut ElementInnerMap,
 		resource_registry: &mut ResourceRegistry,
 	) -> Self {
-		let current = Tree::flatten(blueprint).unwrap();
+		let current = Tree::flatten(Bump::new(), blueprint).unwrap();
 		current.borrow_root().create_inner_recursive(
 			context, // Use provided context
 			CreateInnerInfo {
@@ -46,8 +46,18 @@ impl<State: ValidState> Trees<State> {
 		inner_map: &mut ElementInnerMap,
 		resource_registry: &mut ResourceRegistry,
 	) {
-		let new_tree = Tree::flatten(new_blueprint).unwrap();
+		// rip the old one apart to get its bump to avoid reallocation
+		let mut old_bump = self
+			.old
+			.take()
+			.map(|o| o.into_heads().bump)
+			.unwrap_or_default();
+		old_bump.reset();
+		// make the new tree
+		let new_tree = Tree::flatten(old_bump, new_blueprint).unwrap();
+		// now replace the current tree with the new one
 		let old_tree = std::mem::replace(&mut self.current, new_tree);
+		// and the old tree gets put there for diffing
 		self.old.replace(old_tree);
 
 		// Get root elements from both trees
@@ -447,8 +457,8 @@ pub struct Tree<State: ValidState> {
 	root: Box<'this, dyn ElementDiffer<State>>,
 }
 impl<State: ValidState> Tree<State> {
-	pub fn flatten(root: impl ElementFlattener<State>) -> Option<Self> {
-		let mut tree = Self::try_new(Bump::new(), move |bump| {
+	pub fn flatten(bump: Bump, root: impl ElementFlattener<State>) -> Option<Self> {
+		let mut tree = Self::try_new(bump, move |bump| {
 			root.flatten(bump).into_iter().next().ok_or(())
 		})
 		.ok()?;
