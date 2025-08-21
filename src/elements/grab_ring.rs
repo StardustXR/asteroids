@@ -271,7 +271,6 @@ impl GrabRingInner {
 #[tokio::test]
 async fn asteroids_grab_ring_element() {
 	use crate::{
-		Element,
 		client::{self, ClientState},
 		elements::GrabRing,
 	};
@@ -296,8 +295,9 @@ async fn asteroids_grab_ring_element() {
 
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.grab_ring";
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			GrabRing::new(self.grab_pos, |state: &mut Self, pos| {
 				state.grab_pos = pos;
 			})

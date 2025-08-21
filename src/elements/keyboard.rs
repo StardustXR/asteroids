@@ -113,7 +113,6 @@ impl<State: ValidState> Transformable for KeyboardHandler<State> {
 #[tokio::test]
 async fn asteroids_keyboard_element() {
 	use crate::{
-		Element,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::{KeyboardHandler, Text},
@@ -137,8 +136,9 @@ async fn asteroids_keyboard_element() {
 	}
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.keyboard";
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			KeyboardHandler::new(Shape::Sphere(0.5), Self::key_press)
 				.build()
 				.child(

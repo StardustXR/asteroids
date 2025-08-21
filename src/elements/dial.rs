@@ -290,7 +290,6 @@ impl DialInner {
 #[tokio::test]
 async fn asteroids_dial_element() {
 	use crate::{
-		Element,
 		client::{self, ClientState},
 		elements::Dial,
 	};
@@ -305,8 +304,9 @@ async fn asteroids_dial_element() {
 	}
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.dial";
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			let hours = (self.value / 60.0).floor();
 			let minutes = (self.value % 60.0).floor();
 			let period = if hours >= 12.0 { "PM" } else { "AM" };

@@ -1,13 +1,12 @@
+use crate::ValidState;
 use crate::context::Context;
-use crate::scenegraph::ElementWrapper;
-use crate::{Element, ValidState};
+use crate::element::ElementWrapper;
 pub use derive_setters;
 use stardust_xr_fusion::root::FrameInfo;
 use stardust_xr_fusion::spatial::{SpatialAspect, SpatialRef, Transform};
 use std::any::Any;
 use std::fmt::Debug;
 use std::path::Path;
-use std::sync::OnceLock;
 
 pub struct CreateInnerInfo<'a> {
 	pub parent_space: &'a SpatialRef,
@@ -42,13 +41,8 @@ pub trait CustomElement<State: ValidState>: Any + Debug + Send + Sync + Sized + 
 	/// Return the SpatialRef that all child elements should be parented under.
 	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef;
 	/// Call this to add the element as a child of another one.
-	fn build(self) -> Element<State> {
-		Element(Box::new(ElementWrapper::<State, Self> {
-			params: self,
-			path: OnceLock::new(),
-			inner_key: OnceLock::new(),
-			children: vec![],
-		}))
+	fn build(self) -> ElementWrapper<State, Self, ()> {
+		ElementWrapper::<State, Self, ()>::new(self)
 	}
 }
 

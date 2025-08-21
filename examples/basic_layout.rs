@@ -1,5 +1,5 @@
 use asteroids::{
-	ClientState, CustomElement, Element, Migrate, Transformable, client,
+	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
 	elements::{Button, Lines, Model, Spatial, Text},
 };
 use glam::Quat;
@@ -65,8 +65,9 @@ impl ClientState for State {
 	fn on_frame(&mut self, info: &FrameInfo) {
 		self.elapsed += info.delta;
 	}
-
-	fn reify(&self) -> Element<Self> {
+}
+impl Reify for State {
+	fn reify(&self) -> impl crate::Element<Self> {
 		Spatial::default().zoneable(true).build().child(
 			Spatial::default()
 				.pos([
@@ -104,7 +105,7 @@ fn make_triangles(
 	size: f32,
 	triangle_count: usize,
 	spacing: f32,
-) -> impl IntoIterator<Item = Element<State>> {
+) -> impl IntoIterator<Item = impl Element<State>> {
 	let half_spacing = triangle_count as f32 * spacing * 0.5;
 	(0..triangle_count).map(move |n| {
 		let f = n as f32;

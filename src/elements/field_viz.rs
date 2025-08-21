@@ -269,7 +269,6 @@ impl Transformable for FieldViz {
 #[tokio::test]
 async fn asteroids_field_viz_element() {
 	use crate::{
-		Element,
 		client::{self, ClientState},
 		elements::FieldViz,
 	};
@@ -290,8 +289,9 @@ async fn asteroids_field_viz_element() {
 		fn on_frame(&mut self, info: &FrameInfo) {
 			self.0 = info.elapsed;
 		}
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			FieldViz::default()
 				.shape(Shape::Torus(TorusShape {
 					radius_a: 0.1,

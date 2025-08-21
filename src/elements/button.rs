@@ -107,6 +107,7 @@ impl<State: ValidState> Transformable for Button<State> {
 #[tokio::test]
 async fn asteroids_button_element() {
 	use crate::{
+		Reify,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::Button,
@@ -120,8 +121,9 @@ async fn asteroids_button_element() {
 	}
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.button";
-
-		fn reify(&self) -> crate::Element<Self> {
+	}
+	impl Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			Button::new(|_| {
 				std::process::exit(0);
 			})

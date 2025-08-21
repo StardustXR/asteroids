@@ -46,7 +46,6 @@ impl<State: ValidState> CustomElement<State> for PlaySpace {
 #[tokio::test]
 async fn asteroids_playspace_element() {
 	use crate::{
-		Element,
 		client::{self, ClientState},
 		elements::PlaySpace,
 	};
@@ -61,8 +60,9 @@ async fn asteroids_playspace_element() {
 
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.playspace";
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			PlaySpace
 				.build()
 				.child(crate::elements::Lines::new([crate::elements::circle(4, 0.0, 0.1)]).build())

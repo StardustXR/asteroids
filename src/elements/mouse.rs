@@ -147,7 +147,6 @@ impl<State: ValidState> Transformable for MouseHandler<State> {
 #[tokio::test]
 async fn asteroids_mouse_element() {
 	use crate::{
-		Element,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::{MouseHandler, Text},
@@ -189,8 +188,9 @@ async fn asteroids_mouse_element() {
 	}
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.mouse";
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			MouseHandler::new(
 					Shape::Sphere(0.5),
 					Self::handle_button,

@@ -1,5 +1,5 @@
 use crate::{
-	Context, Element, Projector, Reify,
+	Context, Projector, Reify,
 	util::{Migrate, RonFile},
 };
 use serde::{Serialize, de::DeserializeOwned};
@@ -20,12 +20,6 @@ pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned 
 	/// Update the client state when newly launched (e.g. for program arguments)
 	fn initial_state_update(&mut self) {}
 	fn on_frame(&mut self, _info: &FrameInfo) {}
-	fn reify(&self) -> Element<Self>;
-}
-impl<T: ClientState> Reify for T {
-	fn reify(&self) -> Element<Self> {
-		<T as ClientState>::reify(self)
-	}
 }
 
 fn initial_state<State: ClientState>() -> State {
@@ -110,7 +104,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 
 	dioxus_devtools::connect_subsecond();
 
-	let mut view = Projector::new(&state, &context, client.get_root());
+	let mut view = Projector::new(&state, &context, client.get_root().clone().as_spatial_ref());
 
 	let event_loop_future = client.sync_event_loop(|client, _| {
 		while let Some(root_event) = client.get_root().recv_root_event() {

@@ -385,7 +385,6 @@ impl TurntableInner {
 #[tokio::test]
 async fn asteroids_turntable_element() {
 	use crate::{
-		Element,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::{Lines, Turntable},
@@ -412,8 +411,9 @@ async fn asteroids_turntable_element() {
 
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.turntable";
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			crate::elements::Spatial::default()
 				.zoneable(true)
 				.build()

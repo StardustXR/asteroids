@@ -1,5 +1,5 @@
 use asteroids::{
-	ClientState, CustomElement, Element, Migrate, Transformable, client,
+	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
 	elements::{Button, Spatial, Text},
 };
 use derive_setters::Setters;
@@ -38,8 +38,9 @@ impl Migrate for State {
 }
 impl ClientState for State {
 	const APP_ID: &'static str = "org.asteroids.elements_add_remove";
-
-	fn reify(&self) -> Element<Self> {
+}
+impl Reify for State {
+	fn reify(&self) -> impl Element<Self> {
 		Spatial::default()
 			.zoneable(true)
 			.build()
@@ -69,7 +70,7 @@ impl ClientState for State {
 				self.list
 					.iter()
 					.enumerate()
-					.map(|(i, t)| make_list_item(i, t).identify(&i)),
+					.map(|(i, t)| make_list_item(i, t)),
 			)
 	}
 }
@@ -93,7 +94,7 @@ impl LabeledButton {
 			transform: Transform::identity(),
 		}
 	}
-	fn build(self) -> Element<State> {
+	fn build(self) -> impl Element<State> {
 		let padding = self.padding * 2.0;
 		Button::new(self.on_click)
 			.transform(self.transform)
@@ -122,7 +123,7 @@ impl Transformable for LabeledButton {
 	}
 }
 
-fn make_list_item(index: usize, text: &String) -> Element<State> {
+fn make_list_item(index: usize, text: &String) -> impl Element<State> {
 	let size = 0.01;
 	let padding = 0.0025;
 	Spatial::default()
@@ -157,4 +158,5 @@ fn make_list_item(index: usize, text: &String) -> Element<State> {
 				.rot(Quat::from_rotation_y(PI))
 				.build(),
 		)
+		.identify(&index)
 }

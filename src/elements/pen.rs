@@ -242,7 +242,6 @@ impl PenInner {
 #[tokio::test]
 async fn asteroids_pen_test() {
 	use crate::{
-		Element,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::Pen,
@@ -268,8 +267,9 @@ async fn asteroids_pen_test() {
 
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.pen";
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			Pen::new(
 				Vector3 {
 					x: 0.0,

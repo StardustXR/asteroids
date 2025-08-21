@@ -156,7 +156,7 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 #[tokio::test]
 async fn asteroids_grabbable_element() {
 	use crate::{
-		Element, Reify, Transformable,
+		Transformable,
 		client::{self, ClientState},
 		elements::{Grabbable, Spatial},
 	};
@@ -204,8 +204,9 @@ async fn asteroids_grabbable_element() {
 				second: None,
 			}));
 		}
-
-		fn reify(&self) -> Element<Self> {
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
 			let shape = Shape::Box([0.1; 3].into());
 			Spatial::default().pos([0.0, 0.5, 0.0]).build().child(
 				Grabbable::new(
