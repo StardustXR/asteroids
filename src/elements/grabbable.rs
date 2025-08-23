@@ -238,9 +238,9 @@ async fn asteroids_grabbable_element() {
 					)
 					.build(),
 				)
-				.children(
+				.maybe_child(
 					self.second
-						.iter()
+						.as_ref()
 						.map(|s| s.reify_substate(|state: &mut Self| state.second.as_deref_mut())),
 				),
 			)
