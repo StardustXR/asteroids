@@ -234,7 +234,7 @@ impl HandleInner {
 }
 
 #[tokio::test]
-async fn asteroids_grab_ring_element() {
+async fn asteroids_handle_element() {
 	use crate::{
 		client::{self, ClientState},
 		elements::Handle,
@@ -244,12 +244,12 @@ async fn asteroids_grab_ring_element() {
 
 	#[derive(Serialize, Deserialize)]
 	struct TestState {
-		grab_pos: Vector3<f32>,
+		handle_pos: Vector3<f32>,
 	}
 	impl Default for TestState {
 		fn default() -> Self {
 			TestState {
-				grab_pos: [0.0; 3].into(),
+				handle_pos: [0.0; 3].into(),
 			}
 		}
 	}
@@ -259,12 +259,12 @@ async fn asteroids_grab_ring_element() {
 	}
 
 	impl ClientState for TestState {
-		const APP_ID: &'static str = "org.asteroids.grab_ring";
+		const APP_ID: &'static str = "org.asteroids.handle";
 	}
 	impl crate::Reify for TestState {
 		fn reify(&self) -> impl crate::Element<Self> {
-			Handle::new(self.grab_pos, |state: &mut Self, pos| {
-				state.grab_pos = pos;
+			Handle::new(self.handle_pos, |state: &mut Self, pos| {
+				state.handle_pos = pos;
 			})
 			.build()
 		}
