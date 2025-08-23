@@ -165,7 +165,6 @@ async fn asteroids_grabbable_element() {
 		pos: Vector3<f32>,
 		rot: Quaternion<f32>,
 		grabbed: bool,
-		second: Option<Box<TestState>>,
 	}
 	impl Default for TestState {
 		fn default() -> Self {
@@ -173,12 +172,6 @@ async fn asteroids_grabbable_element() {
 				pos: [0.0; 3].into(),
 				rot: Quat::IDENTITY.into(),
 				grabbed: false,
-				second: Some(Box::new(TestState {
-					pos: [0.0; 3].into(),
-					rot: Quat::IDENTITY.into(),
-					grabbed: false,
-					second: None,
-				})),
 			}
 		}
 	}
@@ -189,15 +182,6 @@ async fn asteroids_grabbable_element() {
 
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.grabbable";
-
-		fn initial_state_update(&mut self) {
-			self.second = Some(Box::new(TestState {
-				pos: [0.0; 3].into(),
-				rot: Quat::IDENTITY.into(),
-				grabbed: false,
-				second: None,
-			}));
-		}
 	}
 	impl crate::Reify for TestState {
 		fn reify(&self) -> impl crate::Element<Self> {
@@ -237,11 +221,6 @@ async fn asteroids_grabbable_element() {
 							}),
 					)
 					.build(),
-				)
-				.maybe_child(
-					self.second
-						.as_ref()
-						.map(|s| s.reify_substate(|state: &mut Self| state.second.as_deref_mut())),
 				),
 			)
 		}
