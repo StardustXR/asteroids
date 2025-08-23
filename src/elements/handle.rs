@@ -259,18 +259,16 @@ async fn asteroids_handle_element() {
 		client::{self, ClientState},
 		elements::Handle,
 	};
-	use mint::Vector3;
+	use glam::FloatExt;
 	use serde::{Deserialize, Serialize};
 
 	#[derive(Serialize, Deserialize)]
 	struct TestState {
-		handle_pos: Vector3<f32>,
+		slider_value: f32,
 	}
 	impl Default for TestState {
 		fn default() -> Self {
-			TestState {
-				handle_pos: [0.0; 3].into(),
-			}
+			TestState { slider_value: 0.5 }
 		}
 	}
 
@@ -283,10 +281,26 @@ async fn asteroids_handle_element() {
 	}
 	impl crate::Reify for TestState {
 		fn reify(&self) -> impl crate::Element<Self> {
-			Handle::new(self.handle_pos, |state: &mut Self, pos| {
-				state.handle_pos = [pos.x, 0.0, 0.0].into();
+			let width = 0.1;
+			let start_x = width * -0.5;
+			let end_x = width * 0.5;
+			let slide_point = (start_x).lerp(end_x, self.slider_value);
+			crate::elements::Lines::new({
+				[
+					line_from_points(vec![vec3(start_x, 0.0, 0.0), vec3(slide_point, 0.0, 0.0)])
+						.thickness(0.001),
+					line_from_points(vec![vec3(slide_point, 0.0, 0.0), vec3(end_x, 0.0, 0.0)])
+						.thickness(0.001)
+						.color(rgba_linear!(0.1, 0.1, 0.75, 1.0)),
+				]
 			})
 			.build()
+			.child(
+				Handle::new([slide_point, 0.0, 0.0], move |state: &mut Self, pos| {
+					state.slider_value = pos.x.map_range(start_x..end_x, 0.0..1.0).clamp(0.0, 1.0);
+				})
+				.build(),
+			)
 		}
 	}
 
