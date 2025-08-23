@@ -5,7 +5,7 @@ use crate::{
 	custom::{CustomElement, FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec3, vec3};
 use map_range::MapRange;
 use mint::Vector3;
 use stardust_xr_fusion::{
@@ -20,7 +20,7 @@ use stardust_xr_fusion::{
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
-	lines::{LineExt, circle},
+	lines::{LineExt, circle, line_from_points},
 };
 
 const RADIUS: f32 = 0.01;
@@ -108,7 +108,7 @@ impl HandleInner {
 			diamond.clone().transform(Mat4::from_rotation_z(FRAC_PI_2)),
 			diamond,
 		];
-		let lines = Lines::create(&content_root, Transform::identity(), &octahedron)?;
+		let lines = Lines::create(input.handler(), Transform::identity(), &octahedron)?;
 
 		Ok(HandleInner {
 			_field: field,
@@ -145,7 +145,7 @@ impl HandleInner {
 			return false;
 		}
 		self.grab_action.update(
-			true,
+			false,
 			&self.input,
 			|i| i.distance < 0.05,
 			|i| {
@@ -193,7 +193,27 @@ impl HandleInner {
 				point.color = rgba_linear!(lerp, lerp, lerp, 1.0);
 			}
 		}
-		let _ = self.lines.set_lines(&self.octahedron);
+
+		let interact_point = self.grab_action.actor().map(|a| self.interact_point(a));
+		let handle_line = interact_point
+			.map(|i| line_from_points(vec![pos - i, vec3(0.0, 0.0, 0.0)]).thickness(0.001));
+		if let Some(interact_point) = interact_point {
+			let _ = self
+				.lines
+				.set_local_transform(Transform::from_translation(interact_point));
+		}
+		if self.grab_action.actor_stopped() {
+			let _ = self
+				.lines
+				.set_local_transform(Transform::from_translation(pos));
+		}
+		let lines = &self
+			.octahedron
+			.iter()
+			.cloned()
+			.chain(handle_line)
+			.collect::<Vec<_>>();
+		let _ = self.lines.set_lines(lines.as_slice());
 	}
 
 	fn interact_proximity(input: &InputQueue, point: Vec3) -> f32 {
@@ -264,7 +284,7 @@ async fn asteroids_handle_element() {
 	impl crate::Reify for TestState {
 		fn reify(&self) -> impl crate::Element<Self> {
 			Handle::new(self.handle_pos, |state: &mut Self, pos| {
-				state.handle_pos = pos;
+				state.handle_pos = [pos.x, 0.0, 0.0].into();
 			})
 			.build()
 		}
