@@ -87,10 +87,9 @@ impl Reify for State {
 					.build()
 				}))
 				.child(
-					Text::default()
+					Text::new(&self.text)
 						.pos([0.0, -0.2, 0.0])
 						.rot(Quat::from_rotation_y(PI))
-						.text(&self.text)
 						.text_align_x(XAlign::Center)
 						.text_align_y(YAlign::Top)
 						.character_height(0.1)
