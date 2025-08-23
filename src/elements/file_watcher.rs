@@ -79,14 +79,8 @@ impl<State: ValidState> CustomElement<State> for FileWatcher<State> {
 		})
 	}
 
-	fn update(
-		&self,
-		old_decl: &Self,
-		state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		if old_decl.file_path != self.file_path {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		if old_self.file_path != self.file_path {
 			inner.watch_loop.abort();
 			inner.modified.store(false, Ordering::Relaxed);
 			inner.watch_loop = tokio::spawn(Self::watch_loop(
@@ -95,7 +89,14 @@ impl<State: ValidState> CustomElement<State> for FileWatcher<State> {
 			))
 			.abort_handle();
 		}
+	}
 
+	fn frame(
+		&self,
+		_info: &stardust_xr_fusion::root::FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
 		if inner.modified.load(Ordering::Relaxed) {
 			inner.modified.store(false, Ordering::Relaxed);
 			(self.on_change.0)(state);

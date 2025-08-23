@@ -115,26 +115,24 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 		Ok(grabbable)
 	}
 
-	fn update(
-		&self,
-		old_decl: &Self,
-		state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		if self.field_shape != old_decl.field_shape {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		if self.field_shape != old_self.field_shape {
 			let _ = inner.field().set_shape(self.field_shape.clone());
 		}
-		if self.field_transform != old_decl.field_transform {
+		if self.field_transform != old_self.field_transform {
 			let _ = inner.field().set_local_transform(self.field_transform);
 		}
 		if (self.pos, self.rot) != inner.pose() {
 			inner.set_pose(self.pos, self.rot);
 		}
+	}
+
+	fn frame(&self, info: &FrameInfo, state: &mut State, inner: &mut Self::Inner) {
 		if inner.handle_events() {
 			let (pos, rot) = inner.pose();
 			(self.on_change_pose.0)(state, pos, rot)
 		}
+		inner.frame(info);
 
 		if inner.grab_action().actor_started() {
 			(self.grab_start.0)(state);
@@ -142,10 +140,6 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 		if inner.grab_action().actor_stopped() {
 			(self.grab_stop.0)(state);
 		}
-	}
-
-	fn frame(&self, info: &FrameInfo, _state: &mut State, inner: &mut Self::Inner) {
-		inner.frame(info);
 	}
 
 	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {

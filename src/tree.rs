@@ -42,7 +42,6 @@ impl<State: ValidState> Trees<State> {
 		new_blueprint: E,
 		context: &Context,
 		parent_space: &SpatialRef,
-		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 		resource_registry: &mut ResourceRegistry,
 	) {
@@ -69,7 +68,6 @@ impl<State: ValidState> Trees<State> {
 			parent_space,
 			&**old_root,
 			context, // Use provided context
-			state,   // Use provided state
 			inner_map,
 			resource_registry,
 		);
@@ -99,7 +97,6 @@ pub(crate) trait ElementDiffer<State: ValidState> {
 		parent_space: &SpatialRef,
 		old: &dyn ElementDiffer<State>,
 		context: &Context,
-		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	);
@@ -200,7 +197,6 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 		parent_space: &SpatialRef,
 		old: &dyn ElementDiffer<State>,
 		context: &Context,
-		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
@@ -232,12 +228,8 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 
 				if let Some(inner) = inner_opt {
 					// Update our element with the old one
-					self.element.update(
-						&old_flat.element,
-						state,
-						inner,
-						resources.get::<State, E>(),
-					);
+					self.element
+						.diff(&old_flat.element, inner, resources.get::<State, E>());
 				} else if inner_map.get::<State, E>(old_id).is_some() {
 					// We have the old element but not the new one yet, so create it
 					let inner_result = self.element.create_inner(
@@ -275,7 +267,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 
 				// Only diff if types match, otherwise recreate
 				if child.type_id() == old_child.type_id() {
-					child.diff_and_apply(&spatial, old_child, context, state, inner_map, resources);
+					child.diff_and_apply(&spatial, old_child, context, inner_map, resources);
 				} else {
 					// Types don't match, destroy old and create new
 					old_child.destroy_inner_recursive(inner_map);
@@ -400,7 +392,6 @@ impl<
 		parent_spatial: &SpatialRef,
 		old: &dyn ElementDiffer<State>,
 		context: &Context,
-		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
@@ -424,20 +415,13 @@ impl<
 		let old_self = unsafe { &*(old as *const dyn ElementDiffer<State> as *const Self) };
 
 		// Try to map the state, but handle the case where mapping fails
-		if let Some(mapped_state) = (self.mapper)(state) {
-			self.wrapped.diff_and_apply(
-				parent_spatial,
-				(&*old_self.wrapped) as &dyn ElementDiffer<WrappedState>,
-				context,
-				mapped_state,
-				inner_map,
-				resources,
-			);
-		} else {
-			// If mapping fails, we should destroy the old element and not create a new one
-			// since we can't properly update it
-			old_self.wrapped.destroy_inner_recursive(inner_map);
-		}
+		self.wrapped.diff_and_apply(
+			parent_spatial,
+			(&*old_self.wrapped) as &dyn ElementDiffer<WrappedState>,
+			context,
+			inner_map,
+			resources,
+		);
 	}
 
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {

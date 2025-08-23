@@ -78,7 +78,6 @@ impl<State: Reify> Projector<State> {
 			blueprint,
 			context,
 			&self.root,
-			state,
 			&mut self.inner_map,
 			&mut self.resources,
 		);

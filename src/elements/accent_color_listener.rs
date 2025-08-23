@@ -97,12 +97,12 @@ impl<State: ValidState> CustomElement<State> for AccentColorListener<State> {
 		})
 	}
 
-	fn update(
+	fn diff(&self, _old_self: &Self, _inner: &mut Self::Inner, _resource: &mut Self::Resource) {}
+	fn frame(
 		&self,
-		_old_decl: &Self,
+		_info: &stardust_xr_fusion::root::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
 	) {
 		if inner.color_rx.has_changed().is_ok_and(|t| t) {
 			(self.on_accent_color_changed.0)(state, *inner.color_rx.borrow())

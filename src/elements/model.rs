@@ -114,21 +114,15 @@ impl<State: ValidState> CustomElement<State> for Model {
 	) -> Result<Self::Inner, Self::Error> {
 		ModelInner::create(info.parent_space, &context.dbus_connection, self)
 	}
-	fn update(
-		&self,
-		old_decl: &Self,
-		_state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		self.apply_transform(old_decl, &inner.model);
-		if self.resource != old_decl.resource {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		self.apply_transform(old_self, &inner.model);
+		if self.resource != old_self.resource {
 			if let Ok(new_inner) = ModelInner::create(&inner.parent, &inner.dbus_connection, self) {
 				*inner = new_inner;
 			}
 		}
 		// just added
-		for part_info in self.model_parts.difference(&old_decl.model_parts) {
+		for part_info in self.model_parts.difference(&old_self.model_parts) {
 			let Ok(part) = inner.model.part(&part_info.path) else {
 				continue;
 			};
@@ -138,7 +132,7 @@ impl<State: ValidState> CustomElement<State> for Model {
 			inner.model_parts.insert(part_info.path.clone(), part);
 		}
 		//still here
-		for part_info in self.model_parts.union(&old_decl.model_parts) {
+		for part_info in self.model_parts.union(&old_self.model_parts) {
 			let Some(model_part) = inner.model_parts.get(&part_info.path) else {
 				return;
 			};
@@ -148,7 +142,7 @@ impl<State: ValidState> CustomElement<State> for Model {
 			if let Some(panel_item_cursor) = &part_info.panel_item_cursor_override {
 				let _ = panel_item_cursor.apply_cursor_material(model_part);
 			}
-			if let Some(old_part_info) = old_decl.model_parts.get(part_info) {
+			if let Some(old_part_info) = old_self.model_parts.get(part_info) {
 				if part_info.material_parameter_overrides
 					!= old_part_info.material_parameter_overrides
 				{
@@ -158,7 +152,7 @@ impl<State: ValidState> CustomElement<State> for Model {
 		}
 
 		// just removed
-		for part_info in old_decl.model_parts.difference(&self.model_parts) {
+		for part_info in old_self.model_parts.difference(&self.model_parts) {
 			inner.model_parts.remove(&part_info.path);
 		}
 	}

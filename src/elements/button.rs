@@ -74,21 +74,23 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 		Ok(button)
 	}
 
-	fn update(
+	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		self.apply_transform(old, inner.touch_plane().root());
+		// if self.size != old.size {
+		//     inner.touch_plane().set_size(self.size);
+		// }
+	}
+
+	fn frame(
 		&self,
-		old: &Self,
+		_info: &stardust_xr_fusion::root::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
 	) {
 		inner.handle_events();
 		if inner.pressed() {
 			(self.on_press.0)(state);
 		}
-		self.apply_transform(old, inner.touch_plane().root());
-		// if self.size != old.size {
-		//     inner.touch_plane().set_size(self.size);
-		// }
 	}
 
 	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {

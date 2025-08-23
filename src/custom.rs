@@ -28,14 +28,8 @@ pub trait CustomElement<State: ValidState>: Any + Debug + Send + Sync + Sized + 
 		resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error>;
 	/// Update the inner imperative struct with the new state of the node.
-	/// You will need to check for changes between `old_decl` and `state` and update accordingly.
-	fn update(
-		&self,
-		old_decl: &Self,
-		state: &mut State,
-		inner: &mut Self::Inner,
-		resource: &mut Self::Resource,
-	);
+	/// You will need to check for changes between `self` and `old_self` and update accordingly.
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, resource: &mut Self::Resource);
 	/// Every frame on the server
 	fn frame(&self, _info: &FrameInfo, _state: &mut State, _inner: &mut Self::Inner) {}
 	/// Return the SpatialRef that all child elements should be parented under.

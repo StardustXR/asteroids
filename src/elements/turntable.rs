@@ -55,15 +55,9 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 		TurntableInner::create(info.parent_space, self.transform, self)
 	}
 
-	fn update(
-		&self,
-		old_decl: &Self,
-		_state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		self.apply_transform(old_decl, &inner.root);
-		if self.inner_radius != old_decl.inner_radius || self.height != old_decl.height {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		self.apply_transform(old_self, &inner.root);
+		if self.inner_radius != old_self.inner_radius || self.height != old_self.height {
 			inner.set_size(self.inner_radius, self.height);
 		}
 	}

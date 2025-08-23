@@ -32,15 +32,9 @@ impl<State: ValidState> CustomElement<State> for Spatial {
 			self.zoneable,
 		)
 	}
-	fn update(
-		&self,
-		old_decl: &Self,
-		_state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		self.apply_transform(old_decl, inner);
-		if self.zoneable != old_decl.zoneable {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		self.apply_transform(old_self, inner);
+		if self.zoneable != old_self.zoneable {
 			let _ = inner.set_zoneable(self.zoneable);
 		}
 	}

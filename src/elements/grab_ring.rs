@@ -60,16 +60,18 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 		GrabRingInner::new(info.parent_space, self.radius, self.thickness, self.pos)
 	}
 
-	fn update(
-		&self,
-		old_decl: &Self,
-		state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		if self.radius != old_decl.radius || self.thickness != old_decl.thickness {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		if self.radius != old_self.radius || self.thickness != old_self.thickness {
 			inner.resize(self.radius, self.thickness);
 		}
+	}
+
+	fn frame(
+		&self,
+		_info: &stardust_xr_fusion::root::FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
 		if let Some(pos) = inner.handle_events(self.pos) {
 			(self.on_grab.0)(state, pos);
 		}

@@ -89,24 +89,26 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 		)
 	}
 
-	fn update(
-		&self,
-		old: &Self,
-		state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
+	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		self.apply_transform(old, &inner.root);
 		if self.radius != old.radius || self.thickness != old.thickness {
 			let _ = inner.field.set_shape(Shape::Cylinder(CylinderShape {
 				radius: self.radius,
 				length: self.thickness,
 			}));
 		}
+	}
+
+	fn frame(
+		&self,
+		_info: &stardust_xr_fusion::root::FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
 		let new_value = inner.update(self);
 		if new_value != self.current_value {
 			(self.on_change.0)(state, new_value);
 		}
-		self.apply_transform(old, &inner.root);
 	}
 
 	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {

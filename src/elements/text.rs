@@ -49,18 +49,12 @@ impl<State: ValidState> CustomElement<State> for Text {
 			},
 		)
 	}
-	fn update(
-		&self,
-		old_decl: &Self,
-		_state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		self.apply_transform(old_decl, inner);
-		if self.text != old_decl.text {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		self.apply_transform(old_self, inner);
+		if self.text != old_self.text {
 			let _ = inner.set_text(&self.text);
 		}
-		if self.character_height != old_decl.character_height {
+		if self.character_height != old_self.character_height {
 			let _ = inner.set_character_height(self.character_height);
 		}
 	}

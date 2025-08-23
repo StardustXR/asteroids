@@ -95,13 +95,7 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 		PenInner::create(info.parent_space, self)
 	}
 
-	fn update(
-		&self,
-		old: &Self,
-		state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
+	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
 		if self.thickness != old.thickness || self.length != old.length {
 			_ = inner.visuals.set_lines(&[self.get_lines()]);
 			_ = inner.field.set_shape(Shape::Cylinder(CylinderShape {
@@ -109,7 +103,14 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 				radius: self.thickness * 0.5,
 			}));
 		}
+	}
 
+	fn frame(
+		&self,
+		_info: &stardust_xr_fusion::root::FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
 		if let Some((pen_state, pos, rot)) = inner.handle_events(self.grab_distance) {
 			(self.update.0)(state, pen_state, pos.into(), rot.into());
 		}

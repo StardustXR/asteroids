@@ -38,15 +38,9 @@ impl<State: ValidState> CustomElement<State> for Lines {
 		stardust_xr_fusion::drawable::Lines::create(info.parent_space, self.transform, &self.lines)
 	}
 
-	fn update(
-		&self,
-		old_decl: &Self,
-		_state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		self.apply_transform(old_decl, inner);
-		if self.lines != old_decl.lines {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		self.apply_transform(old_self, inner);
+		if self.lines != old_self.lines {
 			let _ = inner.set_lines(&self.lines);
 		}
 	}

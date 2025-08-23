@@ -26,14 +26,8 @@ impl<State: ValidState> CustomElement<State> for SkyTexture {
 		Ok(SkyTexInner(info.parent_space.clone()))
 	}
 
-	fn update(
-		&self,
-		old_decl: &Self,
-		_state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		if self.0 != old_decl.0 {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		if self.0 != old_self.0 {
 			if let Ok(client) = inner.0.client() {
 				_ = set_sky_tex(&client, Some(&self.0));
 			}

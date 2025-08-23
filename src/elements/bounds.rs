@@ -68,14 +68,8 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		})
 	}
 
-	fn update(
-		&self,
-		old_decl: &Self,
-		_state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
-		self.apply_transform(old_decl, &inner.spatial);
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+		self.apply_transform(old_self, &inner.spatial);
 	}
 
 	fn frame(&self, info: &FrameInfo, state: &mut State, inner: &mut Self::Inner) {

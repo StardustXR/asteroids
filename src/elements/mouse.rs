@@ -105,19 +105,20 @@ impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 		})
 	}
 
-	fn update(
-		&self,
-		old: &Self,
-		state: &mut State,
-		inner: &mut Self::Inner,
-		_resource: &mut Self::Resource,
-	) {
+	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
 		self.apply_transform(old, &inner.field);
 
 		if self.field_shape != old.field_shape {
 			let _ = inner.field.set_shape(self.field_shape.clone());
 		}
+	}
 
+	fn frame(
+		&self,
+		_info: &stardust_xr_fusion::root::FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
 		while let Ok((button, pressed)) = inner.button_rx.try_recv() {
 			(self.on_button.0)(state, button, pressed);
 		}
