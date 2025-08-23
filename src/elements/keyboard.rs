@@ -143,15 +143,14 @@ async fn asteroids_keyboard_element() {
 			KeyboardHandler::new(Shape::Sphere(0.5), Self::key_press)
 				.build()
 				.child(
-					Text::default()
-						.text(
-							self.latest_key
-								.as_ref()
-								.map(|key| format!("Latest key: {:?}", key.key))
-								.unwrap_or_default(),
-						)
-						.character_height(0.05)
-						.build(),
+					Text::new(
+						self.latest_key
+							.as_ref()
+							.map(|key| format!("Latest key: {:?}", key.key))
+							.unwrap_or_default(),
+					)
+					.character_height(0.05)
+					.build(),
 				)
 		}
 	}

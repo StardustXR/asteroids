@@ -199,8 +199,8 @@ async fn asteroids_mouse_element() {
 					Self::handle_scroll_discrete,
 					Self::handle_scroll_continuous,
 				)
-				.build().child(Text::default()
-					.text(format!(
+				.build().child(Text::new(
+					format!(
 						"Latest button: {:?}\nLatest motion: {:?}\nLatest discrete scroll: {:?}\nLatest continuous scroll: {:?}",
 						self.latest_button,
 						self.latest_motion,

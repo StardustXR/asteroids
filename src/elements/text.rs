@@ -24,6 +24,20 @@ pub struct Text {
 	text_align_y: YAlign,
 	bounds: Option<TextBounds>,
 }
+impl Text {
+	pub fn new(text: impl ToString) -> Self {
+		Text {
+			transform: Transform::none(),
+			text: text.to_string(),
+			character_height: 1.0,
+			color: rgba_linear!(1.0, 1.0, 1.0, 1.0),
+			font: None,
+			text_align_x: XAlign::Left,
+			text_align_y: YAlign::Top,
+			bounds: None,
+		}
+	}
+}
 impl<State: ValidState> CustomElement<State> for Text {
 	type Inner = stardust_xr_fusion::drawable::Text;
 	type Resource = ();
@@ -60,20 +74,6 @@ impl<State: ValidState> CustomElement<State> for Text {
 	}
 	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
 		inner.clone().as_spatial().as_spatial_ref()
-	}
-}
-impl Default for Text {
-	fn default() -> Self {
-		Text {
-			transform: Transform::none(),
-			text: "".to_string(),
-			character_height: 1.0,
-			color: rgba_linear!(1.0, 1.0, 1.0, 1.0),
-			font: None,
-			text_align_x: XAlign::Left,
-			text_align_y: YAlign::Top,
-			bounds: None,
-		}
 	}
 }
 impl Transformable for Text {

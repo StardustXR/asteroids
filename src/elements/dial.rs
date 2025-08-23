@@ -344,12 +344,13 @@ async fn asteroids_dial_element() {
 					.build(),
 				)
 				.child(
-					crate::elements::Text::default()
-						.text(format!("{formatted_hours:02.0}:{minutes:02.0} {period}",))
-						.character_height(0.005)
-						.pos([0.0, 0.0, 0.01])
-						.rot(glam::Quat::from_rotation_y(std::f32::consts::PI))
-						.build(),
+					crate::elements::Text::new(format!(
+						"{formatted_hours:02.0}:{minutes:02.0} {period}",
+					))
+					.character_height(0.005)
+					.pos([0.0, 0.0, 0.01])
+					.rot(glam::Quat::from_rotation_y(std::f32::consts::PI))
+					.build(),
 				)
 		}
 	}
