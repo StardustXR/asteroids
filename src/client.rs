@@ -107,6 +107,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 	let mut view = Projector::new(&state, &context, client.get_root().clone().as_spatial_ref());
 
 	let event_loop_future = client.sync_event_loop(|client, _| {
+		let mut redraw = None;
 		while let Some(root_event) = client.get_root().recv_root_event() {
 			match root_event {
 				RootEvent::Ping { response: pong } => pong.send(Ok(())),
@@ -118,8 +119,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 						info!("frame info {info:#?}");
 						tracy_client::frame_mark();
 					}
-					view.frame(&info, &mut state);
-					view.update(&context, &mut state);
+					redraw = Some(info);
 				}
 				RootEvent::SaveState { response } => response.wrap(|| {
 					stardust_xr_fusion::root::ClientState::from_data_root(
@@ -127,6 +127,11 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 						client.get_root(),
 					)
 				}),
+			}
+
+			if let Some(info) = redraw.take() {
+				view.frame(&info, &mut state);
+				view.update(&context, &mut state);
 			}
 		}
 	});
