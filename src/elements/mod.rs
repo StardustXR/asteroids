@@ -11,6 +11,7 @@ mod_expose!(button);
 mod_expose!(dial);
 mod_expose!(field_viz);
 mod_expose!(grabbable);
+mod_expose!(handle);
 mod_expose!(keyboard);
 mod_expose!(lines);
 mod_expose!(model);
