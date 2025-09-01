@@ -5,7 +5,7 @@ use crate::{
 use serde::{Serialize, de::DeserializeOwned};
 use stardust_xr_fusion::{
 	Client,
-	core::schemas::flex::flexbuffers,
+	node::NodeType,
 	objects::connect_client,
 	root::{FrameInfo, RootAspect, RootEvent},
 };
@@ -59,7 +59,7 @@ async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
 
 	let state = saved_state
 		.data
-		.and_then(|m| flexbuffers::from_slice(&m).ok())
+		.and_then(|m| ron::from_str(&String::from_utf8(m).ok()?).ok())
 		.unwrap_or_else(initial_state);
 	Some(state)
 }
@@ -122,10 +122,11 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 					redraw = Some(info);
 				}
 				RootEvent::SaveState { response } => response.wrap(|| {
-					stardust_xr_fusion::root::ClientState::from_data_root(
-						Some(flexbuffers::to_vec(&state)?),
-						client.get_root(),
-					)
+					Ok(stardust_xr_fusion::root::ClientState {
+						data: ron::to_string(&state).ok().map(|s| s.into_bytes()),
+						root: client.get_root().id(),
+						spatial_anchors: Default::default(),
+					})
 				}),
 			}
 
