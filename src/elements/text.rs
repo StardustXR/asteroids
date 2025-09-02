@@ -1,6 +1,7 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable},
+	elements::Lines,
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -10,18 +11,20 @@ use stardust_xr_fusion::{
 	spatial::{SpatialRef, Transform},
 	values::color::rgba_linear,
 };
+use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct Text {
 	transform: Transform,
+	#[setters(skip)]
 	text: String,
 	character_height: f32,
 	color: Color,
 	font: Option<ResourceID>,
-	text_align_x: XAlign,
-	text_align_y: YAlign,
+	align_x: XAlign,
+	align_y: YAlign,
 	bounds: Option<TextBounds>,
 }
 impl Text {
@@ -29,11 +32,11 @@ impl Text {
 		Text {
 			transform: Transform::none(),
 			text: text.to_string(),
-			character_height: 1.0,
+			character_height: 0.01,
 			color: rgba_linear!(1.0, 1.0, 1.0, 1.0),
 			font: None,
-			text_align_x: XAlign::Left,
-			text_align_y: YAlign::Top,
+			align_x: XAlign::Left,
+			align_y: YAlign::Top,
 			bounds: None,
 		}
 	}
@@ -57,8 +60,8 @@ impl<State: ValidState> CustomElement<State> for Text {
 				character_height: self.character_height,
 				color: self.color,
 				font: self.font.clone(),
-				text_align_x: self.text_align_x,
-				text_align_y: self.text_align_y,
+				text_align_x: self.align_x,
+				text_align_y: self.align_y,
 				bounds: self.bounds.clone(),
 			},
 		)
@@ -83,4 +86,125 @@ impl Transformable for Text {
 	fn transform_mut(&mut self) -> &mut Transform {
 		&mut self.transform
 	}
+}
+
+#[tokio::test]
+async fn asteroids_text_test() {
+	use crate::{
+		client::{self, ClientState},
+		custom::CustomElement,
+		elements::Axes,
+	};
+	use serde::{Deserialize, Serialize};
+
+	#[derive(Default, Serialize, Deserialize)]
+	struct TestState;
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
+	impl ClientState for TestState {
+		const APP_ID: &'static str = "org.asteroids.text";
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
+			let spacing_x = 0.1;
+			let spacing_y = 0.02;
+			Axes::default()
+				.build()
+				.child(
+					Lines::new([
+						// -x divider line
+						line_from_points(vec![
+							[spacing_x / 2.0, spacing_y * 2.0, 0.0],
+							[spacing_x / 2.0, -spacing_y * 2.0, 0.0],
+						])
+						.thickness(0.001),
+						// +x divider line
+						line_from_points(vec![
+							[-spacing_x / 2.0, spacing_y * 2.0, 0.0],
+							[-spacing_x / 2.0, -spacing_y * 2.0, 0.0],
+						])
+						.thickness(0.001),
+						// +y divider line
+						line_from_points(vec![
+							[-spacing_x * 2.0, spacing_y / 2.0, 0.0],
+							[spacing_x * 2.0, spacing_y / 2.0, 0.0],
+						])
+						.thickness(0.001),
+						// -y divider line
+						line_from_points(vec![
+							[-spacing_x * 2.0, -spacing_y / 2.0, 0.0],
+							[spacing_x * 2.0, -spacing_y / 2.0, 0.0],
+						])
+						.thickness(0.001),
+					])
+					.build(),
+				)
+				.child(
+					Text::new("Top left align")
+						.align_y(YAlign::Top)
+						.align_x(XAlign::Left)
+						.pos([-spacing_x, spacing_y, 0.0])
+						.build(),
+				)
+				.child(
+					Text::new("Top center align")
+						.align_y(YAlign::Top)
+						.align_x(XAlign::Center)
+						.pos([0.0, spacing_y, 0.0])
+						.build(),
+				)
+				.child(
+					Text::new("Top right align")
+						.align_y(YAlign::Top)
+						.align_x(XAlign::Right)
+						.pos([spacing_x, spacing_y, 0.0])
+						.build(),
+				)
+				.child(
+					Text::new("Middle left align")
+						.align_y(YAlign::Center)
+						.align_x(XAlign::Left)
+						.pos([-spacing_x, 0.0, 0.0])
+						.build(),
+				)
+				.child(
+					Text::new("Middle center align")
+						.align_y(YAlign::Center)
+						.align_x(XAlign::Center)
+						.pos([0.0, 0.0, 0.0])
+						.build(),
+				)
+				.child(
+					Text::new("Middle right align")
+						.align_y(YAlign::Center)
+						.align_x(XAlign::Right)
+						.pos([spacing_x, 0.0, 0.0])
+						.build(),
+				)
+				.child(
+					Text::new("Bottom left align")
+						.align_y(YAlign::Bottom)
+						.align_x(XAlign::Left)
+						.pos([-spacing_x, -spacing_y, 0.0])
+						.build(),
+				)
+				.child(
+					Text::new("Bottom center align")
+						.align_y(YAlign::Bottom)
+						.align_x(XAlign::Center)
+						.pos([0.0, -spacing_y, 0.0])
+						.build(),
+				)
+				.child(
+					Text::new("Bottom right align")
+						.align_y(YAlign::Bottom)
+						.align_x(XAlign::Right)
+						.pos([spacing_x, -spacing_y, 0.0])
+						.build(),
+				)
+		}
+	}
+
+	client::run::<TestState>(&[]).await;
 }
