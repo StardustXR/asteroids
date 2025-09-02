@@ -1,7 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable},
-	elements::Lines,
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -11,7 +10,6 @@ use stardust_xr_fusion::{
 	spatial::{SpatialRef, Transform},
 	values::color::rgba_linear,
 };
-use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialEq, Setters)]
@@ -93,9 +91,10 @@ async fn asteroids_text_test() {
 	use crate::{
 		client::{self, ClientState},
 		custom::CustomElement,
-		elements::Axes,
+		elements::{Axes, Lines},
 	};
 	use serde::{Deserialize, Serialize};
+	use stardust_xr_molecules::lines::{LineExt, line_from_points};
 
 	#[derive(Default, Serialize, Deserialize)]
 	struct TestState;
