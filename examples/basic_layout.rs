@@ -90,8 +90,8 @@ impl Reify for State {
 					Text::new(&self.text)
 						.pos([0.0, -0.2, 0.0])
 						.rot(Quat::from_rotation_y(PI))
-						.text_align_x(XAlign::Center)
-						.text_align_y(YAlign::Top)
+						.align_x(XAlign::Center)
+						.align_y(YAlign::Top)
 						.character_height(0.1)
 						.build(),
 				)

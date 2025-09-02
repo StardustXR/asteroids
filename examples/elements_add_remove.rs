@@ -106,8 +106,8 @@ impl LabeledButton {
 			.child(
 				Text::new(&self.label)
 					.character_height(self.height)
-					.text_align_x(XAlign::Center)
-					.text_align_y(YAlign::Center)
+					.align_x(XAlign::Center)
+					.align_y(YAlign::Center)
 					.rot(Quat::from_rotation_y(PI))
 					.build(),
 			)
@@ -143,7 +143,7 @@ fn make_list_item(index: usize, text: &String) -> impl Element<State> {
 		.child(
 			Text::new("-")
 				.character_height(size)
-				.text_align_x(XAlign::Center)
+				.align_x(XAlign::Center)
 				.pos([-0.05, 0.0, 0.0])
 				.rot(Quat::from_rotation_y(PI))
 				.build(),
@@ -151,7 +151,7 @@ fn make_list_item(index: usize, text: &String) -> impl Element<State> {
 		.child(
 			Text::new(text)
 				.character_height(size)
-				.text_align_x(XAlign::Left)
+				.align_x(XAlign::Left)
 				.rot(Quat::from_rotation_y(PI))
 				.build(),
 		)
