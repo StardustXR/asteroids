@@ -106,102 +106,107 @@ async fn asteroids_text_test() {
 	}
 	impl crate::Reify for TestState {
 		fn reify(&self) -> impl crate::Element<Self> {
-			let spacing_x = 0.1;
-			let spacing_y = 0.02;
-			Axes::default()
-				.build()
-				.child(
-					Lines::new([
-						// -x divider line
-						line_from_points(vec![
-							[spacing_x / 2.0, spacing_y * 2.0, 0.0],
-							[spacing_x / 2.0, -spacing_y * 2.0, 0.0],
-						])
-						.thickness(0.001),
-						// +x divider line
-						line_from_points(vec![
-							[-spacing_x / 2.0, spacing_y * 2.0, 0.0],
-							[-spacing_x / 2.0, -spacing_y * 2.0, 0.0],
-						])
-						.thickness(0.001),
-						// +y divider line
-						line_from_points(vec![
-							[-spacing_x * 2.0, spacing_y / 2.0, 0.0],
-							[spacing_x * 2.0, spacing_y / 2.0, 0.0],
-						])
-						.thickness(0.001),
-						// -y divider line
-						line_from_points(vec![
-							[-spacing_x * 2.0, -spacing_y / 2.0, 0.0],
-							[spacing_x * 2.0, -spacing_y / 2.0, 0.0],
-						])
-						.thickness(0.001),
-					])
-					.build(),
-				)
-				.child(
-					Text::new("Top left align")
-						.align_y(YAlign::Top)
-						.align_x(XAlign::Left)
-						.pos([-spacing_x, spacing_y, 0.0])
-						.build(),
-				)
-				.child(
-					Text::new("Top center align")
-						.align_y(YAlign::Top)
-						.align_x(XAlign::Center)
-						.pos([0.0, spacing_y, 0.0])
-						.build(),
-				)
-				.child(
-					Text::new("Top right align")
-						.align_y(YAlign::Top)
-						.align_x(XAlign::Right)
-						.pos([spacing_x, spacing_y, 0.0])
-						.build(),
-				)
-				.child(
-					Text::new("Middle left align")
-						.align_y(YAlign::Center)
-						.align_x(XAlign::Left)
-						.pos([-spacing_x, 0.0, 0.0])
-						.build(),
-				)
-				.child(
-					Text::new("Middle center align")
-						.align_y(YAlign::Center)
-						.align_x(XAlign::Center)
-						.pos([0.0, 0.0, 0.0])
-						.build(),
-				)
-				.child(
-					Text::new("Middle right align")
-						.align_y(YAlign::Center)
-						.align_x(XAlign::Right)
-						.pos([spacing_x, 0.0, 0.0])
-						.build(),
-				)
-				.child(
-					Text::new("Bottom left align")
-						.align_y(YAlign::Bottom)
-						.align_x(XAlign::Left)
-						.pos([-spacing_x, -spacing_y, 0.0])
-						.build(),
-				)
-				.child(
-					Text::new("Bottom center align")
-						.align_y(YAlign::Bottom)
-						.align_x(XAlign::Center)
-						.pos([0.0, -spacing_y, 0.0])
-						.build(),
-				)
-				.child(
-					Text::new("Bottom right align")
-						.align_y(YAlign::Bottom)
-						.align_x(XAlign::Right)
-						.pos([spacing_x, -spacing_y, 0.0])
-						.build(),
-				)
+			let cell_size_x = 0.1;
+			let cell_size_y = 0.01;
+			Lines::new([
+				// -x divider line
+				line_from_points(vec![
+					[cell_size_x / 2.0, cell_size_y * 1.5, 0.0],
+					[cell_size_x / 2.0, -cell_size_y * 1.5, 0.0],
+				])
+				.thickness(0.00075),
+				// +x divider line
+				line_from_points(vec![
+					[-cell_size_x / 2.0, cell_size_y * 1.5, 0.0],
+					[-cell_size_x / 2.0, -cell_size_y * 1.5, 0.0],
+				])
+				.thickness(0.00075),
+				// +y divider line
+				line_from_points(vec![
+					[-cell_size_x * 1.5, cell_size_y / 2.0, 0.0],
+					[cell_size_x * 1.5, cell_size_y / 2.0, 0.0],
+				])
+				.thickness(0.00075),
+				// -y divider line
+				line_from_points(vec![
+					[-cell_size_x * 1.5, -cell_size_y / 2.0, 0.0],
+					[cell_size_x * 1.5, -cell_size_y / 2.0, 0.0],
+				])
+				.thickness(0.00075),
+			])
+			.build()
+			.child(
+				Text::new("Top left align")
+					.align_y(YAlign::Top)
+					.align_x(XAlign::Left)
+					.pos([-cell_size_x * 1.5, -cell_size_y * 1.5, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
+			.child(
+				Text::new("Top center align")
+					.align_y(YAlign::Top)
+					.align_x(XAlign::Center)
+					.pos([0.0, -cell_size_y * 1.5, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
+			.child(
+				Text::new("Top right align")
+					.align_y(YAlign::Top)
+					.align_x(XAlign::Right)
+					.pos([cell_size_x * 1.5, -cell_size_y * 1.5, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
+			.child(
+				Text::new("Middle left align")
+					.align_y(YAlign::Center)
+					.align_x(XAlign::Left)
+					.pos([-cell_size_x * 1.5, 0.0, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
+			.child(
+				Text::new("Middle center align")
+					.align_y(YAlign::Center)
+					.align_x(XAlign::Center)
+					.pos([0.0, 0.0, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
+			.child(
+				Text::new("Middle right align")
+					.align_y(YAlign::Center)
+					.align_x(XAlign::Right)
+					.pos([cell_size_x * 1.5, 0.0, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
+			.child(
+				Text::new("Bottom left align")
+					.align_y(YAlign::Bottom)
+					.align_x(XAlign::Left)
+					.pos([-cell_size_x * 1.5, cell_size_y * 1.5, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
+			.child(
+				Text::new("Bottom center align")
+					.align_y(YAlign::Bottom)
+					.align_x(XAlign::Center)
+					.pos([0.0, cell_size_y * 1.5, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
+			.child(
+				Text::new("Bottom right align")
+					.align_y(YAlign::Bottom)
+					.align_x(XAlign::Right)
+					.pos([cell_size_x * 1.5, cell_size_y * 1.5, 0.0])
+					.build()
+					.child(Axes::default().build()),
+			)
 		}
 	}
 
