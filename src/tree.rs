@@ -441,9 +441,10 @@ pub struct Tree<State: ValidState> {
 	root: Box<'this, dyn ElementDiffer<State>>,
 }
 impl<State: ValidState> Tree<State> {
-	pub fn flatten(bump: Bump, root: impl ElementFlattener<State>) -> Option<Self> {
+	pub fn flatten(bump: Bump, mut root: impl ElementFlattener<State>) -> Option<Self> {
 		let mut tree = Self::try_new(bump, move |bump| {
-			root.flatten(bump).into_iter().next().ok_or(())
+			let root = root.flatten(bump);
+			root.into_iter().next().ok_or(())
 		})
 		.ok()?;
 

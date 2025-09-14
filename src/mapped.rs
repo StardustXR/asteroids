@@ -14,7 +14,7 @@ pub struct Mapped<
 	E: Element<WrappedState>,
 > {
 	wrapped: E,
-	mapper: F,
+	mapper: Option<F>,
 	phantom: PhantomData<State>,
 }
 
@@ -28,7 +28,7 @@ impl<
 	pub fn new(wrapped: E, mapper: F) -> Self {
 		Self {
 			wrapped,
-			mapper,
+			mapper: Some(mapper),
 			phantom: PhantomData,
 		}
 	}
@@ -41,12 +41,12 @@ impl<
 	E: Element<WrappedState>,
 > ElementFlattener<State> for Mapped<State, WrappedState, F, E>
 {
-	fn flatten(self, bump: &Bump) -> Vec<Box<dyn ElementDiffer<State>>> {
+	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
 		let wrapped = self.wrapped.flatten(bump).into_iter().next().unwrap();
 		let flatmap_element = Box::new_in(
 			FlatmapElement {
 				wrapped,
-				mapper: self.mapper,
+				mapper: self.mapper.take().unwrap(),
 				phantom: PhantomData,
 			},
 			bump,

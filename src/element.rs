@@ -24,13 +24,13 @@ pub trait Element<State: ValidState>: ElementFlattener<State> {
 }
 pub(crate) trait ElementFlattener<State: ValidState>: Sized + Send + Sync + 'static {
 	// return a vector of this element and all its known siblings
-	fn flatten(self, bump: &Bump) -> Vec<Box<dyn ElementDiffer<State>>>;
+	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>>;
 }
 
 macro_rules! tuple_impls {
 	() => {
 		impl<State: ValidState> ElementFlattener<State> for () {
-			fn flatten(self, _bump: &Bump) -> Vec<Box<dyn ElementDiffer<State>>> {
+			fn flatten<'a>(&mut self, _bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
 				vec![]
 			}
 		}
@@ -39,7 +39,7 @@ macro_rules! tuple_impls {
 	($($t:ident)*) => {
 		impl<State: ValidState, $($t: Element<State>),*> ElementFlattener<State> for ($($t),*) {
 			#[allow(non_snake_case)]
-			fn flatten(self, bump: &Bump) -> Vec<Box<dyn ElementDiffer<State>>> {
+			fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
 				let ($($t),*) = self;
 				let mut result = Vec::new();
 				$(
@@ -65,20 +65,23 @@ tuple_impls!(A B C D E F G H I J K);
 tuple_impls!(A B C D E F G H I J K L);
 
 impl<State: ValidState, E: Element<State>> ElementFlattener<State> for Vec<E> {
-	fn flatten(self, bump: &Bump) -> Vec<Box<dyn ElementDiffer<State>>> {
-		self.into_iter().flat_map(|e| e.flatten(bump)).collect()
+	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
+		self.drain(..).flat_map(|mut e| e.flatten(bump)).collect()
 	}
 }
 impl<State: ValidState, E: Element<State>> Element<State> for Vec<E> {}
 impl<State: ValidState, E: Element<State>> ElementFlattener<State> for Option<E> {
-	fn flatten(self, bump: &Bump) -> Vec<Box<dyn ElementDiffer<State>>> {
-		self.into_iter().flat_map(|e| e.flatten(bump)).collect()
+	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
+		self.take()
+			.into_iter()
+			.flat_map(|mut e| e.flatten(bump))
+			.collect()
 	}
 }
 impl<State: ValidState, E: Element<State>> Element<State> for Option<E> {}
 
 pub struct ElementWrapper<State: ValidState, E: CustomElement<State>, C: Element<State>> {
-	pub custom_element: E,
+	pub custom_element: Option<E>,
 	children: C,
 	pub id: Option<ElementInnerKey>,
 	state_phantom: PhantomData<State>,
@@ -87,7 +90,7 @@ pub struct ElementWrapper<State: ValidState, E: CustomElement<State>, C: Element
 impl<State: ValidState, E: CustomElement<State>, C: Element<State>> ElementWrapper<State, E, C> {
 	pub(crate) fn new(custom_element: E) -> ElementWrapper<State, E, ()> {
 		ElementWrapper {
-			custom_element,
+			custom_element: Some(custom_element),
 			children: (),
 			id: None,
 			state_phantom: PhantomData,
@@ -134,12 +137,12 @@ impl<State: ValidState, E: CustomElement<State>, C: Element<State>> ElementWrapp
 impl<State: ValidState, E: CustomElement<State>, C: Element<State>> ElementFlattener<State>
 	for ElementWrapper<State, E, C>
 {
-	fn flatten(self, bump: &Bump) -> Vec<Box<dyn ElementDiffer<State>>> {
+	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
 		let children =
 			bumpalo::collections::vec::Vec::from_iter_in(self.children.flatten(bump), bump);
 		let flat_element = Box::new_in(
 			FlatElement {
-				element: self.custom_element,
+				element: self.custom_element.take().unwrap(),
 				children,
 				id: self.id,
 				phantom: PhantomData,
