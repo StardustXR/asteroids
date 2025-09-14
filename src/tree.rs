@@ -5,8 +5,11 @@ use crate::{
 use bumpalo::{Bump, boxed::Box, collections::Vec};
 use ouroboros::self_referencing;
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::{any::TypeId, marker::PhantomData, path::Path};
+use std::{
+	hash::{DefaultHasher, Hash, Hasher},
+	path::PathBuf,
+};
 
 pub struct Trees<State: ValidState> {
 	current: Tree<State>,
@@ -25,7 +28,7 @@ impl<State: ValidState> Trees<State> {
 			context, // Use provided context
 			CreateInnerInfo {
 				parent_space,
-				element_path: Path::new(""),
+				element_path: Path::new("/"),
 			},
 			inner_map,
 			resource_registry,
@@ -68,6 +71,7 @@ impl<State: ValidState> Trees<State> {
 			parent_space,
 			&**old_root,
 			context, // Use provided context
+			Path::new("/"),
 			inner_map,
 			resource_registry,
 		);
@@ -97,6 +101,7 @@ pub(crate) trait ElementDiffer<State: ValidState> {
 		parent_space: &SpatialRef,
 		old: &dyn ElementDiffer<State>,
 		context: &Context,
+		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	);
@@ -104,6 +109,26 @@ pub(crate) trait ElementDiffer<State: ValidState> {
 
 	/// Recursively assign IDs to elements that don't have explicit IDs
 	fn assign_id_recursive(&mut self, parent_id: u64, position: usize);
+}
+
+fn element_type_name<E: std::any::Any>() -> &'static str {
+	let type_name = std::any::type_name::<E>();
+	// Cut off generics first
+	let no_generics = type_name.find('<').map_or(type_name, |i| &type_name[..i]);
+	// Now get after last ::
+	no_generics
+		.rfind("::")
+		.map(|i| &no_generics[i + 2..])
+		.unwrap_or(no_generics)
+}
+
+fn join_element_path<E: std::any::Any>(path: &Path, id: Option<ElementInnerKey>) -> PathBuf {
+	let segment = format!(
+		"{}_{}",
+		element_type_name::<E>(), // we want to get the element name without the namespace or generics
+		id.map(|i| i.0).unwrap_or(0)
+	);
+	path.join(segment)
 }
 
 pub struct FlatElement<'a, State: ValidState, E: CustomElement<State>> {
@@ -132,13 +157,15 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 			element_path,
 		} = info;
 
+		let element_path = join_element_path::<E>(element_path, self.id);
+
 		// Create our inner element and get the ID
 		if let Some(id) = self.id {
 			let inner = self.element.create_inner(
 				asteroids_context,
 				CreateInnerInfo {
 					parent_space,
-					element_path,
+					element_path: &element_path,
 				},
 				resource_registry.get::<State, E>(),
 			);
@@ -166,7 +193,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 				asteroids_context,
 				CreateInnerInfo {
 					parent_space: &spatial,
-					element_path,
+					element_path: &element_path,
 				},
 				inner_map,
 				resource_registry,
@@ -197,9 +224,12 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 		parent_space: &SpatialRef,
 		old: &dyn ElementDiffer<State>,
 		context: &Context,
+		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
+		let element_path = join_element_path::<E>(element_path, self.id);
+
 		// Check if the old element has the same type
 		if self.type_id() != old.type_id() {
 			// Types don't match, destroy old and create new
@@ -267,7 +297,14 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 
 				// Only diff if types match, otherwise recreate
 				if child.type_id() == old_child.type_id() {
-					child.diff_and_apply(&spatial, old_child, context, inner_map, resources);
+					child.diff_and_apply(
+						&spatial,
+						old_child,
+						context,
+						&element_path,
+						inner_map,
+						resources,
+					);
 				} else {
 					// Types don't match, destroy old and create new
 					old_child.destroy_inner_recursive(inner_map);
@@ -275,7 +312,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 						context,
 						CreateInnerInfo {
 							parent_space: &spatial,
-							element_path: Path::new(""),
+							element_path: &element_path,
 						},
 						inner_map,
 						resources,
@@ -287,7 +324,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 					context,
 					CreateInnerInfo {
 						parent_space: &spatial,
-						element_path: Path::new(""),
+						element_path: &element_path,
 					},
 					inner_map,
 					resources,
@@ -392,6 +429,7 @@ impl<
 		parent_spatial: &SpatialRef,
 		old: &dyn ElementDiffer<State>,
 		context: &Context,
+		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
@@ -403,7 +441,7 @@ impl<
 				context,
 				CreateInnerInfo {
 					parent_space: parent_spatial,
-					element_path: Path::new(""),
+					element_path,
 				},
 				inner_map,
 				resources,
@@ -419,6 +457,7 @@ impl<
 			parent_spatial,
 			(&*old_self.wrapped) as &dyn ElementDiffer<WrappedState>,
 			context,
+			element_path,
 			inner_map,
 			resources,
 		);
