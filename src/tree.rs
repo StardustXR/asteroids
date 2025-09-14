@@ -420,8 +420,9 @@ impl<
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 	) {
-		let mapped_state = (self.mapper)(state).unwrap();
-		self.wrapped.frame_recursive(info, mapped_state, inner_map);
+		if let Some(mapped_state) = (self.mapper)(state) {
+			self.wrapped.frame_recursive(info, mapped_state, inner_map);
+		}
 	}
 
 	fn diff_and_apply(
