@@ -1,7 +1,7 @@
 use bumpalo::{Bump, boxed::Box};
 
 use crate::{
-	Element, ValidState,
+	Element, Identifiable, ValidState,
 	element::ElementFlattener,
 	tree::{ElementDiffer, FlatmapElement},
 };
@@ -69,4 +69,22 @@ impl<
 	E: Element<WrappedState>,
 > Element<State> for Mapped<State, WrappedState, F, E>
 {
+}
+
+impl<
+	State: ValidState,
+	WrappedState: ValidState,
+	F: Fn(&mut State) -> Option<&mut WrappedState> + Send + Sync + 'static,
+	E: Element<WrappedState>,
+> Identifiable for Mapped<State, WrappedState, F, E>
+where
+	E: Identifiable,
+{
+	fn identify<H: std::hash::Hash>(self, h: &H) -> Self {
+		Mapped {
+			wrapped: self.wrapped.identify(h),
+			mapper: self.mapper,
+			phantom: PhantomData,
+		}
+	}
 }

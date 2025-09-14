@@ -1,5 +1,5 @@
 use asteroids::{
-	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
+	ClientState, CustomElement, Element, Identifiable, Migrate, Reify, Transformable, client,
 	elements::{Button, Spatial, Text},
 };
 use derive_setters::Setters;

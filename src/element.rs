@@ -12,7 +12,6 @@ use std::{
 	marker::PhantomData,
 };
 
-#[allow(private_bounds)]
 pub trait Element<State: ValidState>: ElementFlattener<State> + Sized {
 	fn map<
 		SuperState: ValidState,
@@ -30,6 +29,9 @@ pub trait Element<State: ValidState>: ElementFlattener<State> + Sized {
 pub(crate) trait ElementFlattener<State: ValidState>: Send + Sync + 'static {
 	// return a vector of this element and all its known siblings
 	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>>;
+}
+pub trait Identifiable {
+	fn identify<H: Hash>(self, h: &H) -> Self;
 }
 
 pub struct HeapElement<State: ValidState>(std::boxed::Box<dyn ElementFlattener<State>>);
@@ -143,13 +145,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>>
 			state_phantom: PhantomData,
 		}
 	}
-	pub fn identify<H: Hash>(mut self, h: &H) -> Self {
-		let mut hasher = DefaultHasher::new();
-		h.hash(&mut hasher);
-		let key = ElementInnerKey(hasher.finish());
-		self.id.replace(key);
-		self
-	}
 }
 impl<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>> ElementFlattener<State>
 	for ElementWrapper<State, E, C>
@@ -179,4 +174,16 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>> Ele
 impl<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>> Element<State>
 	for ElementWrapper<State, E, C>
 {
+}
+
+impl<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>> Identifiable
+	for ElementWrapper<State, E, C>
+{
+	fn identify<H: Hash>(mut self, h: &H) -> Self {
+		let mut hasher = DefaultHasher::new();
+		h.hash(&mut hasher);
+		let key = ElementInnerKey(hasher.finish());
+		self.id.replace(key);
+		self
+	}
 }

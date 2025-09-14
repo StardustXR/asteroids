@@ -21,7 +21,7 @@ mod util;
 pub use client::ClientState;
 pub use context::*;
 pub use custom::*;
-pub use element::Element;
+pub use element::{Element, Identifiable};
 use tree::Trees;
 pub use util::*;
 
