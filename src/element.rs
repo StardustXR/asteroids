@@ -11,7 +11,7 @@ use std::{
 };
 
 #[allow(private_bounds)]
-pub trait Element<State: ValidState>: ElementFlattener<State> {
+pub trait Element<State: ValidState>: ElementFlattener<State> + Sized {
 	fn map<
 		SuperState: ValidState,
 		F: Fn(&mut SuperState) -> Option<&mut State> + Send + Sync + 'static,
@@ -21,11 +21,22 @@ pub trait Element<State: ValidState>: ElementFlattener<State> {
 	) -> Mapped<SuperState, State, F, Self> {
 		Mapped::new(self, mapper)
 	}
+	fn heap(self) -> HeapElement<State> {
+		HeapElement(std::boxed::Box::new(self))
+	}
 }
-pub(crate) trait ElementFlattener<State: ValidState>: Sized + Send + Sync + 'static {
+pub(crate) trait ElementFlattener<State: ValidState>: Send + Sync + 'static {
 	// return a vector of this element and all its known siblings
 	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>>;
 }
+
+pub struct HeapElement<State: ValidState>(std::boxed::Box<dyn ElementFlattener<State>>);
+impl<State: ValidState> ElementFlattener<State> for HeapElement<State> {
+	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
+		self.0.flatten(bump)
+	}
+}
+impl<State: ValidState> Element<State> for HeapElement<State> {}
 
 macro_rules! tuple_impls {
 	() => {
@@ -63,6 +74,13 @@ tuple_impls!(A B C D E F G H I);
 tuple_impls!(A B C D E F G H I J);
 tuple_impls!(A B C D E F G H I J K);
 tuple_impls!(A B C D E F G H I J K L);
+
+impl<State: ValidState> ElementFlattener<State> for std::boxed::Box<dyn ElementFlattener<State>> {
+	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
+		self.as_mut().flatten(bump)
+	}
+}
+impl<State: ValidState> Element<State> for std::boxed::Box<dyn ElementFlattener<State>> {}
 
 impl<State: ValidState, E: Element<State>> ElementFlattener<State> for Vec<E> {
 	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {

@@ -20,6 +20,6 @@ impl Reify for Test {
 	fn reify(&self) -> impl Element<Self> {
 		Spatial::default()
 			.build()
-			.maybe_child(self.next.as_ref().map(|n| n.reify()))
+			.maybe_child(self.next.as_ref().map(|n| n.reify().heap()))
 	}
 }
