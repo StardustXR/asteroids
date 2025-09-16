@@ -41,10 +41,16 @@ impl<State: ValidState> Trees<State> {
 			old: None,
 		}
 	}
-	pub fn frame(&mut self, info: &FrameInfo, state: &mut State, inner_map: &mut ElementInnerMap) {
+	pub fn frame(
+		&mut self,
+		context: &Context,
+		info: &FrameInfo,
+		state: &mut State,
+		inner_map: &mut ElementInnerMap,
+	) {
 		self.current
 			.borrow_root()
-			.frame_recursive(info, state, inner_map);
+			.frame_recursive(context, info, state, inner_map);
 	}
 	pub fn diff_and_apply<E: ElementFlattener<State>>(
 		&mut self,
@@ -98,6 +104,7 @@ pub(crate) trait ElementDiffer<State: ValidState> {
 	/// Every frame on the server
 	fn frame_recursive(
 		&self,
+		context: &Context,
 		_info: &FrameInfo,
 		_state: &mut State,
 		_inner_map: &mut ElementInnerMap,
@@ -209,6 +216,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 
 	fn frame_recursive(
 		&self,
+		context: &Context,
 		info: &FrameInfo,
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
@@ -216,12 +224,12 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 		// If we have an ID, call frame on our element
 		if let Some(id) = self.id {
 			if let Some(inner) = inner_map.get_mut::<State, E>(id) {
-				self.element.frame(info, state, inner);
+				self.element.frame(context, info, state, inner);
 			}
 		}
 
 		for child in &self.children {
-			child.frame_recursive(info, state, inner_map);
+			child.frame_recursive(context, info, state, inner_map);
 		}
 	}
 
@@ -422,12 +430,14 @@ impl<
 
 	fn frame_recursive(
 		&self,
+		context: &Context,
 		info: &FrameInfo,
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 	) {
 		if let Some(mapped_state) = (self.mapper)(state) {
-			self.wrapped.frame_recursive(info, mapped_state, inner_map);
+			self.wrapped
+				.frame_recursive(context, info, mapped_state, inner_map);
 		}
 	}
 

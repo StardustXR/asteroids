@@ -127,7 +127,13 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 		}
 	}
 
-	fn frame(&self, info: &FrameInfo, state: &mut State, inner: &mut Self::Inner) {
+	fn frame(
+		&self,
+		_context: &crate::Context,
+		info: &FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
 		if inner.handle_events() {
 			let (pos, rot) = inner.pose();
 			(self.on_change_pose.0)(state, pos, rot)

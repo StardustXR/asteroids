@@ -93,6 +93,7 @@ impl<State: ValidState> CustomElement<State> for FileWatcher<State> {
 
 	fn frame(
 		&self,
+		_context: &Context,
 		_info: &stardust_xr_fusion::root::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,

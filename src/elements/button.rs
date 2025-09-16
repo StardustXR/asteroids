@@ -7,10 +7,8 @@ use derive_setters::Setters;
 use derive_where::derive_where;
 use mint::Vector2;
 use stardust_xr_fusion::{
-	core::values::Color,
 	node::NodeError,
 	spatial::{SpatialRef, Transform},
-	values::color::rgba_linear,
 };
 use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
 
@@ -23,7 +21,6 @@ pub struct Button<State: ValidState> {
 	size: Vector2<f32>,
 	max_hover_distance: f32,
 	line_thickness: f32,
-	accent_color: Color,
 	debug: Option<DebugSettings>,
 }
 impl<State: ValidState> Default for Button<State> {
@@ -34,7 +31,6 @@ impl<State: ValidState> Default for Button<State> {
 			size: [0.1; 2].into(),
 			max_hover_distance: 0.025,
 			line_thickness: 0.005,
-			accent_color: rgba_linear!(0.0, 1.0, 0.75, 1.0),
 			debug: None,
 		}
 	}
@@ -54,7 +50,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 
 	fn create_inner(
 		&self,
-		_asteroids_context: &Context,
+		context: &Context,
 		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
@@ -66,7 +62,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 				max_hover_distance: self.max_hover_distance,
 				visuals: Some(ButtonVisualSettings {
 					line_thickness: self.line_thickness,
-					accent_color: self.accent_color,
+					accent_color: context.accent_color,
 				}),
 			},
 		)?;
@@ -83,6 +79,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 
 	fn frame(
 		&self,
+		_context: &Context,
 		_info: &stardust_xr_fusion::root::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,

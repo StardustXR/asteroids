@@ -88,7 +88,7 @@ impl<State: Reify> Projector<State> {
 			&mut self.resources,
 		);
 	}
-	pub fn frame(&mut self, info: &FrameInfo, state: &mut State) {
-		self.trees.frame(info, state, &mut self.inner_map);
+	pub fn frame(&mut self, context: &Context, info: &FrameInfo, state: &mut State) {
+		self.trees.frame(context, info, state, &mut self.inner_map);
 	}
 }

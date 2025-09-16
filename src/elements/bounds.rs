@@ -72,7 +72,13 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		self.apply_transform(old_self, &inner.spatial);
 	}
 
-	fn frame(&self, info: &FrameInfo, state: &mut State, inner: &mut Self::Inner) {
+	fn frame(
+		&self,
+		_context: &Context,
+		info: &FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
 		// Check if we have new bounds
 		if let Ok(current_bounds) = inner.bounds_rx.try_recv() {
 			if inner.previous_bounds.as_ref() != Some(&current_bounds) {

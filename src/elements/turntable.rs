@@ -62,7 +62,13 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 		}
 	}
 
-	fn frame(&self, info: &FrameInfo, state: &mut State, inner: &mut Self::Inner) {
+	fn frame(
+		&self,
+		_context: &Context,
+		info: &FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
 		inner.update(info.clone(), self, state);
 	}
 

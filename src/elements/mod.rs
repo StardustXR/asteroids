@@ -7,7 +7,6 @@ macro_rules! mod_expose {
 }
 
 mod_expose!(axes);
-mod_expose!(accent_color_listener);
 mod_expose!(button);
 mod_expose!(dial);
 mod_expose!(field_viz);

@@ -46,7 +46,6 @@ pub struct Dial<State: ValidState> {
 	precisions: Vec<usize>,
 	/// what range should a segment's arc length be? determines the radius for precisions
 	segment_length_range: Range<f32>,
-	accent_color: Color,
 }
 impl<State: ValidState> Dial<State> {
 	pub fn create(
@@ -63,7 +62,6 @@ impl<State: ValidState> Dial<State> {
 			turn_unit_amount: 1.0,
 			precisions: Vec::new(),
 			segment_length_range: 0.01..0.02,
-			accent_color: rgba_linear!(0.0, 1.0, 0.75, 1.0),
 		}
 	}
 }
@@ -76,7 +74,7 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 
 	fn create_inner(
 		&self,
-		_asteroids_context: &Context,
+		context: &Context,
 		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
@@ -85,7 +83,7 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 			*self.transform(),
 			self.radius,
 			self.thickness,
-			self.accent_color,
+			context.accent_color,
 		)
 	}
 
@@ -101,11 +99,12 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 
 	fn frame(
 		&self,
+		context: &Context,
 		_info: &stardust_xr_fusion::root::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		let new_value = inner.update(self);
+		let new_value = inner.update(self, context.accent_color);
 		if new_value != self.current_value {
 			(self.on_change.0)(state, new_value);
 		}
@@ -175,7 +174,7 @@ impl DialInner {
 		})
 	}
 
-	pub fn update<State: ValidState>(&mut self, decl: &Dial<State>) -> f32 {
+	pub fn update<State: ValidState>(&mut self, decl: &Dial<State>, accent_color: Color) -> f32 {
 		if !self.input.handle_events() {
 			return decl.current_value;
 		}
@@ -197,7 +196,7 @@ impl DialInner {
 		let Some(actor) = self.single_action.actor() else {
 			let _ = self
 				.lines
-				.set_lines(&self.signifier_lines::<State>(None, decl));
+				.set_lines(&self.signifier_lines::<State>(None, decl, accent_color));
 			return decl.current_value;
 		};
 		if actor.distance <= 0.0 {
@@ -245,9 +244,11 @@ impl DialInner {
 			decl.current_value
 		};
 
-		let _ = self
-			.lines
-			.set_lines(&self.signifier_lines::<State>(Some(interact_point), decl));
+		let _ = self.lines.set_lines(&self.signifier_lines::<State>(
+			Some(interact_point),
+			decl,
+			accent_color,
+		));
 		new_value
 	}
 
@@ -255,9 +256,10 @@ impl DialInner {
 		&self,
 		interact_point: Option<Vec2>,
 		decl: &Dial<State>,
+		accent_color: Color,
 	) -> Vec<Line> {
 		let color = if interact_point.is_some() {
-			decl.accent_color
+			accent_color
 		} else {
 			rgba_linear!(1.0, 1.0, 1.0, 1.0)
 		};
@@ -349,7 +351,6 @@ async fn asteroids_dial_element() {
 					))
 					.character_height(0.005)
 					.pos([0.0, 0.0, 0.01])
-					.rot(glam::Quat::from_rotation_y(std::f32::consts::PI))
 					.build(),
 				)
 		}

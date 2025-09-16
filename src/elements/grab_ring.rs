@@ -68,6 +68,7 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 
 	fn frame(
 		&self,
+		_context: &Context,
 		_info: &stardust_xr_fusion::root::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
