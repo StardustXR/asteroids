@@ -5,7 +5,6 @@ use crate::{
 use bumpalo::{Bump, boxed::Box, collections::Vec};
 use ouroboros::self_referencing;
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
-use std::sync::OnceLock;
 use std::{any::TypeId, marker::PhantomData, path::Path};
 use std::{
 	hash::{DefaultHasher, Hash, Hasher},
@@ -26,17 +25,20 @@ impl<State: ValidState> Trees<State> {
 		resource_registry: &mut ResourceRegistry,
 		root_element_path: PathBuf,
 	) -> Self {
-		let current = Tree::flatten(Bump::new(), blueprint).unwrap();
-		current.borrow_root().create_inner_recursive(
-			current.borrow_root().id(0, 0),
-			context, // Use provided context
-			CreateInnerInfo {
-				parent_space,
-				element_path: &root_element_path,
-			},
-			inner_map,
-			resource_registry,
-		);
+		let mut current = Tree::flatten(Bump::new(), blueprint).unwrap();
+		current.with_root_mut(|root| {
+			let id = root.id(0, 0);
+			root.create_inner_recursive(
+				id,
+				context, // Use provided context
+				CreateInnerInfo {
+					parent_space,
+					element_path: &root_element_path,
+				},
+				inner_map,
+				resource_registry,
+			)
+		});
 		Self {
 			root_element_path,
 			current,
@@ -96,11 +98,11 @@ impl<State: ValidState> Trees<State> {
 
 pub(crate) trait ElementDiffer<State: ValidState> {
 	fn type_id(&self) -> TypeId;
-	fn id(&self, parent_id: u64, position: usize) -> u64;
+	fn id(&mut self, parent_id: u64, position: usize) -> u64;
 
 	/// Create the inner imperative struct
 	fn create_inner_recursive(
-		&self,
+		&mut self,
 		id: u64,
 		asteroids_context: &Context,
 		info: CreateInnerInfo,
@@ -151,8 +153,7 @@ fn join_element_path<E: std::any::Any>(path: &Path, id: u64) -> PathBuf {
 pub struct FlatElement<'a, State: ValidState, E: CustomElement<State>> {
 	pub(crate) element: E,
 	pub(crate) children: Vec<'a, Box<'a, dyn ElementDiffer<State>>>,
-	// only local for now
-	pub(crate) id: OnceLock<u64>,
+	pub(crate) id: Option<u64>,
 	pub(crate) phantom: PhantomData<State>,
 }
 impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
@@ -162,19 +163,23 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 		TypeId::of::<E>()
 	}
 
-	fn id(&self, parent_id: u64, position: usize) -> u64 {
-		*self.id.get_or_init(|| {
-			// Create stable ID based on parent ID, position, and type
-			let mut hasher = DefaultHasher::new();
-			parent_id.hash(&mut hasher);
+	fn id(&mut self, parent_id: u64, position: usize) -> u64 {
+		// Create stable ID based on parent ID, position, and type
+		let mut hasher = DefaultHasher::new();
+		parent_id.hash(&mut hasher);
+		if let Some(id) = self.id {
+			id.hash(&mut hasher);
+		} else {
 			position.hash(&mut hasher);
-			TypeId::of::<E>().hash(&mut hasher);
-			hasher.finish()
-		})
+		};
+		TypeId::of::<E>().hash(&mut hasher);
+		let id = hasher.finish();
+		self.id.replace(id);
+		id
 	}
 
 	fn create_inner_recursive(
-		&self,
+		&mut self,
 		id: u64,
 		asteroids_context: &Context,
 		info: CreateInnerInfo,
@@ -211,9 +216,10 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 		};
 
 		// Recursively create children under our spatial aspect
-		for (i, child) in self.children.iter().enumerate() {
+		for (i, child) in self.children.iter_mut().enumerate() {
+			let id = child.id(id, i);
 			child.create_inner_recursive(
-				child.id(id, i),
+				id,
 				asteroids_context,
 				CreateInnerInfo {
 					parent_space: &spatial,
@@ -233,8 +239,8 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 		inner_map: &mut ElementInnerMap,
 	) {
 		// If we have an ID, call frame on our element
-		if let Some(id) = self.id.get() {
-			if let Some(inner) = inner_map.get_mut::<State, E>(*id) {
+		if let Some(id) = self.id {
+			if let Some(inner) = inner_map.get_mut::<State, E>(id) {
 				self.element.frame(context, info, state, inner);
 			}
 		}
@@ -278,7 +284,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 			unsafe { &*(old as *const dyn ElementDiffer<State> as *const FlatElement<State, E>) };
 
 		// If we have an ID, update the element
-		if let Some(old_id) = old_flat.id.get() {
+		if let Some(old_id) = old_flat.id {
 			// Get the inner element first
 			let inner_opt = inner_map.get_mut::<State, E>(id);
 
@@ -286,7 +292,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 				// Update our element with the old one
 				self.element
 					.diff(&old_flat.element, inner, resources.get::<State, E>());
-			} else if inner_map.get::<State, E>(*old_id).is_some() {
+			} else if inner_map.get::<State, E>(old_id).is_some() {
 				// We have the old element but not the new one yet, so create it
 				let inner_result = self.element.create_inner(
 					context,
@@ -369,8 +375,8 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 			child.destroy_inner_recursive(inner_map);
 		}
 
-		if let Some(id) = self.id.get() {
-			inner_map.remove(*id);
+		if let Some(id) = self.id {
+			inner_map.remove(id);
 		}
 	}
 }
@@ -396,11 +402,11 @@ impl<
 		// Return wrapped element's TypeId since that's what we're primarily diffing
 		self.wrapped.type_id()
 	}
-	fn id(&self, parent_id: u64, position: usize) -> u64 {
+	fn id(&mut self, parent_id: u64, position: usize) -> u64 {
 		self.wrapped.id(parent_id, position)
 	}
 	fn create_inner_recursive(
-		&self,
+		&mut self,
 		id: u64,
 		asteroids_context: &Context,
 		info: CreateInnerInfo,
