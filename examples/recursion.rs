@@ -1,4 +1,4 @@
-use asteroids::{ClientState, CustomElement, Element, Migrate, Reify, client, elements::Spatial};
+use stardust_xr_asteroids::{ClientState, CustomElement, Element, Migrate, Reify, client, elements::Spatial};
 use serde::{Deserialize, Serialize};
 
 #[tokio::main(flavor = "current_thread")]

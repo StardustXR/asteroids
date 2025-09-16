@@ -1,4 +1,4 @@
-use asteroids::{
+use stardust_xr_asteroids::{
 	ClientState, CustomElement, Element, Identifiable, Migrate, Reify, Transformable, client,
 	elements::{Button, Spatial, Text},
 };

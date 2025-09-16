@@ -61,37 +61,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "asteroids"
-version = "2.0.0"
-dependencies = [
- "ashpd",
- "bumpalo",
- "derive-where",
- "derive_setters",
- "dioxus-devtools",
- "directories",
- "futures-util",
- "glam",
- "inotify",
- "lazy_static",
- "map-range",
- "mint",
- "ouroboros",
- "ron",
- "rustc-hash 2.1.1",
- "serde",
- "stardust-xr-fusion",
- "stardust-xr-molecules",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "tracing-tracy",
- "tracy-client",
- "xkbcommon",
- "zbus",
-]
-
-[[package]]
 name = "async-broadcast"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2109,6 +2078,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "stardust-xr-asteroids"
+version = "2.0.0"
+dependencies = [
+ "ashpd",
+ "bumpalo",
+ "derive-where",
+ "derive_setters",
+ "dioxus-devtools",
+ "directories",
+ "futures-util",
+ "glam",
+ "inotify",
+ "lazy_static",
+ "map-range",
+ "mint",
+ "ouroboros",
+ "ron",
+ "rustc-hash 2.1.1",
+ "serde",
+ "stardust-xr-fusion",
+ "stardust-xr-molecules",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-tracy",
+ "tracy-client 0.18.0",
+ "xkbcommon",
+ "zbus",
+]
+
+[[package]]
 name = "stardust-xr-fusion"
 version = "0.45.0"
 source = "git+https://github.com/StardustXR/core.git?branch=dev#32fd11dc199406e9a38194d937567b9e6b88122e"
@@ -2456,12 +2456,11 @@ dependencies = [
 [[package]]
 name = "tracing-tracy"
 version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0eaa1852afa96e0fe9e44caa53dc0bd2d9d05e0f2611ce09f97f8677af56e4ba"
+source = "git+https://github.com/nagisa/rust_tracy_client?tag=tracy-client-v0.18.2#d9dcf13e09926a08694ce036e88f56d693a961a6"
 dependencies = [
  "tracing-core",
  "tracing-subscriber",
- "tracy-client",
+ "tracy-client 0.18.2",
 ]
 
 [[package]]
@@ -2472,7 +2471,17 @@ checksum = "d90a2c01305b02b76fdd89ac8608bae27e173c829a35f7d76a345ab5d33836db"
 dependencies = [
  "loom",
  "once_cell",
- "tracy-client-sys",
+ "tracy-client-sys 0.24.3",
+]
+
+[[package]]
+name = "tracy-client"
+version = "0.18.2"
+source = "git+https://github.com/nagisa/rust_tracy_client?tag=tracy-client-v0.18.2#d9dcf13e09926a08694ce036e88f56d693a961a6"
+dependencies = [
+ "loom",
+ "once_cell",
+ "tracy-client-sys 0.26.0",
 ]
 
 [[package]]
@@ -2483,6 +2492,15 @@ checksum = "69fff37da548239c3bf9e64a12193d261e8b22b660991c6fd2df057c168f435f"
 dependencies = [
  "cc",
  "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "tracy-client-sys"
+version = "0.26.0"
+source = "git+https://github.com/nagisa/rust_tracy_client?tag=tracy-client-v0.18.2#d9dcf13e09926a08694ce036e88f56d693a961a6"
+dependencies = [
+ "cc",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
