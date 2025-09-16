@@ -12,6 +12,7 @@ use std::{
 };
 
 pub struct Trees<State: ValidState> {
+	root_element_path: PathBuf,
 	current: Tree<State>,
 	old: Option<Tree<State>>,
 }
@@ -22,18 +23,23 @@ impl<State: ValidState> Trees<State> {
 		parent_space: &SpatialRef,
 		inner_map: &mut ElementInnerMap,
 		resource_registry: &mut ResourceRegistry,
+		root_element_path: PathBuf,
 	) -> Self {
 		let current = Tree::flatten(Bump::new(), blueprint).unwrap();
 		current.borrow_root().create_inner_recursive(
 			context, // Use provided context
 			CreateInnerInfo {
 				parent_space,
-				element_path: Path::new("/"),
+				element_path: &root_element_path,
 			},
 			inner_map,
 			resource_registry,
 		);
-		Self { current, old: None }
+		Self {
+			root_element_path,
+			current,
+			old: None,
+		}
 	}
 	pub fn frame(&mut self, info: &FrameInfo, state: &mut State, inner_map: &mut ElementInnerMap) {
 		self.current
@@ -71,7 +77,7 @@ impl<State: ValidState> Trees<State> {
 			parent_space,
 			&**old_root,
 			context, // Use provided context
-			Path::new("/"),
+			&self.root_element_path,
 			inner_map,
 			resource_registry,
 		);
@@ -238,7 +244,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 				context,
 				CreateInnerInfo {
 					parent_space,
-					element_path: Path::new(""),
+					element_path: &element_path,
 				},
 				inner_map,
 				resources,
@@ -266,7 +272,7 @@ impl<'a, State: ValidState, E: CustomElement<State>> ElementDiffer<State>
 						context,
 						CreateInnerInfo {
 							parent_space,
-							element_path: Path::new(""),
+							element_path: &element_path,
 						},
 						resources.get::<State, E>(),
 					);

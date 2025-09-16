@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, path::PathBuf};
 
 use element::ElementFlattener;
 use inner::ElementInnerMap;
@@ -50,7 +50,12 @@ pub struct Projector<State: Reify> {
 	phantom: PhantomData<State>,
 }
 impl<State: Reify> Projector<State> {
-	pub fn new(state: &State, context: &Context, parent_spatial: SpatialRef) -> Projector<State> {
+	pub fn new(
+		state: &State,
+		context: &Context,
+		parent_spatial: SpatialRef,
+		root_element_path: PathBuf,
+	) -> Projector<State> {
 		let blueprint = state.reify();
 
 		let mut inner_map = ElementInnerMap::default();
@@ -61,6 +66,7 @@ impl<State: Reify> Projector<State> {
 			&parent_spatial,
 			&mut inner_map,
 			&mut resources,
+			root_element_path,
 		);
 		Projector {
 			root: parent_spatial,

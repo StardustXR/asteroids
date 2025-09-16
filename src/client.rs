@@ -104,7 +104,12 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 
 	dioxus_devtools::connect_subsecond();
 
-	let mut view = Projector::new(&state, &context, client.get_root().clone().as_spatial_ref());
+	let mut view = Projector::new(
+		&state,
+		&context,
+		client.get_root().clone().as_spatial_ref(),
+		"/".into(),
+	);
 
 	let event_loop_future = client.sync_event_loop(|client, _| {
 		let mut redraw = None;
