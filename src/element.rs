@@ -2,7 +2,6 @@
 
 use crate::{
 	CustomElement, ValidState,
-	inner::ElementInnerKey,
 	mapped::Mapped,
 	tree::{ElementDiffer, FlatElement},
 };
@@ -100,7 +99,7 @@ impl<State: ValidState, E: Element<State>> ElementFlattener<State> for Option<E>
 pub struct ElementWrapper<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>> {
 	pub custom_element: Option<E>,
 	children: C,
-	pub id: Option<ElementInnerKey>,
+	pub id: Option<u64>,
 	state_phantom: PhantomData<State>,
 }
 
@@ -156,7 +155,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>> Ele
 			FlatElement {
 				element: self.custom_element.take().unwrap(),
 				children,
-				id: self.id,
+				id: self.id.map(|id| id.into()).unwrap_or_default(),
 				phantom: PhantomData,
 			},
 			bump,
@@ -182,7 +181,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>> Ide
 	fn identify<H: Hash>(mut self, h: &H) -> Self {
 		let mut hasher = DefaultHasher::new();
 		h.hash(&mut hasher);
-		let key = ElementInnerKey(hasher.finish());
+		let key = hasher.finish();
 		self.id.replace(key);
 		self
 	}
