@@ -15,7 +15,7 @@ use stardust_xr_molecules::{
 	DebugSettings,
 	lines::{self, LineExt},
 };
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::FRAC_PI_2;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -89,7 +89,6 @@ impl Reify for State {
 				.child(
 					Text::new(&self.text)
 						.pos([0.0, -0.2, 0.0])
-						.rot(Quat::from_rotation_y(PI))
 						.align_x(XAlign::Center)
 						.align_y(YAlign::Top)
 						.character_height(0.1)

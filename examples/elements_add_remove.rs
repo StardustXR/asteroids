@@ -3,14 +3,12 @@ use asteroids::{
 	elements::{Button, Spatial, Text},
 };
 use derive_setters::Setters;
-use glam::Quat;
 use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	project_local_resources,
 	spatial::Transform,
 };
-use std::f32::consts::PI;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main(flavor = "current_thread")]
@@ -108,7 +106,6 @@ impl LabeledButton {
 					.character_height(self.height)
 					.align_x(XAlign::Center)
 					.align_y(YAlign::Center)
-					.rot(Quat::from_rotation_y(PI))
 					.build(),
 			)
 	}
@@ -145,14 +142,12 @@ fn make_list_item(index: usize, text: &String) -> impl Element<State> {
 				.character_height(size)
 				.align_x(XAlign::Center)
 				.pos([-0.05, 0.0, 0.0])
-				.rot(Quat::from_rotation_y(PI))
 				.build(),
 		)
 		.child(
 			Text::new(text)
 				.character_height(size)
 				.align_x(XAlign::Left)
-				.rot(Quat::from_rotation_y(PI))
 				.build(),
 		)
 		.identify(&index)
