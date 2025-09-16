@@ -28,7 +28,7 @@ impl<State: ValidState> Trees<State> {
 	) -> Self {
 		let current = Tree::flatten(Bump::new(), blueprint).unwrap();
 		current.borrow_root().create_inner_recursive(
-			0,
+			current.borrow_root().id(0, 0),
 			context, // Use provided context
 			CreateInnerInfo {
 				parent_space,
@@ -80,8 +80,9 @@ impl<State: ValidState> Trees<State> {
 		let old_root = self.old.as_ref().unwrap().borrow_root();
 		self.current.with_root_mut(|root| {
 			// Start diffing from the roots, using a dummy parent spatial for the root level
+			let id = root.id(0, 0);
 			root.diff_and_apply(
-				0,
+				id,
 				parent_space,
 				&**old_root,
 				context, // Use provided context
