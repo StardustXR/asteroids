@@ -112,7 +112,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 	);
 
 	let event_loop_future = client.sync_event_loop(|client, _| {
-		let mut redraw = None;
+		let mut redraw = false;
 		while let Some(root_event) = client.get_root().recv_root_event() {
 			match root_event {
 				RootEvent::Ping { response: pong } => pong.send(Ok(())),
@@ -124,7 +124,8 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 						info!("frame info {info:#?}");
 						tracy_client::frame_mark();
 					}
-					redraw = Some(info);
+					view.frame(&info, &mut state);
+					redraw = true;
 				}
 				RootEvent::SaveState { response } => response.wrap(|| {
 					Ok(stardust_xr_fusion::root::ClientState {
@@ -134,11 +135,9 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 					})
 				}),
 			}
-
-			if let Some(info) = redraw.take() {
-				view.frame(&info, &mut state);
-				view.update(&context, &mut state);
-			}
+		}
+		if redraw {
+			view.update(&context, &mut state);
 		}
 	});
 	let mut sigterm = signal(SignalKind::terminate()).unwrap();
