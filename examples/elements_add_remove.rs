@@ -1,9 +1,9 @@
+use derive_setters::Setters;
+use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, CustomElement, Element, Identifiable, Migrate, Reify, Transformable, client,
 	elements::{Button, Spatial, Text},
 };
-use derive_setters::Setters;
-use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	project_local_resources,
@@ -38,7 +38,8 @@ impl ClientState for State {
 	const APP_ID: &'static str = "org.asteroids.elements_add_remove";
 }
 impl Reify for State {
-	fn reify(&self) -> impl Element<Self> {
+	type Output = impl Element<Self>;
+	fn reify(&self) -> Self::Output {
 		Spatial::default()
 			.zoneable(true)
 			.build()

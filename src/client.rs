@@ -1,5 +1,8 @@
 use crate::{
-	Context, Projector, Reify,
+	Context, Reify,
+	element::{ElementDiffer, generate_positional_inner_key},
+	inner::ElementInnerMap,
+	resource::ResourceRegistry,
 	util::{Migrate, RonFile},
 };
 use ashpd::desktop::settings::Settings;
@@ -143,28 +146,22 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 
 	dioxus_devtools::connect_subsecond();
 
-	let mut view = Projector::new(
-		&state,
-		&context,
-		client.get_root().clone().as_spatial_ref(),
-		"/".into(),
-	);
-
+	let mut old_element: Option<State::Output> = None;
+	let mut inner_map = ElementInnerMap::default();
+	let mut resources = ResourceRegistry::default();
 	let event_loop_future = client.sync_event_loop(|client, _| {
-		let mut frames = 0;
+		let mut frames = vec![];
 		while let Some(root_event) = client.get_root().recv_root_event() {
 			match root_event {
 				RootEvent::Ping { response: pong } => pong.send(Ok(())),
 				RootEvent::Frame { info } => {
-					state.on_frame(&info);
 					#[cfg(feature = "tracy")]
 					{
 						use tracing::info;
 						info!("frame info {info:#?}");
 						tracy_client::frame_mark();
 					}
-					view.frame(&context, &info, &mut state);
-					frames += 1;
+					frames.push(info);
 				}
 				RootEvent::SaveState { response } => response.wrap(|| {
 					Ok(stardust_xr_fusion::root::ClientState {
@@ -175,13 +172,58 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 				}),
 			}
 		}
-		if frames > 0 {
-			context.accent_color = *accent_color.borrow();
-			view.update(&context, &mut state);
+		if frames.is_empty() {
+			return;
 		}
-		if frames > 1 {
-			tracing::warn!("Dropped {} frames!!", frames - 1);
+		context.accent_color = *accent_color.borrow();
+		if frames.len() > 1 {
+			tracing::warn!("Dropped {} frames!!", frames.len() - 1);
 		}
+
+		// Call frame on old elements if they exist
+		if let Some(old_elem) = &old_element {
+			for frame in &frames {
+				// Call frame on the application state
+				state.on_frame(frame);
+				// Call frame_recursive on the element tree
+				old_elem.frame_recursive(&context, frame, &mut state, &mut inner_map);
+			}
+		}
+
+		// Create new element tree and diff against old
+		let new_elem = state.reify();
+		if let Some(old_elem) = &old_element {
+			// Implement zero-cost diffing!
+			let root_key = generate_positional_inner_key::<State::Output>(0, 0);
+			let root_spatial = client.get_root().clone().as_spatial_ref();
+			let root_path = std::path::Path::new("/");
+
+			// Use the new zero-cost abstraction diffing
+			new_elem.diff_same_type(
+				root_key,
+				old_elem,
+				&context,
+				&root_spatial,
+				root_path,
+				&mut inner_map,
+				&mut resources,
+			);
+		} else {
+			// First time - create the element tree
+			let root_key = generate_positional_inner_key::<State::Output>(0, 0);
+			let root_spatial = client.get_root().clone().as_spatial_ref();
+			let root_path = std::path::Path::new("/");
+
+			new_elem.create_inner_recursive(
+				root_key,
+				&context,
+				&root_spatial,
+				root_path,
+				&mut inner_map,
+				&mut resources,
+			);
+		}
+		old_element.replace(new_elem);
 	});
 	let mut sigterm = signal(SignalKind::terminate()).unwrap();
 	// make sure we call Drop impls
@@ -192,6 +234,5 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 	}
 	accent_color_loop.abort();
 	save_dev_state(&state);
-	drop(view);
 	_ = client.try_flush().await;
 }

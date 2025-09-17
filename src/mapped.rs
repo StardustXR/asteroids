@@ -1,10 +1,10 @@
-use bumpalo::{Bump, boxed::Box};
-
 use crate::{
-	Element, Identifiable, ValidState,
-	element::ElementFlattener,
-	tree::{ElementDiffer, FlatmapElement},
+	Element, Identifiable, ValidState, ElementDiffer,
+	inner::ElementInnerMap,
+	resource::ResourceRegistry,
+	Context,
 };
+use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
 use std::marker::PhantomData;
 
 pub struct Mapped<
@@ -39,26 +39,49 @@ impl<
 	WrappedState: ValidState,
 	F: Fn(&mut State) -> Option<&mut WrappedState> + Send + Sync + 'static,
 	E: Element<WrappedState>,
-> ElementFlattener<State> for Mapped<State, WrappedState, F, E>
+> ElementDiffer<State> for Mapped<State, WrappedState, F, E>
 {
-	fn flatten<'a>(&mut self, bump: &'a Bump) -> Vec<Box<'a, dyn ElementDiffer<State>>> {
-		let wrapped = self.wrapped.flatten(bump).into_iter().next().unwrap();
-		let flatmap_element = Box::new_in(
-			FlatmapElement {
-				wrapped,
-				mapper: self.mapper.take().unwrap(),
-				phantom: PhantomData,
-			},
-			bump,
-		);
-
-		// rust doesn't let third party crates like bumpalo do proper trait object coercion so this is manual
-		let flatmap_element = unsafe {
-			let raw = Box::into_raw(flatmap_element);
-			let trait_obj: *mut dyn ElementDiffer<State> = raw as *mut dyn ElementDiffer<State>;
-			Box::from_raw(trait_obj)
-		};
-		vec![flatmap_element]
+	fn create_inner_recursive(
+		&self,
+		inner_key: u64,
+		context: &Context,
+		parent_space: &SpatialRef,
+		element_path: &std::path::Path,
+		inner_map: &mut ElementInnerMap,
+		resources: &mut ResourceRegistry,
+	) {
+		self.wrapped.create_inner_recursive(inner_key, context, parent_space, element_path, inner_map, resources);
+	}
+	
+	fn frame_recursive(
+		&self,
+		context: &Context,
+		info: &FrameInfo,
+		state: &mut State,
+		inner_map: &mut ElementInnerMap,
+	) {
+		if let Some(mapper) = &self.mapper {
+			if let Some(mapped_state) = mapper(state) {
+				self.wrapped.frame_recursive(context, info, mapped_state, inner_map);
+			}
+		}
+	}
+	
+    fn diff_same_type(
+        &self,
+        inner_key: u64,
+        old: &Self,
+        context: &Context,
+        parent_space: &SpatialRef,
+        element_path: &std::path::Path,
+        inner_map: &mut ElementInnerMap,
+        resources: &mut ResourceRegistry,
+    ) {
+        self.wrapped.diff_same_type(inner_key, &old.wrapped, context, parent_space, element_path, inner_map, resources);
+    }
+	
+	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
+		self.wrapped.destroy_inner_recursive(inner_map);
 	}
 }
 

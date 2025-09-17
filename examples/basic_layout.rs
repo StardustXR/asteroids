@@ -1,10 +1,10 @@
+use glam::Quat;
+use map_range::MapRange;
+use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
 	elements::{Button, Lines, Model, Spatial, Text},
 };
-use glam::Quat;
-use map_range::MapRange;
-use serde::{Deserialize, Serialize};
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	project_local_resources,
@@ -67,7 +67,8 @@ impl ClientState for State {
 	}
 }
 impl Reify for State {
-	fn reify(&self) -> impl crate::Element<Self> {
+	type Output = _;
+	fn reify(&self) -> Self::Output {
 		Spatial::default().zoneable(true).build().child(
 			Spatial::default()
 				.pos([
