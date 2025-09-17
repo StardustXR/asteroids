@@ -9,6 +9,7 @@ use bumpalo::{Bump, boxed::Box};
 use std::{
 	hash::{DefaultHasher, Hash, Hasher},
 	marker::PhantomData,
+	sync::OnceLock,
 };
 
 pub trait Element<State: ValidState>: ElementFlattener<State> + Sized {
@@ -155,7 +156,8 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementFlattener<State>> Ele
 			FlatElement {
 				element: self.custom_element.take().unwrap(),
 				children,
-				id: self.id.map(|id| id.into()).unwrap_or_default(),
+				stable_local_id: self.id,
+				inner_key: OnceLock::new(),
 				phantom: PhantomData,
 			},
 			bump,
