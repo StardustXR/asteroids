@@ -161,7 +161,6 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 						info!("frame info {info:#?}");
 						tracy_client::frame_mark();
 					}
-					state.on_frame(&info);
 					frames.push(info);
 				}
 				RootEvent::SaveState { response } => response.wrap(|| {
@@ -182,6 +181,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 		}
 
 		for frame in frames {
+			state.on_frame(&frame);
 			projector.frame(&context, &frame, &mut state);
 		}
 		projector.update(&context, &mut state);

@@ -7,6 +7,7 @@ use crate::{
 	mapped::Mapped,
 	resource::ResourceRegistry,
 };
+use rustc_hash::FxHashMap;
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
 use std::{
 	any::TypeId,
@@ -16,19 +17,18 @@ use std::{
 	sync::OnceLock,
 };
 
-// Helper functions for generating keys
-pub fn generate_keyed_inner_key<T: 'static>(parent_key: u64, stable_id: u64) -> u64 {
+pub fn gen_inner_key<T: 'static>(parent_key: u64, local: usize) -> u64 {
 	let mut hasher = DefaultHasher::new();
 	parent_key.hash(&mut hasher);
-	stable_id.hash(&mut hasher);
+	local.hash(&mut hasher);
 	TypeId::of::<T>().hash(&mut hasher);
 	hasher.finish()
 }
 
-pub fn generate_positional_inner_key<T: 'static>(parent_key: u64, position: usize) -> u64 {
+pub fn hash_inner_key<T: 'static, H: Hash>(parent_key: u64, local: &H) -> u64 {
 	let mut hasher = DefaultHasher::new();
 	parent_key.hash(&mut hasher);
-	position.hash(&mut hasher);
+	local.hash(&mut hasher);
 	TypeId::of::<T>().hash(&mut hasher);
 	hasher.finish()
 }
@@ -147,7 +147,7 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 		resources: &mut ResourceRegistry,
 	) {
 		// Create children with position-based keys
-		let child_key_0 = generate_positional_inner_key::<A>(inner_key, 0);
+		let child_key_0 = gen_inner_key::<A>(inner_key, 0);
 		self.0.create_inner_recursive(
 			child_key_0,
 			context,
@@ -156,7 +156,7 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 			inner_map,
 			resources,
 		);
-		let child_key_1 = generate_positional_inner_key::<B>(inner_key, 1);
+		let child_key_1 = gen_inner_key::<B>(inner_key, 1);
 		self.1.create_inner_recursive(
 			child_key_1,
 			context,
@@ -187,7 +187,7 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 		resources: &mut ResourceRegistry,
 	) {
 		// Same tuple type, diff each child with fast path
-		let child_key_0 = generate_positional_inner_key::<A>(inner_key, 0);
+		let child_key_0 = gen_inner_key::<A>(inner_key, 0);
 		self.0.diff_same_type(
 			child_key_0,
 			&old.0,
@@ -197,7 +197,7 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 			inner_map,
 			resources,
 		);
-		let child_key_1 = generate_positional_inner_key::<B>(inner_key, 1);
+		let child_key_1 = gen_inner_key::<B>(inner_key, 1);
 		self.1.diff_same_type(
 			child_key_1,
 			&old.1,
@@ -213,9 +213,8 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 		self.1.destroy_inner_recursive(inner_map);
 	}
 }
-// We only need () and (A, B) tuples for the element children pattern
 
-// Vec<Element> implementation
+// Vec<Element> implementation - simple positional diffing
 impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 	fn create_inner_recursive(
 		&self,
@@ -227,7 +226,7 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 		resources: &mut ResourceRegistry,
 	) {
 		for (i, element) in self.iter().enumerate() {
-			let child_key = generate_positional_inner_key::<E>(inner_key, i);
+			let child_key = gen_inner_key::<E>(inner_key, i);
 			element.create_inner_recursive(
 				child_key,
 				context,
@@ -238,6 +237,7 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 			);
 		}
 	}
+
 	fn frame_recursive(
 		&self,
 		context: &Context,
@@ -249,6 +249,7 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 			element.frame_recursive(context, info, state, inner_map);
 		}
 	}
+
 	fn diff_same_type(
 		&self,
 		inner_key: u64,
@@ -259,33 +260,64 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
-		// Same Vec type, diff the vectors
-		let min_len = self.len().min(old.len());
+		let max_len = self.len().max(old.len());
+		for i in 0..max_len {
+			let new = self.get(i);
+			let old = old.get(i);
 
-		// Diff common elements
-		for i in 0..min_len {
-			let child_key = generate_positional_inner_key::<E>(inner_key, i);
-			self[i].diff_same_type(
-				child_key,
-				&old[i],
-				context,
-				parent_space,
-				element_path,
-				inner_map,
-				resources,
-			);
+			match (new, old) {
+				(Some(new), Some(old)) => {
+					new.diff_same_type(
+						gen_inner_key::<E>(inner_key, i),
+						old,
+						context,
+						parent_space,
+						element_path,
+						inner_map,
+						resources,
+					);
+				}
+				(Some(new), None) => {
+					new.create_inner_recursive(
+						gen_inner_key::<E>(inner_key, i),
+						context,
+						parent_space,
+						element_path,
+						inner_map,
+						resources,
+					);
+				}
+				(None, Some(old)) => {
+					old.destroy_inner_recursive(inner_map);
+				}
+				(None, None) => {}
+			}
 		}
+	}
 
-		// Handle extra elements in old (destroy)
-		for old_elem in old.iter().skip(min_len) {
-			old_elem.destroy_inner_recursive(inner_map);
+	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
+		for element in self {
+			element.destroy_inner_recursive(inner_map);
 		}
+	}
+}
 
-		// Handle extra elements in new (create)
-		for (i, elem) in self.iter().enumerate().skip(min_len) {
-			let child_key = generate_positional_inner_key::<E>(inner_key, i);
-			elem.create_inner_recursive(
-				child_key,
+// HashMap<K, Element> implementation - stable key diffing
+impl<State: ValidState, K: Hash + Eq + Clone + Send + Sync + 'static, E: Element<State>>
+	ElementDiffer<State> for FxHashMap<K, E>
+{
+	fn create_inner_recursive(
+		&self,
+		inner_key: u64,
+		context: &Context,
+		parent_space: &SpatialRef,
+		element_path: &Path,
+		inner_map: &mut ElementInnerMap,
+		resources: &mut ResourceRegistry,
+	) {
+		for (key, element) in self {
+			element.create_inner_recursive(
+				hash_inner_key::<E, K>(inner_key, key),
 				context,
 				parent_space,
 				element_path,
@@ -294,8 +326,70 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 			);
 		}
 	}
+
+	fn frame_recursive(
+		&self,
+		context: &Context,
+		info: &FrameInfo,
+		state: &mut State,
+		inner_map: &mut ElementInnerMap,
+	) {
+		for element in self.values() {
+			element.frame_recursive(context, info, state, inner_map);
+		}
+	}
+
+	fn diff_same_type(
+		&self,
+		inner_key: u64,
+		old: &Self,
+		context: &Context,
+		parent_space: &SpatialRef,
+		element_path: &Path,
+		inner_map: &mut ElementInnerMap,
+		resources: &mut ResourceRegistry,
+	) {
+		// Process all new elements (update existing or create new)
+		for (key, new_elem) in self {
+			let child_key = hash_inner_key::<E, K>(inner_key, key);
+
+			match old.get(key) {
+				Some(old_elem) => {
+					// Update existing element
+					new_elem.diff_same_type(
+						child_key,
+						old_elem,
+						context,
+						parent_space,
+						element_path,
+						inner_map,
+						resources,
+					);
+				}
+				None => {
+					// Create new element
+					new_elem.create_inner_recursive(
+						child_key,
+						context,
+						parent_space,
+						element_path,
+						inner_map,
+						resources,
+					);
+				}
+			}
+		}
+
+		// Destroy elements that were in old but not in new
+		for (key, old_elem) in old {
+			if !self.contains_key(key) {
+				old_elem.destroy_inner_recursive(inner_map);
+			}
+		}
+	}
+
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
-		for element in self {
+		for element in self.values() {
 			element.destroy_inner_recursive(inner_map);
 		}
 	}
@@ -414,6 +508,18 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 			state_phantom: PhantomData,
 		}
 	}
+	pub fn maybe_child<NC: Element<State>>(
+		self,
+		child: Option<NC>,
+	) -> ElementWrapper<State, E, (C, Option<NC>)> {
+		ElementWrapper {
+			custom_element: self.custom_element,
+			children: (self.children, child),
+			stable_id: self.stable_id,
+			inner_key: self.inner_key,
+			state_phantom: PhantomData,
+		}
+	}
 	pub fn children<NC: Element<State>>(
 		self,
 		children: impl IntoIterator<Item = NC>,
@@ -426,13 +532,13 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 			state_phantom: PhantomData,
 		}
 	}
-	pub fn maybe_child<NC: Element<State>>(
+	pub fn stable_children<NC: Element<State>, K: Eq + Hash + Clone + Send + Sync + 'static>(
 		self,
-		child: Option<NC>,
-	) -> ElementWrapper<State, E, (C, Option<NC>)> {
+		children: impl IntoIterator<Item = (K, NC)>,
+	) -> ElementWrapper<State, E, (C, FxHashMap<K, NC>)> {
 		ElementWrapper {
 			custom_element: self.custom_element,
-			children: (self.children, child),
+			children: (self.children, FxHashMap::from_iter(children)),
 			stable_id: self.stable_id,
 			inner_key: self.inner_key,
 			state_phantom: PhantomData,
