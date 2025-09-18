@@ -67,8 +67,7 @@ impl ClientState for State {
 	}
 }
 impl Reify for State {
-	type Output = _;
-	fn reify(&self) -> Self::Output {
+	fn reify(&self) -> impl Element<State> {
 		Spatial::default().zoneable(true).build().child(
 			Spatial::default()
 				.pos([

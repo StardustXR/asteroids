@@ -1,5 +1,7 @@
-use stardust_xr_asteroids::{ClientState, CustomElement, Element, Migrate, Reify, client, elements::Spatial, DynamicElement};
 use serde::{Deserialize, Serialize};
+use stardust_xr_asteroids::{
+	ClientState, CustomElement, Element, Migrate, Reify, client, elements::Spatial,
+};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -17,11 +19,9 @@ impl ClientState for Test {
 	const APP_ID: &'static str = "org.test";
 }
 impl Reify for Test {
-	type Output = DynamicElement<Self>;
-	fn reify(&self) -> Self::Output {
+	fn reify(&self) -> impl Element<Self> {
 		Spatial::default()
 			.build()
-			.maybe_child(self.next.as_ref().map(|n| n.reify()))
-			.dynamic()
+			.maybe_child(self.next.as_ref().map(|n| n.reify().dynamic()))
 	}
 }

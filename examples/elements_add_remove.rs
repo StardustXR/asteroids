@@ -38,8 +38,7 @@ impl ClientState for State {
 	const APP_ID: &'static str = "org.asteroids.elements_add_remove";
 }
 impl Reify for State {
-	type Output = impl Element<Self>;
-	fn reify(&self) -> Self::Output {
+	fn reify(&self) -> impl Element<Self> {
 		Spatial::default()
 			.zoneable(true)
 			.build()

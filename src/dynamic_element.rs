@@ -1,5 +1,6 @@
 use crate::{
-	Context, ValidState, element::ElementDiffer, inner::ElementInnerMap, resource::ResourceRegistry,
+	Context, Element, ValidState, element::ElementDiffer, inner::ElementInnerMap,
+	resource::ResourceRegistry,
 };
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
 use std::path::Path;
@@ -7,7 +8,7 @@ use std::path::Path;
 /// Trait for elements that support dynamic type swapping (rare cases like KDL environments)
 pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 	/// Create the inner imperative struct and all children
-	fn create_inner_recursive(
+	fn dynamic_create_inner_recursive(
 		&self,
 		inner_key: u64,
 		context: &Context,
@@ -18,7 +19,7 @@ pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 	);
 
 	/// Every frame on the server
-	fn frame_recursive(
+	fn dynamic_frame_recursive(
 		&self,
 		context: &Context,
 		info: &FrameInfo,
@@ -28,7 +29,7 @@ pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 
 	/// Dynamic path: handles type checking and bridges to fast path
 	#[allow(clippy::too_many_arguments)]
-	fn diff_dynamic(
+	fn dynamic_diff(
 		&self,
 		inner_key: u64,
 		old: &dyn DynamicDiffer<State>,
@@ -40,7 +41,7 @@ pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 	);
 
 	/// Clean up this element and all children
-	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
+	fn dynamic_destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
 }
 
 // Blanket implementation for any ElementDiffer + Any
@@ -48,7 +49,7 @@ impl<T, State: ValidState> DynamicDiffer<State> for T
 where
 	T: ElementDiffer<State> + std::any::Any,
 {
-	fn create_inner_recursive(
+	fn dynamic_create_inner_recursive(
 		&self,
 		inner_key: u64,
 		context: &Context,
@@ -68,7 +69,7 @@ where
 		)
 	}
 
-	fn frame_recursive(
+	fn dynamic_frame_recursive(
 		&self,
 		context: &Context,
 		info: &FrameInfo,
@@ -78,7 +79,7 @@ where
 		ElementDiffer::frame_recursive(self, context, info, state, inner_map)
 	}
 
-	fn diff_dynamic(
+	fn dynamic_diff(
 		&self,
 		inner_key: u64,
 		old: &dyn DynamicDiffer<State>,
@@ -103,7 +104,7 @@ where
 			);
 		} else {
 			// Different types - destroy old and create new
-			old.destroy_inner_recursive(inner_map);
+			old.dynamic_destroy_inner_recursive(inner_map);
 			self.create_inner_recursive(
 				inner_key,
 				context,
@@ -115,18 +116,17 @@ where
 		}
 	}
 
-	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
+	fn dynamic_destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
 		ElementDiffer::destroy_inner_recursive(self, inner_map)
 	}
 }
 
 pub struct DynamicElement<State: ValidState>(Box<dyn DynamicDiffer<State> + Send + Sync>);
 impl<State: ValidState> DynamicElement<State> {
-	pub(crate) fn new<D: DynamicDiffer<State>>(element: D) -> Self {
+	pub(crate) fn new<E: Element<State>>(element: E) -> Self {
 		Self(Box::new(element))
 	}
 }
-
 impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 	fn create_inner_recursive(
 		&self,
@@ -137,7 +137,7 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
-		self.0.create_inner_recursive(
+		self.0.dynamic_create_inner_recursive(
 			inner_key,
 			context,
 			parent_space,
@@ -154,7 +154,8 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 		state: &mut State,
 		inner_map: &mut ElementInnerMap,
 	) {
-		self.0.frame_recursive(context, info, state, inner_map)
+		self.0
+			.dynamic_frame_recursive(context, info, state, inner_map)
 	}
 
 	fn diff_same_type(
@@ -168,7 +169,7 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 		resources: &mut ResourceRegistry,
 	) {
 		// Use dynamic diffing since we don't know the concrete types
-		self.0.diff_dynamic(
+		self.0.dynamic_diff(
 			inner_key,
 			old.0.as_ref(),
 			context,
@@ -180,6 +181,7 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 	}
 
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
-		self.0.destroy_inner_recursive(inner_map)
+		self.0.dynamic_destroy_inner_recursive(inner_map)
 	}
 }
+impl<State: ValidState> Element<State> for DynamicElement<State> {}

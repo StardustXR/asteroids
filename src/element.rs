@@ -1,8 +1,11 @@
 #![allow(private_bounds)]
 
 use crate::{
-	Context, CreateInnerInfo, CustomElement, ValidState, inner::ElementInnerMap, mapped::Mapped,
-	resource::ResourceRegistry, dynamic_element::{DynamicElement, DynamicDiffer},
+	Context, CreateInnerInfo, CustomElement, ValidState,
+	dynamic_element::{DynamicDiffer, DynamicElement},
+	inner::ElementInnerMap,
+	mapped::Mapped,
+	resource::ResourceRegistry,
 };
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
 use std::{
@@ -48,7 +51,9 @@ pub trait Element<State: ValidState>: ElementDiffer<State> + Sized + 'static {
 		DynamicElement::new(self)
 	}
 }
-pub(crate) trait ElementDiffer<State: ValidState>: Send + Sync + 'static {
+pub(crate) trait ElementDiffer<State: ValidState>:
+	DynamicDiffer<State> + Send + Sync + 'static
+{
 	/// Create the inner imperative struct and all children
 	fn create_inner_recursive(
 		&self,
