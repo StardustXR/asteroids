@@ -91,10 +91,6 @@ pub(crate) trait ElementDiffer<State: ValidState>:
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap);
 }
 
-pub trait Identifiable {
-	fn identify<H: Hash>(self, h: &H) -> Self;
-}
-
 // HeapElement is not needed in the zero-cost abstraction approach
 // Elements can be stored directly in the type system
 
@@ -699,16 +695,4 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Element<State>
 	for ElementWrapper<State, E, C>
 {
-}
-
-impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Identifiable
-	for ElementWrapper<State, E, C>
-{
-	fn identify<H: Hash>(mut self, h: &H) -> Self {
-		let mut hasher = DefaultHasher::new();
-		h.hash(&mut hasher);
-		let key = hasher.finish();
-		self.stable_id.replace(key);
-		self
-	}
 }

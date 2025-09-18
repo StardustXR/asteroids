@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
-	ClientState, CustomElement, Element, Identifiable, Migrate, Reify, Transformable, client,
+	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
 	elements::{Button, Spatial, Text},
 };
 use stardust_xr_fusion::{
@@ -150,5 +150,4 @@ fn make_list_item(index: usize, text: &String) -> impl Element<State> {
 				.align_x(XAlign::Left)
 				.build(),
 		)
-		.identify(&index)
 }

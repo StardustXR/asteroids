@@ -20,7 +20,7 @@ pub use client::ClientState;
 pub use context::*;
 pub use custom::*;
 pub use dynamic_element::*;
-pub use element::{Element, Identifiable, gen_inner_key};
+pub use element::{Element, gen_inner_key};
 
 use resource::ResourceRegistry;
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
