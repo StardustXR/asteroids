@@ -15,7 +15,6 @@ tracy = ["dep:tracy-client"]
 [dependencies]
 tokio = { version = "1.45.0", features = ["macros", "time", "sync"] }
 mint = "0.5.9"
-lazy_static = "1.4.0"
 rustc-hash = "2.0.0"
 serde = { version = "1.0.197", features = ["serde_derive"] }
 derive_setters = "0.1.6"
@@ -33,7 +32,6 @@ dioxus-devtools = "0.7.0-alpha.1"
 tracy-client = { version = "0.18.0", optional = true }
 bumpalo = { version = "3.17.0", features = ["collections", "boxed"] }
 ouroboros = "0.18.5"
-stack_dst = "0.8.1"
 
 [dependencies.stardust-xr-fusion]
 git = "https://github.com/StardustXR/core.git"
@@ -48,15 +46,3 @@ tokio = { version = "1.45.0", features = ["full"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-tracy = "0.11.4"
 xkbcommon = "0.8.0"
-
-[profile]
-
-[profile.wasm-dev]
-inherits = "dev"
-opt-level = 1
-
-[profile.server-dev]
-inherits = "dev"
-
-[profile.android-dev]
-inherits = "dev"
