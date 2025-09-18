@@ -13,10 +13,28 @@ use std::{
 	any::TypeId,
 	hash::{DefaultHasher, Hash, Hasher},
 	marker::PhantomData,
-	path::Path,
+	path::{Path, PathBuf},
 	sync::OnceLock,
 };
 
+fn element_type_name<E: std::any::Any>() -> &'static str {
+	let type_name = std::any::type_name::<E>();
+	// Cut off generics first
+	let no_generics = type_name.find('<').map_or(type_name, |i| &type_name[..i]);
+	// Now get after last ::
+	no_generics
+		.rfind("::")
+		.map(|i| &no_generics[i + 2..])
+		.unwrap_or(no_generics)
+}
+
+fn join_element_path<E: std::any::Any>(path: &Path, inner_key: u64) -> PathBuf {
+	let segment = format!(
+		"{}_{inner_key}",
+		element_type_name::<E>(), // we want to get the element name without the namespace or generics
+	);
+	path.join(segment)
+}
 pub fn gen_inner_key<T: 'static>(parent_key: u64, local: usize) -> u64 {
 	let mut hasher = DefaultHasher::new();
 	parent_key.hash(&mut hasher);
@@ -24,7 +42,6 @@ pub fn gen_inner_key<T: 'static>(parent_key: u64, local: usize) -> u64 {
 	TypeId::of::<T>().hash(&mut hasher);
 	hasher.finish()
 }
-
 pub fn hash_inner_key<T: 'static, H: Hash>(parent_key: u64, local: &H) -> u64 {
 	let mut hasher = DefaultHasher::new();
 	parent_key.hash(&mut hasher);
@@ -553,6 +570,8 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
+		let element_path = join_element_path::<E>(element_path, inner_key);
+
 		// Store the inner key for later use in frame/destroy
 		let _ = self.inner_key.set(inner_key);
 
@@ -562,7 +581,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 				context,
 				CreateInnerInfo {
 					parent_space,
-					element_path,
+					element_path: &element_path,
 				},
 				resources.get::<State, E>(),
 			);
@@ -588,7 +607,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 			inner_key,
 			context,
 			&child_parent_space,
-			element_path,
+			&element_path,
 			inner_map,
 			resources,
 		);
@@ -625,6 +644,8 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		inner_map: &mut ElementInnerMap,
 		resources: &mut ResourceRegistry,
 	) {
+		let element_path = join_element_path::<E>(element_path, inner_key);
+
 		// Store the inner key for later use in frame/destroy
 		let _ = self.inner_key.set(inner_key);
 
@@ -642,7 +663,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 					inner_key,
 					context,
 					parent_space,
-					element_path,
+					&element_path,
 					inner_map,
 					resources,
 				);
@@ -675,7 +696,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 			&old.children,
 			context,
 			&child_parent_space,
-			element_path,
+			&element_path,
 			inner_map,
 			resources,
 		);
