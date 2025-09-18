@@ -495,7 +495,6 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 pub struct ElementWrapper<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> {
 	pub custom_element: Option<E>,
 	children: C,
-	pub stable_id: Option<u64>,
 	inner_key: OnceLock<u64>,
 	state_phantom: PhantomData<State>,
 }
@@ -507,7 +506,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 		ElementWrapper {
 			custom_element: Some(custom_element),
 			children: (),
-			stable_id: None,
 			inner_key: OnceLock::new(),
 			state_phantom: PhantomData,
 		}
@@ -516,7 +514,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 		ElementWrapper {
 			custom_element: self.custom_element,
 			children: (self.children, child),
-			stable_id: self.stable_id,
 			inner_key: self.inner_key,
 			state_phantom: PhantomData,
 		}
@@ -528,7 +525,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 		ElementWrapper {
 			custom_element: self.custom_element,
 			children: (self.children, child),
-			stable_id: self.stable_id,
 			inner_key: self.inner_key,
 			state_phantom: PhantomData,
 		}
@@ -540,7 +536,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 		ElementWrapper {
 			custom_element: self.custom_element,
 			children: (self.children, children.into_iter().collect()),
-			stable_id: self.stable_id,
 			inner_key: self.inner_key,
 			state_phantom: PhantomData,
 		}
@@ -552,7 +547,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 		ElementWrapper {
 			custom_element: self.custom_element,
 			children: (self.children, FxHashMap::from_iter(children)),
-			stable_id: self.stable_id,
 			inner_key: self.inner_key,
 			state_phantom: PhantomData,
 		}
