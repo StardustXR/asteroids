@@ -114,8 +114,11 @@ impl GrabRingInner {
 		field.set_spatial_parent(&content_root)?;
 
 		let ring_line = circle(64, 0.0, radius).thickness(thickness);
-		let ring_visual =
-			Lines::create(&content_root, Transform::identity(), &[ring_line.clone()])?;
+		let ring_visual = Lines::create(
+			&content_root,
+			Transform::identity(),
+			std::slice::from_ref(&ring_line),
+		)?;
 
 		Ok(GrabRingInner {
 			field,
@@ -267,7 +270,9 @@ impl GrabRingInner {
 			radius_b: thickness,
 		}));
 		self.ring_line = circle(64, 0.0, radius).thickness(thickness);
-		let _ = self.ring_visual.set_lines(&[self.ring_line.clone()]);
+		let _ = self
+			.ring_visual
+			.set_lines(std::slice::from_ref(&self.ring_line));
 	}
 }
 

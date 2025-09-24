@@ -153,7 +153,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 		let mut frames = vec![];
 		while let Some(root_event) = client.get_root().recv_root_event() {
 			match root_event {
-				RootEvent::Ping { response: pong } => pong.send(Ok(())),
+				RootEvent::Ping { response: pong } => pong.send_ok(()),
 				RootEvent::Frame { info } => {
 					#[cfg(feature = "tracy")]
 					{
@@ -163,13 +163,13 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 					}
 					frames.push(info);
 				}
-				RootEvent::SaveState { response } => response.wrap(|| {
-					Ok(stardust_xr_fusion::root::ClientState {
+				RootEvent::SaveState { response } => {
+					response.send_ok(stardust_xr_fusion::root::ClientState {
 						data: ron::to_string(&state).ok().map(|s| s.into_bytes()),
 						root: client.get_root().id(),
 						spatial_anchors: Default::default(),
 					})
-				}),
+				}
 			}
 		}
 		if frames.is_empty() {

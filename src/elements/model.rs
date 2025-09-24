@@ -137,7 +137,7 @@ impl<State: ValidState> CustomElement<State> for Model {
 				return;
 			};
 			if let Some((panel_override, surface_id)) = &part_info.panel_item_override {
-				let _ = panel_override.apply_surface_material(surface_id.clone(), model_part);
+				let _ = panel_override.apply_surface_material(*surface_id, model_part);
 			}
 			if let Some(panel_item_cursor) = &part_info.panel_item_cursor_override {
 				let _ = panel_item_cursor.apply_cursor_material(model_part);

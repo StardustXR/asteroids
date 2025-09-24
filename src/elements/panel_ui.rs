@@ -52,7 +52,7 @@ impl<State: ValidState> CustomElement<State> for PanelUI<State> {
 		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let panel_item_ui = PanelItemUi::register(&info.parent_space.client()?)?;
+		let panel_item_ui = PanelItemUi::register(info.parent_space.client())?;
 		Ok((panel_item_ui, info.parent_space.clone()))
 	}
 

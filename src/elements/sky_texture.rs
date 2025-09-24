@@ -22,15 +22,13 @@ impl<State: ValidState> CustomElement<State> for SkyTexture {
 		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		set_sky_tex(&info.parent_space.client()?, Some(&self.0))?;
+		set_sky_tex(info.parent_space.client(), Some(&self.0))?;
 		Ok(SkyTexInner(info.parent_space.clone()))
 	}
 
 	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
 		if self.0 != old_self.0 {
-			if let Ok(client) = inner.0.client() {
-				_ = set_sky_tex(&client, Some(&self.0));
-			}
+			_ = set_sky_tex(inner.0.client(), Some(&self.0));
 		}
 	}
 
@@ -41,8 +39,6 @@ impl<State: ValidState> CustomElement<State> for SkyTexture {
 pub struct SkyTexInner(SpatialRef);
 impl Drop for SkyTexInner {
 	fn drop(&mut self) {
-		if let Ok(client) = self.0.client() {
-			_ = set_sky_tex(&client, None);
-		}
+		_ = set_sky_tex(self.0.client(), None);
 	}
 }
