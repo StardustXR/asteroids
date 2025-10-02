@@ -18,6 +18,7 @@ mod_expose!(model);
 mod_expose!(mouse);
 mod_expose!(panel_ui);
 mod_expose!(playspace);
+mod_expose!(reparentable);
 mod_expose!(pen);
 mod_expose!(sky_light);
 mod_expose!(sky_texture);
