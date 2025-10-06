@@ -7,10 +7,15 @@ use stardust_xr_fusion::{
 use std::{fmt::Debug, path::PathBuf};
 use zbus::Connection;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Setters)]
+#[derive(Debug, Clone, Copy, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct Reparentable {
 	enabled: bool,
+}
+impl Default for Reparentable {
+	fn default() -> Self {
+		Self { enabled: true }
+	}
 }
 impl<State: ValidState> CustomElement<State> for Reparentable {
 	type Inner = ReparentableInner;
@@ -71,4 +76,44 @@ impl ReparentableInner {
 	fn spatial(&self) -> SpatialRef {
 		self.inner_spatial.clone().as_spatial_ref()
 	}
+}
+#[tokio::test]
+async fn asteroids_reparentable_element() {
+	use crate::{
+		Transformable,
+		client::{self, ClientState},
+		custom::CustomElement,
+		elements::Lines,
+	};
+	use serde::{Deserialize, Serialize};
+	use stardust_xr_fusion::spatial::BoundingBox;
+	use stardust_xr_molecules::lines::{LineExt, bounding_box};
+
+	#[derive(Default, Serialize, Deserialize)]
+	struct TestState;
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
+
+	impl ClientState for TestState {
+		const APP_ID: &'static str = "org.asteroids.turntable";
+	}
+	impl crate::Reify for TestState {
+		fn reify(&self) -> impl crate::Element<Self> {
+			Reparentable::default().build().child(
+				Lines::new(
+					bounding_box(BoundingBox {
+						center: [0.0; 3].into(),
+						size: [0.05; 3].into(),
+					})
+					.into_iter()
+					.map(|l| l.thickness(0.002)),
+				)
+				.pos([0.0, 0.025, 0.0])
+				.build(),
+			)
+		}
+	}
+
+	client::run::<TestState>(&[]).await
 }
