@@ -41,7 +41,7 @@ pub struct Grabbable<State: ValidState> {
 	/// How should pointers be handled?
 	pointer_mode: PointerMode,
 	/// Should the object be movable by zones?
-	zoneable: bool,
+	reparentable: bool,
 }
 impl<State: ValidState> Grabbable<State> {
 	pub fn new<F: Fn(&mut State, Vector3<f32>, Quaternion<f32>) + Send + Sync + 'static>(
@@ -69,7 +69,7 @@ impl<State: ValidState> Grabbable<State> {
 			}),
 			magnet: true,
 			pointer_mode: PointerMode::Parent,
-			zoneable: true,
+			reparentable: true,
 		}
 	}
 
@@ -89,7 +89,7 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 
 	fn create_inner(
 		&self,
-		_asteroids_context: &crate::Context,
+		context: &crate::Context,
 		info: crate::CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
@@ -99,6 +99,8 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 			self.field_shape.clone(),
 		)?;
 		let grabbable = stardust_xr_molecules::Grabbable::create(
+			context.dbus_connection.clone(),
+			info.element_path,
 			info.parent_space,
 			Transform::from_translation_rotation(self.pos, self.rot),
 			&field,
@@ -108,7 +110,7 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 				angular_momentum: self.angular_momentum,
 				magnet: self.magnet,
 				pointer_mode: self.pointer_mode,
-				zoneable: self.zoneable,
+				reparentable: self.reparentable,
 			},
 		)?;
 		field.set_spatial_parent(&grabbable.content_parent())?;
