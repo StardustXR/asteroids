@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, FnWrapper, derive_setters::Setters},
@@ -18,7 +20,9 @@ use stardust_xr_fusion::{
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
 	lines::{LineExt, circle},
+	reparentable::Reparentable,
 };
+use zbus::Connection;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 #[derive(Setters)]
@@ -26,6 +30,7 @@ type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 pub struct GrabRing<State: ValidState> {
 	radius: f32,
 	thickness: f32,
+	reparentable: bool,
 
 	#[setters(skip)]
 	pos: Vector3<f32>,
@@ -41,6 +46,7 @@ impl<State: ValidState> GrabRing<State> {
 			pos: pos.into(),
 			on_grab: FnWrapper(Box::new(on_grab)),
 
+			reparentable: true,
 			radius: 0.05,
 			thickness: 0.004,
 		}
@@ -53,17 +59,26 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 
 	fn create_inner(
 		&self,
-		_asteroids_context: &Context,
+		context: &Context,
 		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		GrabRingInner::new(info.parent_space, self.radius, self.thickness, self.pos)
+		GrabRingInner::new(
+			self.reparentable,
+			context.dbus_connection.clone(),
+			info.element_path,
+			info.parent_space,
+			self.radius,
+			self.thickness,
+			self.pos,
+		)
 	}
 
 	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
 		if self.radius != old_self.radius || self.thickness != old_self.thickness {
 			inner.resize(self.radius, self.thickness);
 		}
+		inner.is_reparentable = self.reparentable;
 	}
 
 	fn frame(
@@ -84,6 +99,10 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 }
 
 pub struct GrabRingInner {
+	connection: Connection,
+	path: PathBuf,
+	is_reparentable: bool,
+	reparentable: Option<Reparentable>,
 	field: Field,
 	input: InputQueue,
 	grab_action: SingleAction,
@@ -95,6 +114,9 @@ pub struct GrabRingInner {
 }
 impl GrabRingInner {
 	pub fn new(
+		reparentable: bool,
+		connection: Connection,
+		path: impl AsRef<Path>,
 		parent_space: &SpatialRef,
 		radius: f32,
 		thickness: f32,
@@ -120,7 +142,11 @@ impl GrabRingInner {
 			std::slice::from_ref(&ring_line),
 		)?;
 
-		Ok(GrabRingInner {
+		let mut ring = GrabRingInner {
+			connection,
+			path: path.as_ref().to_path_buf(),
+			is_reparentable: reparentable,
+			reparentable: None,
 			field,
 			input,
 			grab_action: SingleAction::default(),
@@ -129,7 +155,27 @@ impl GrabRingInner {
 			content_root,
 			ring_visual,
 			ring_line,
-		})
+		};
+		ring.make_reparentable();
+		Ok(ring)
+	}
+
+	fn make_reparentable(&mut self) {
+		if self.reparentable.is_none() {
+			self.reparentable = self
+				.is_reparentable
+				.then(|| {
+					Reparentable::create(
+						self.connection.clone(),
+						&self.path,
+						self.input.handler().clone().as_spatial_ref(),
+						self.content_root.clone(),
+						Some(self.field.clone()),
+					)
+					.ok()
+				})
+				.flatten();
+		}
 	}
 
 	fn interact_point(&self, input: &InputData) -> Vec3 {
@@ -161,8 +207,8 @@ impl GrabRingInner {
 			|i| i.distance < 0.05,
 			|i| {
 				i.datamap.with_data(|d| match &i.input {
-					InputDataType::Hand(_) => d.idx("pinch_strength").as_f32() > 0.5,
-					_ => d.idx("grab").as_f32() > 0.5,
+					InputDataType::Hand(_) => d.idx("pinch_strength").as_f32() > 0.8,
+					_ => d.idx("grab").as_f32() > 0.8,
 				})
 			},
 		);
@@ -204,9 +250,12 @@ impl GrabRingInner {
 		}
 		let new_pos = self.handle_grab(pos.into());
 		if let Some(new_pos) = new_pos.as_ref() {
+			self.reparentable.take();
 			let _ = self
 				.content_root
 				.set_local_transform(Transform::from_translation(*new_pos));
+		} else {
+			self.make_reparentable();
 		}
 
 		new_pos.map(Into::into)
