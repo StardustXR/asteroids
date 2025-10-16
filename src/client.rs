@@ -128,12 +128,14 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 		let _ = client.setup_resources(resources);
 	}
 
+	let dbus_connection = connect_client().await.unwrap();
+	let _ = ashpd::set_session_connection(dbus_connection.clone());
+
 	let (accent_color_sender, accent_color) = watch::channel(rgba_linear!(1.0, 1.0, 1.0, 1.0));
 	let accent_color_loop =
 		tokio::task::spawn(accent_color_loop(accent_color_sender)).abort_handle();
-
 	let mut context = Context {
-		dbus_connection: connect_client().await.unwrap(),
+		dbus_connection,
 		accent_color: *accent_color.borrow(),
 	};
 
