@@ -3,6 +3,7 @@ use crate::{
 	util::{Migrate, RonFile},
 };
 use ashpd::desktop::settings::Settings;
+use color::{ToRgba, rgba};
 use futures_util::StreamExt;
 use serde::{Serialize, de::DeserializeOwned};
 use stardust_xr_fusion::{
@@ -19,12 +20,13 @@ use tokio::{
 };
 
 fn accent_color_to_color(accent_color: ashpd::desktop::Color) -> Color {
-	rgba_linear!(
+	rgba!(
 		accent_color.red() as f32,
 		accent_color.green() as f32,
 		accent_color.blue() as f32,
 		1.0
 	)
+	.to_linear()
 }
 
 async fn accent_color_loop(accent_color_sender: watch::Sender<Color>) -> Result<(), ashpd::Error> {

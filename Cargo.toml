@@ -31,6 +31,7 @@ dioxus-devtools = "0.7.0-alpha.1"
 tracy-client = { version = "0.18.0", optional = true }
 bumpalo = { version = "3.17.0", features = ["collections", "boxed"] }
 ouroboros = "0.18.5"
+shiva-color-rs = "0.0.1"
 
 [dependencies.ashpd]
 git = "https://github.com/technobaboo/ashpd.git"

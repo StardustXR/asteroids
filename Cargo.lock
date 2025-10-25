@@ -2493,6 +2493,7 @@ dependencies = [
  "ron",
  "rustc-hash",
  "serde",
+ "shiva-color-rs",
  "stardust-xr-fusion",
  "stardust-xr-molecules",
  "tokio",
