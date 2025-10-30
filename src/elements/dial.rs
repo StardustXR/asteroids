@@ -83,7 +83,7 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 			*self.transform(),
 			self.radius,
 			self.thickness,
-			context.accent_color,
+			context.accent_color.color(),
 		)
 	}
 
@@ -104,7 +104,7 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		let new_value = inner.update(self, context.accent_color);
+		let new_value = inner.update(self, context.accent_color.color());
 		if new_value != self.current_value {
 			(self.on_change.0)(state, new_value);
 		}

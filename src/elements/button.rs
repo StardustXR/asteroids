@@ -62,7 +62,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 				max_hover_distance: self.max_hover_distance,
 				visuals: Some(ButtonVisualSettings {
 					line_thickness: self.line_thickness,
-					accent_color: context.accent_color,
+					accent_color: context.accent_color.color(),
 				}),
 			},
 		)?;

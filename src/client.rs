@@ -2,50 +2,16 @@ use crate::{
 	Context, Projector, Reify,
 	util::{Migrate, RonFile},
 };
-use ashpd::desktop::settings::Settings;
-use color::{ToRgba, rgba};
-use futures_util::StreamExt;
 use serde::{Serialize, de::DeserializeOwned};
 use stardust_xr_fusion::{
 	Client,
 	node::NodeType,
 	objects::connect_client,
 	root::{FrameInfo, RootAspect, RootEvent},
-	values::{Color, color::rgba_linear},
 };
+use stardust_xr_molecules::accent_color::AccentColor;
 use std::fs::read_to_string;
-use tokio::{
-	signal::unix::{SignalKind, signal},
-	sync::watch,
-};
-
-fn accent_color_to_color(accent_color: ashpd::desktop::Color) -> Color {
-	rgba!(
-		accent_color.red() as f32,
-		accent_color.green() as f32,
-		accent_color.blue() as f32,
-		1.0
-	)
-	.to_linear()
-}
-
-async fn accent_color_loop(accent_color_sender: watch::Sender<Color>) -> Result<(), ashpd::Error> {
-	let settings = Settings::new().await?;
-	let initial_color = accent_color_to_color(settings.accent_color().await?);
-	let _ = accent_color_sender.send(initial_color);
-	tracing::info!("Accent color initialized to {:?}", initial_color);
-	let mut accent_color_stream = settings.receive_accent_color_changed().await?;
-	tracing::info!("Got accent color stream");
-
-	while let Some(accent_color) = accent_color_stream.next().await {
-		let accent_color = accent_color_to_color(accent_color);
-		tracing::info!("Accent color changed to {:?}", accent_color);
-		let _ = accent_color_sender.send(accent_color);
-	}
-
-	tracing::error!("why the sigma is this activating");
-	Ok(())
-}
+use tokio::signal::unix::{SignalKind, signal};
 
 /// Represents a client that connects to the stardust server
 pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned {
@@ -131,14 +97,11 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 	}
 
 	let dbus_connection = connect_client().await.unwrap();
-	let _ = ashpd::set_session_connection(dbus_connection.clone());
 
-	let (accent_color_sender, accent_color) = watch::channel(rgba_linear!(1.0, 1.0, 1.0, 1.0));
-	let accent_color_loop =
-		tokio::task::spawn(accent_color_loop(accent_color_sender)).abort_handle();
-	let mut context = Context {
+	let accent_color = AccentColor::new(dbus_connection.clone());
+	let context = Context {
 		dbus_connection,
-		accent_color: *accent_color.borrow(),
+		accent_color,
 	};
 
 	let Some(mut state): Option<State> = state(&mut client).await else {
@@ -179,7 +142,6 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 		if frames.is_empty() {
 			return;
 		}
-		context.accent_color = *accent_color.borrow();
 		if frames.len() > 1 {
 			tracing::warn!("Dropped {} frames!!", frames.len() - 1);
 		}
@@ -197,7 +159,6 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 		_ = tokio::signal::ctrl_c() => {}
 		_ = sigterm.recv() => {}
 	}
-	accent_color_loop.abort();
 	save_dev_state(&state);
 	_ = client.try_flush().await;
 }
