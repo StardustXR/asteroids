@@ -8,6 +8,7 @@ macro_rules! mod_expose {
 
 mod_expose!(axes);
 mod_expose!(button);
+mod_expose!(derezzable);
 mod_expose!(dial);
 mod_expose!(field_viz);
 mod_expose!(grabbable);
