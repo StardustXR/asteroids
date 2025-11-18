@@ -4,6 +4,7 @@ use crate::{
 };
 use derive_setters::Setters;
 use glam::{Quat, Vec3};
+use map_range::MapRange as _;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
 	drawable::{Line, LinePoint, Lines, LinesAspect},
@@ -258,8 +259,14 @@ impl PenInner {
 		tip_draw_threshold: f32,
 	) -> f32 {
 		data.datamap.with_data(|datamap| match &data.input {
-			InputDataType::Hand(_) => datamap.idx("pinch_strength").as_f32() / hand_draw_threshold,
-			InputDataType::Tip(_) => datamap.idx("select").as_f32() / tip_draw_threshold,
+			InputDataType::Hand(_) => datamap
+				.idx("pinch_strength")
+				.as_f32()
+				.map_range(hand_draw_threshold..1.0, 0.0..1.0),
+			InputDataType::Tip(_) => datamap
+				.idx("select")
+				.as_f32()
+				.map_range(tip_draw_threshold..1.0, 0.0..1.0),
 			_ => 0.0,
 		})
 	}
