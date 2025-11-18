@@ -233,9 +233,13 @@ impl PenInner {
 		let pen_state = if !self.draw_action.currently_acting().is_empty() {
 			if !self.drawing {
 				self.drawing = true;
-				PenState::StartedDrawing(self.get_pressure(actor))
+				PenState::StartedDrawing(self.get_pressure(
+					actor,
+					hand_draw_threshold,
+					tip_draw_threshold,
+				))
 			} else {
-				PenState::Drawing(self.get_pressure(actor))
+				PenState::Drawing(self.get_pressure(actor, hand_draw_threshold, tip_draw_threshold))
 			}
 		} else if self.drawing {
 			self.drawing = false;
@@ -247,10 +251,15 @@ impl PenInner {
 		Some((pen_state, pos, rot))
 	}
 
-	fn get_pressure(&self, data: &InputData) -> f32 {
+	fn get_pressure(
+		&self,
+		data: &InputData,
+		hand_draw_threshold: f32,
+		tip_draw_threshold: f32,
+	) -> f32 {
 		data.datamap.with_data(|datamap| match &data.input {
-			InputDataType::Hand(_) => datamap.idx("pinch_strength").as_f32(),
-			InputDataType::Tip(_) => datamap.idx("select").as_f32(),
+			InputDataType::Hand(_) => datamap.idx("pinch_strength").as_f32() / hand_draw_threshold,
+			InputDataType::Tip(_) => datamap.idx("select").as_f32() / tip_draw_threshold,
 			_ => 0.0,
 		})
 	}
