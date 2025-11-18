@@ -187,24 +187,25 @@ impl PenInner {
 			false,
 			&self.input,
 			|data| data.distance < grab_distance,
-			|data| {
-				data.datamap.with_data(|datamap| match &data.input {
-					InputDataType::Hand(_) => datamap.idx("grab_strength").as_f32() > 0.70,
-					InputDataType::Tip(_) => datamap.idx("grab").as_f32() > 0.90,
-					_ => false,
-				})
+			|data| match &data.input {
+				InputDataType::Hand(h) => {
+					(h.finger_curl(&h.ring) + h.finger_curl(&h.little)) / 2.0 > 0.75
+				}
+				InputDataType::Tip(_) => data
+					.datamap
+					.with_data(|datamap| datamap.idx("grab").as_f32() > 0.90),
+				_ => false,
 			},
 		);
 
-		self.draw_action.update(&self.input, &|data| {
-			data.datamap.with_data(|datamap| match &data.input {
-				InputDataType::Hand(_) => {
-					datamap.idx("pinch_strength").as_f32() > hand_draw_threshold
-				}
-				InputDataType::Tip(_) => datamap.idx("select").as_f32() > tip_draw_threshold,
+		self.draw_action
+			.update(&self.input, &|data| match &data.input {
+				InputDataType::Hand(h) => h.pinch_strength() > hand_draw_threshold,
+				InputDataType::Tip(_) => data
+					.datamap
+					.with_data(|datamap| datamap.idx("select").as_f32() > tip_draw_threshold),
 				_ => false,
-			})
-		});
+			});
 
 		let Some(actor) = self.grab_action.actor() else {
 			if self.drawing {
@@ -216,7 +217,7 @@ impl PenInner {
 
 		let (pos, rot) = match &actor.input {
 			InputDataType::Hand(h) => (
-				(Vec3::from(h.thumb.tip.position) + Vec3::from(h.index.tip.position)) * 0.5,
+				h.predicted_pinch_position().into(),
 				Quat::from(h.palm.rotation) * Quat::from_rotation_x(FRAC_PI_2),
 			),
 			InputDataType::Tip(t) => (
@@ -259,9 +260,8 @@ impl PenInner {
 		tip_draw_threshold: f32,
 	) -> f32 {
 		data.datamap.with_data(|datamap| match &data.input {
-			InputDataType::Hand(_) => datamap
-				.idx("pinch_strength")
-				.as_f32()
+			InputDataType::Hand(h) => h
+				.pinch_strength()
 				.map_range(hand_draw_threshold..1.0, 0.0..1.0),
 			InputDataType::Tip(_) => datamap
 				.idx("select")
