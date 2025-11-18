@@ -54,7 +54,7 @@ impl<State: ValidState> Pen<State> {
 			length: 0.075,
 			thickness: 0.0025,
 			grab_distance: 0.05,
-			hand_draw_threshold: 0.5,
+			hand_draw_threshold: 0.75,
 			tip_draw_threshold: 0.1,
 			color: rgba_linear!(1.0, 1.0, 1.0, 1.0),
 			pos: pos.into(),
