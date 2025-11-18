@@ -33,6 +33,8 @@ pub struct Pen<State: ValidState> {
 	pub length: f32,
 	pub thickness: f32,
 	pub grab_distance: f32,
+	pub hand_draw_threshold: f32,
+	pub tip_draw_threshold: f32,
 	pub color: AlphaColor<f32, Rgb<f32, LinearRgb>>,
 	pub pos: Vector3<f32>,
 	pub rot: Quaternion<f32>,
@@ -49,8 +51,10 @@ impl<State: ValidState> Pen<State> {
 	) -> Self {
 		Pen {
 			length: 0.075,
-			thickness: 0.005,
+			thickness: 0.0025,
 			grab_distance: 0.05,
+			hand_draw_threshold: 0.5,
+			tip_draw_threshold: 0.1,
 			color: rgba_linear!(1.0, 1.0, 1.0, 1.0),
 			pos: pos.into(),
 			rot: rot.into(),
@@ -100,7 +104,7 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 			_ = inner.visuals.set_lines(&[self.get_lines()]);
 			_ = inner.field.set_shape(Shape::Cylinder(CylinderShape {
 				length: self.length,
-				radius: self.thickness * 0.5,
+				radius: self.thickness,
 			}));
 		}
 	}
@@ -112,7 +116,11 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		if let Some((pen_state, pos, rot)) = inner.handle_events(self.grab_distance) {
+		if let Some((pen_state, pos, rot)) = inner.handle_events(
+			self.grab_distance,
+			self.hand_draw_threshold,
+			self.tip_draw_threshold,
+		) {
 			(self.update.0)(state, pen_state, pos.into(), rot.into());
 		}
 	}
@@ -140,7 +148,7 @@ impl PenInner {
 			Transform::from_translation([0.0, 0.0, decl.length * 0.5]),
 			Shape::Cylinder(CylinderShape {
 				length: decl.length,
-				radius: decl.thickness * 0.5,
+				radius: decl.thickness,
 			}),
 		)?;
 		let queue = InputHandler::create(parent_space, Transform::none(), &field)?.queue()?;
@@ -164,7 +172,12 @@ impl PenInner {
 		})
 	}
 
-	fn handle_events(&mut self, grab_distance: f32) -> Option<(PenState, Vec3, Quat)> {
+	fn handle_events(
+		&mut self,
+		grab_distance: f32,
+		hand_draw_threshold: f32,
+		tip_draw_threshold: f32,
+	) -> Option<(PenState, Vec3, Quat)> {
 		if !self.input.handle_events() {
 			return None;
 		}
@@ -184,8 +197,10 @@ impl PenInner {
 
 		self.draw_action.update(&self.input, &|data| {
 			data.datamap.with_data(|datamap| match &data.input {
-				InputDataType::Hand(_) => datamap.idx("pinch_strength").as_f32() > 0.3,
-				InputDataType::Tip(_) => datamap.idx("select").as_f32() > 0.01,
+				InputDataType::Hand(_) => {
+					datamap.idx("pinch_strength").as_f32() > hand_draw_threshold
+				}
+				InputDataType::Tip(_) => datamap.idx("select").as_f32() > tip_draw_threshold,
 				_ => false,
 			})
 		});
