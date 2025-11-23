@@ -2533,7 +2533,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.45.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=dev#53cfb2eecb066faf60a1b0da0b70f84231bae2be"
+source = "git+https://github.com/StardustXR/molecules.git?branch=dev#75d5358119264c39e3569306451c7058ce9f29ac"
 dependencies = [
  "ashpd",
  "futures-util",

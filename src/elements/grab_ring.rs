@@ -20,7 +20,7 @@ use stardust_xr_fusion::{
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
 	lines::{LineExt, circle},
-	reparentable::Reparentable,
+	reparentable::{ReparentTransformReceiver, Reparentable},
 };
 use zbus::Connection;
 
@@ -104,6 +104,7 @@ pub struct GrabRingInner {
 	is_reparentable: bool,
 	reparentable: Option<Reparentable>,
 	field: Field,
+	reparent_field: Field,
 	input: InputQueue,
 	grab_action: SingleAction,
 	old_interact_point: Vec3,
@@ -111,6 +112,8 @@ pub struct GrabRingInner {
 	content_root: Spatial,
 	ring_visual: Lines,
 	ring_line: Line,
+	transform_changed: Option<ReparentTransformReceiver>,
+	waiting_for_transform: bool,
 }
 impl GrabRingInner {
 	pub fn new(
@@ -128,6 +131,14 @@ impl GrabRingInner {
 			Shape::Torus(TorusShape {
 				radius_a: radius,
 				radius_b: thickness,
+			}),
+		)?;
+		let reparent_field = Field::create(
+			&field,
+			Transform::identity(),
+			Shape::Cylinder(stardust_xr_fusion::fields::CylinderShape {
+				length: thickness * 2.0,
+				radius: radius + thickness,
 			}),
 		)?;
 		let input = InputHandler::create(parent_space, Transform::identity(), &field)?.queue()?;
@@ -148,6 +159,7 @@ impl GrabRingInner {
 			is_reparentable: reparentable,
 			reparentable: None,
 			field,
+			reparent_field,
 			input,
 			grab_action: SingleAction::default(),
 			pointer_distance: 0.0,
@@ -155,6 +167,8 @@ impl GrabRingInner {
 			content_root,
 			ring_visual,
 			ring_line,
+			transform_changed: None,
+			waiting_for_transform: false,
 		};
 		ring.make_reparentable();
 		Ok(ring)
@@ -170,11 +184,12 @@ impl GrabRingInner {
 						&self.path,
 						self.input.handler().clone().as_spatial_ref(),
 						self.content_root.clone(),
-						Some(self.field.clone()),
+						Some(self.reparent_field.clone()),
 					)
 					.ok()
 				})
 				.flatten();
+			self.transform_changed = self.reparentable.as_ref().map(|v| v.transform_recv());
 		}
 	}
 
@@ -197,9 +212,9 @@ impl GrabRingInner {
 		}
 	}
 
-	fn update_input(&mut self) -> bool {
+	fn update_input(&mut self) -> InputResult {
 		if !self.input.handle_events() {
-			return false;
+			return InputResult::EventsNotHandled;
 		}
 		self.grab_action.update(
 			true,
@@ -212,11 +227,26 @@ impl GrabRingInner {
 				})
 			},
 		);
+		let mut pos = None;
+		let was_waiting = self.waiting_for_transform;
+		if let Some(recv) = self.transform_changed.as_ref()
+			&& let Some(pose) = recv.try_changed()
+		{
+			self.waiting_for_transform = false;
+			pos = pose.translation;
+		}
+		if self.grab_action.actor_started() {
+			self.reparentable.take();
+			self.waiting_for_transform = true;
+		}
+		if self.waiting_for_transform {
+			return InputResult::EventsNotHandled;
+		}
 
 		// Initialize pointer distance when grab starts with a pointer
 		if let Some(input) = self.grab_action.actor() {
 			if let InputDataType::Pointer(p) = &input.input {
-				if self.grab_action.actor_started() {
+				if was_waiting {
 					// Set initial pointer distance based on deepest point
 					self.pointer_distance =
 						Vec3::from(p.origin).distance(Vec3::from(p.deepest_point));
@@ -228,12 +258,14 @@ impl GrabRingInner {
 				self.pointer_distance += scroll * 0.01;
 			}
 
-			if self.grab_action.actor_started() {
+			if was_waiting {
 				self.old_interact_point = self.interact_point(input);
 			}
 		}
-
-		true
+		match pos {
+			Some(pos) => InputResult::PosChanged(pos),
+			None => InputResult::EventsHandled,
+		}
 	}
 
 	fn handle_grab(&mut self, pos: Vec3) -> Option<Vec3> {
@@ -245,9 +277,12 @@ impl GrabRingInner {
 	}
 
 	pub fn handle_events(&mut self, pos: Vector3<f32>) -> Option<Vector3<f32>> {
-		if !self.update_input() {
-			return None;
+		match self.update_input() {
+			InputResult::EventsHandled => {}
+			InputResult::EventsNotHandled => return None,
+			InputResult::PosChanged(pos) => return Some(pos),
 		}
+
 		let new_pos = self.handle_grab(pos.into());
 		if let Some(new_pos) = new_pos.as_ref() {
 			self.reparentable.take();
@@ -323,6 +358,12 @@ impl GrabRingInner {
 			.ring_visual
 			.set_lines(std::slice::from_ref(&self.ring_line));
 	}
+}
+
+enum InputResult {
+	EventsHandled,
+	EventsNotHandled,
+	PosChanged(Vector3<f32>),
 }
 
 #[tokio::test]
