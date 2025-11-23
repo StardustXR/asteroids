@@ -353,6 +353,12 @@ impl GrabRingInner {
 			radius_a: radius,
 			radius_b: thickness,
 		}));
+		let _ = self.reparent_field.set_shape(Shape::Cylinder(
+			stardust_xr_fusion::fields::CylinderShape {
+				length: thickness * 2.0,
+				radius: radius + thickness,
+			},
+		));
 		self.ring_line = circle(64, 0.0, radius).thickness(thickness);
 		let _ = self
 			.ring_visual
