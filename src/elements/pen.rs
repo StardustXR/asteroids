@@ -218,7 +218,7 @@ impl PenInner {
 		let (pos, rot) = match &actor.input {
 			InputDataType::Hand(h) => (
 				h.predicted_pinch_position().into(),
-				Quat::from(h.palm.rotation) * Quat::from_rotation_x(FRAC_PI_2),
+				Quat::from(h.palm.rotation),
 			),
 			InputDataType::Tip(t) => (
 				t.origin.into(),
