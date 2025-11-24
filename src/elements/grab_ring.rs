@@ -228,14 +228,15 @@ impl GrabRingInner {
 			},
 		);
 		let mut pos = None;
-		let was_waiting = self.waiting_for_transform;
+		let start_grab = self.waiting_for_transform
+			|| (self.transform_changed.is_none() && self.grab_action.actor_started());
 		if let Some(recv) = self.transform_changed.as_ref()
 			&& let Some(pose) = recv.try_changed()
 		{
 			self.waiting_for_transform = false;
 			pos = pose.translation;
 		}
-		if self.grab_action.actor_started() {
+		if self.grab_action.actor_started() && self.transform_changed.is_some() {
 			self.reparentable.take();
 			self.waiting_for_transform = true;
 		}
@@ -246,7 +247,7 @@ impl GrabRingInner {
 		// Initialize pointer distance when grab starts with a pointer
 		if let Some(input) = self.grab_action.actor() {
 			if let InputDataType::Pointer(p) = &input.input {
-				if was_waiting {
+				if start_grab {
 					// Set initial pointer distance based on deepest point
 					self.pointer_distance =
 						Vec3::from(p.origin).distance(Vec3::from(p.deepest_point));
@@ -258,7 +259,7 @@ impl GrabRingInner {
 				self.pointer_distance += scroll * 0.01;
 			}
 
-			if was_waiting {
+			if start_grab {
 				self.old_interact_point = self.interact_point(input);
 			}
 		}
