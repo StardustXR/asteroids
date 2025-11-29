@@ -1,6 +1,6 @@
 [package]
 name = "stardust-xr-asteroids"
-version = "2.0.0"
+version = "0.50.0"
 edition = "2024"
 rust-version = "1.86"
 authors = ["Nova King <technobaboo@proton.me>"]
@@ -32,14 +32,16 @@ tracy-client = { version = "0.18.0", optional = true }
 bumpalo = { version = "3.17.0", features = ["collections", "boxed"] }
 ouroboros = "0.18.5"
 shiva-color-rs = "0.0.1"
+stardust-xr-fusion = "0.50.0"
+stardust-xr-molecules= "0.50.0"
 
-[dependencies.stardust-xr-fusion]
-git = "https://github.com/StardustXR/core.git"
-branch = "dev"
-
-[dependencies.stardust-xr-molecules]
-git = "https://github.com/StardustXR/molecules.git"
-branch = "dev"
+# [dependencies.stardust-xr-fusion]
+# git = "https://github.com/StardustXR/core.git"
+# branch = "dev"
+#
+# [dependencies.stardust-xr-molecules]
+# git = "https://github.com/StardustXR/molecules.git"
+# branch = "dev"
 
 [dev-dependencies]
 tokio = { version = "1.45.0", features = ["full"] }
