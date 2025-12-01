@@ -142,8 +142,7 @@ impl GrabRingInner {
 			}),
 		)?;
 		let input = InputHandler::create(parent_space, Transform::identity(), &field)?.queue()?;
-		let content_root =
-			Spatial::create(input.handler(), Transform::from_translation(pos), true)?;
+		let content_root = Spatial::create(input.handler(), Transform::from_translation(pos))?;
 		field.set_spatial_parent(&content_root)?;
 
 		let ring_line = circle(64, 0.0, radius).thickness(thickness);

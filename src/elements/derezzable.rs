@@ -41,7 +41,7 @@ impl<State: ValidState> CustomElement<State> for Derezzable<State> {
 		info: crate::CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let spatial = Spatial::create(info.parent_space, Transform::identity(), false)?;
+		let spatial = Spatial::create(info.parent_space, Transform::identity())?;
 		let derez = stardust_xr_molecules::Derezzable::create(
 			asteroids_context.dbus_connection.clone(),
 			info.element_path,

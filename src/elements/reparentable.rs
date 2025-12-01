@@ -28,7 +28,7 @@ impl<State: ValidState> CustomElement<State> for Reparentable {
 		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let spatial = Spatial::create(info.parent_space, Transform::identity(), false)?;
+		let spatial = Spatial::create(info.parent_space, Transform::identity())?;
 		Ok(ReparentableInner {
 			connection: context.dbus_connection.clone(),
 			outer_spatial: info.parent_space.clone(),

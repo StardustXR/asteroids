@@ -3,7 +3,7 @@ use map_range::MapRange;
 use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
-	elements::{Button, Lines, Model, Spatial, Text},
+	elements::{Button, Lines, Model, Reparentable, Spatial, Text},
 };
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
@@ -68,7 +68,7 @@ impl ClientState for State {
 }
 impl Reify for State {
 	fn reify(&self) -> impl Element<State> {
-		Spatial::default().zoneable(true).build().child(
+		Reparentable::default().build().child(
 			Spatial::default()
 				.pos([
 					self.elapsed.sin() * 0.1,

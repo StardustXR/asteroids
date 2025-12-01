@@ -138,7 +138,7 @@ impl DialInner {
 		thickness: f32,
 		accent_color: Color,
 	) -> NodeResult<Self> {
-		let root = Spatial::create(parent, transform, false)?;
+		let root = Spatial::create(parent, transform)?;
 		let field = Field::create(
 			&root,
 			Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2)),

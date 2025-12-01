@@ -188,8 +188,8 @@ impl TurntableInner {
 		transform: Transform,
 		settings: &Turntable<State>,
 	) -> Result<Self, NodeError> {
-		let root = Spatial::create(parent, transform, false)?;
-		let content_parent = Spatial::create(&root, Transform::none(), false)?;
+		let root = Spatial::create(parent, transform)?;
+		let content_parent = Spatial::create(&root, Transform::none())?;
 		let field = Field::create(
 			&root,
 			Transform::from_translation([0.0, -settings.height * 0.5, 0.0]),
@@ -414,30 +414,27 @@ async fn asteroids_turntable_element() {
 	}
 	impl crate::Reify for TestState {
 		fn reify(&self) -> impl crate::Element<Self> {
-			crate::elements::Spatial::default()
-				.zoneable(true)
-				.build()
-				.child(
-					Turntable::new(self.rotation, Self::handle_rotation)
-						.line_count(64)
-						.line_thickness(0.002)
-						.height(0.03)
-						.inner_radius(0.1)
-						.scroll_multiplier(1.0_f32.to_radians())
-						.build()
-						.child(
-							Lines::new(
-								bounding_box(BoundingBox {
-									center: [0.0; 3].into(),
-									size: [0.05; 3].into(),
-								})
-								.into_iter()
-								.map(|l| l.thickness(0.002)),
-							)
-							.pos([0.0, 0.025, 0.0])
-							.build(),
-						),
-				)
+			crate::elements::Reparentable::default().build().child(
+				Turntable::new(self.rotation, Self::handle_rotation)
+					.line_count(64)
+					.line_thickness(0.002)
+					.height(0.03)
+					.inner_radius(0.1)
+					.scroll_multiplier(1.0_f32.to_radians())
+					.build()
+					.child(
+						Lines::new(
+							bounding_box(BoundingBox {
+								center: [0.0; 3].into(),
+								size: [0.05; 3].into(),
+							})
+							.into_iter()
+							.map(|l| l.thickness(0.002)),
+						)
+						.pos([0.0, 0.025, 0.0])
+						.build(),
+					),
+			)
 		}
 	}
 

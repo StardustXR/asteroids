@@ -49,7 +49,7 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let (bounds_tx, bounds_rx) = mpsc::channel(1);
-		let spatial = Spatial::create(info.parent_space, self.transform, false)?;
+		let spatial = Spatial::create(info.parent_space, self.transform)?;
 
 		tokio::spawn({
 			let spatial = spatial.clone();

@@ -143,7 +143,7 @@ pub struct PenInner {
 }
 impl PenInner {
 	fn create<State: ValidState>(parent_space: &SpatialRef, decl: &Pen<State>) -> NodeResult<Self> {
-		let pen_root = Spatial::create(parent_space, Transform::none(), true)?;
+		let pen_root = Spatial::create(parent_space, Transform::none())?;
 		let field = Field::create(
 			&pen_root,
 			Transform::from_translation([0.0, 0.0, decl.length * 0.5]),
@@ -158,7 +158,6 @@ impl PenInner {
 		let child_root = Spatial::create(
 			&pen_root,
 			Transform::from_translation(Vec3::new(0., decl.length, 0.)),
-			false,
 		)?;
 
 		Ok(PenInner {

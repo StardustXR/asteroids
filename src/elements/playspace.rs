@@ -19,7 +19,7 @@ impl<State: ValidState> CustomElement<State> for PlaySpace {
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let client = info.parent_space.client().clone();
-		let spatial = Spatial::create(info.parent_space, Transform::identity(), false)?;
+		let spatial = Spatial::create(info.parent_space, Transform::identity())?;
 		tokio::spawn({
 			let spatial = spatial.clone();
 			async move {

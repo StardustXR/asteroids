@@ -2,7 +2,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
-	elements::{Button, Spatial, Text},
+	elements::{Button, Reparentable, Spatial, Text},
 };
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
@@ -39,8 +39,7 @@ impl ClientState for State {
 }
 impl Reify for State {
 	fn reify(&self) -> impl Element<Self> {
-		Spatial::default()
-			.zoneable(true)
+		Reparentable::default()
 			.build()
 			.child(
 				LabeledButton::new(|state: &mut State| {
