@@ -9,7 +9,7 @@ use stardust_xr_fusion::{
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Spatial(Transform);
+pub struct Spatial(pub Transform);
 impl<State: ValidState> CustomElement<State> for Spatial {
 	type Inner = stardust_xr_fusion::spatial::Spatial;
 	type Resource = ();
