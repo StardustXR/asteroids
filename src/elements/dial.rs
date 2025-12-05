@@ -6,13 +6,12 @@ use derive_setters::Setters;
 use derive_where::derive_where;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec3Swizzles, vec3};
 use stardust_xr_fusion::{
-	core::values::Color,
 	drawable::{Line, Lines, LinesAspect},
 	fields::{CylinderShape, Field, FieldAspect, Shape},
 	input::{InputDataType, InputHandler},
 	node::{NodeError, NodeResult},
 	spatial::{Spatial, SpatialRef, Transform},
-	values::color::rgba_linear,
+	values::{Color, color::rgba_linear},
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},

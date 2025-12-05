@@ -8,12 +8,11 @@ use derive_setters::Setters;
 use glam::Vec3;
 use mint::Vector3;
 use stardust_xr_fusion::{
-	core::values::Color,
 	drawable::{Line, LinesAspect},
 	fields::{Field, FieldAspect, FieldRefAspect, Shape},
 	node::NodeError,
 	spatial::{SpatialAspect, SpatialRef, Transform},
-	values::color::rgba_linear,
+	values::{Color, color::rgba_linear},
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use tokio::{sync::mpsc, task::JoinSet};

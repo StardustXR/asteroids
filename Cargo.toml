@@ -36,10 +36,12 @@ shiva-color-rs = "0.0.1"
 [dependencies.stardust-xr-fusion]
 version = "0.50.0"
 git = "https://github.com/StardustXR/core.git"
+# path = "../core/fusion"
 
 [dependencies.stardust-xr-molecules]
 version = "0.50.0"
 git = "https://github.com/StardustXR/molecules.git"
+# path = "../molecules"
 
 [dev-dependencies]
 tokio = { version = "1.45.0", features = ["full"] }

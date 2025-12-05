@@ -5,11 +5,11 @@ use crate::{
 use derive_setters::Setters;
 use rustc_hash::{FxHashMap, FxHashSet};
 use stardust_xr_fusion::{
-	core::values::ResourceID,
 	drawable::{MaterialParameter, ModelPartAspect},
 	items::panel::{PanelItem, PanelItemAspect, SurfaceId},
 	node::{NodeError, NodeResult},
 	spatial::{SpatialRef, Transform},
+	values::ResourceID,
 };
 use std::{fmt::Debug, hash::Hash, path::Path};
 use zbus::Connection;

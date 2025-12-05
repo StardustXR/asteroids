@@ -4,11 +4,11 @@ use crate::{
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
-	core::values::{Color, ResourceID},
 	drawable::{TextAspect, TextBounds, TextStyle, XAlign, YAlign},
 	node::NodeError,
 	spatial::{SpatialRef, Transform},
 	values::color::rgba_linear,
+	values::{Color, ResourceID},
 };
 use std::fmt::Debug;
 
