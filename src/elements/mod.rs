@@ -1,3 +1,16 @@
+// Reexport types used in declarative element struct fields
+pub use stardust_xr_fusion::{
+	drawable::{MaterialParameter, TextBounds, XAlign, YAlign},
+	fields::{CylinderShape, Shape, TorusShape},
+	items::panel::{PanelItem, SurfaceId},
+	spatial::BoundingBox,
+	values::*,
+};
+pub use stardust_xr_molecules::{
+	DebugSettings, MomentumSettings, PointerMode, button::ButtonVisualSettings,
+	keyboard::KeypressInfo,
+};
+
 #[macro_export]
 macro_rules! mod_expose {
 	($mod_name:ident) => {

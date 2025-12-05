@@ -8,9 +8,7 @@ use stardust_xr_fusion::{
 	root::FrameInfo,
 	spatial::{SpatialAspect, SpatialRef, Transform},
 };
-use stardust_xr_molecules::{FrameSensitive, GrabbableSettings, UIElement};
-
-pub use stardust_xr_molecules::{MomentumSettings, PointerMode};
+use stardust_xr_molecules::{FrameSensitive, GrabbableSettings, MomentumSettings, PointerMode, UIElement};
 
 #[derive_where::derive_where(Debug)]
 #[derive(Setters)]
