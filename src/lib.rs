@@ -1,10 +1,3 @@
-use std::path::PathBuf;
-
-use bumpalo::{Bump, boxed::Box};
-use element::ElementDiffer;
-use inner::ElementInnerMap;
-use mapped::Mapped;
-
 pub mod client;
 mod context;
 mod custom;
@@ -16,14 +9,19 @@ mod mapped;
 mod resource;
 mod util;
 
+use bumpalo::{Bump, boxed::Box};
+use element::ElementDiffer;
+use inner::ElementInnerMap;
+use mapped::Mapped;
+use resource::ResourceRegistry;
+use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
+use std::path::PathBuf;
+
 pub use client::ClientState;
 pub use context::*;
 pub use custom::*;
 pub use dynamic_element::*;
 pub use element::{Element, gen_inner_key};
-
-use resource::ResourceRegistry;
-use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
 pub use util::*;
 
 pub trait ValidState: Sized + Send + Sync + 'static {}
@@ -136,7 +134,7 @@ impl<State: Reify> Projector<State> {
 }
 
 #[ouroboros::self_referencing]
-pub struct ProjectorInner<State: Reify> {
+struct ProjectorInner<State: Reify> {
 	root: SpatialRef,
 	inner_map: ElementInnerMap,
 	resource_registry: ResourceRegistry,
