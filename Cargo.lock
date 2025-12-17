@@ -2489,7 +2489,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.50.0"
-source = "git+https://github.com/StardustXR/core.git#80a1c48a566856350797a1c48fcef65921e80855"
+source = "git+https://github.com/StardustXR/core.git#e45dfcc710d848c391517b2fd44128aa3b5068f0"
 dependencies = [
  "clap",
  "color-eyre",
@@ -2516,7 +2516,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-gluon"
 version = "2.0.0"
-source = "git+https://github.com/StardustXR/core.git#80a1c48a566856350797a1c48fcef65921e80855"
+source = "git+https://github.com/StardustXR/core.git#e45dfcc710d848c391517b2fd44128aa3b5068f0"
 dependencies = [
  "console-subscriber",
  "nanoid",
@@ -2529,7 +2529,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.50.0"
-source = "git+https://github.com/StardustXR/molecules.git#449fed703cfe70fb74e792619af715d7fce5d813"
+source = "git+https://github.com/StardustXR/molecules.git#26248bb7e8ee1a24ee2b453a4a14efe1bbc43875"
 dependencies = [
  "ashpd",
  "futures-util",
@@ -2548,7 +2548,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "2.0.0"
-source = "git+https://github.com/StardustXR/core.git#80a1c48a566856350797a1c48fcef65921e80855"
+source = "git+https://github.com/StardustXR/core.git#e45dfcc710d848c391517b2fd44128aa3b5068f0"
 dependencies = [
  "fnv",
  "kdl",
@@ -2558,7 +2558,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-wire"
 version = "0.50.0"
-source = "git+https://github.com/StardustXR/core.git#80a1c48a566856350797a1c48fcef65921e80855"
+source = "git+https://github.com/StardustXR/core.git#e45dfcc710d848c391517b2fd44128aa3b5068f0"
 dependencies = [
  "color-eyre",
  "dirs",
