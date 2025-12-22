@@ -252,10 +252,10 @@ impl GrabRingInner {
 						Vec3::from(p.origin).distance(Vec3::from(p.deepest_point));
 				}
 				// Adjust pointer_distance based on scroll input
-				let scroll = input
-					.datamap
-					.with_data(|d| d.idx("scroll_continuous").as_vector().idx(1).as_f32());
-				self.pointer_distance += scroll * 0.01;
+				self.pointer_distance += input.datamap.with_data(|d| {
+					(-d.idx("scroll_continuous").as_vector().idx(1).as_f32() * 0.01) + // continuous +Y -> 1cm farther away
+						(-d.idx("scroll_discrete").as_vector().idx(1).as_f32() * 0.1) // discrete +Y -> 10cm farther away
+				});
 			}
 
 			if start_grab {

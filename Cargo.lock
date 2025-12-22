@@ -962,12 +962,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dff15bf788c671c1934e366d07e30c1814a8ef514e1af724a602e8a2fbe1b10"
 dependencies = [
  "futures-core",
+ "futures-sink",
 ]
 
 [[package]]
@@ -975,6 +991,17 @@ name = "futures-core"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
 
 [[package]]
 name = "futures-io"
@@ -1024,9 +1051,13 @@ version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
 dependencies = [
+ "futures-channel",
  "futures-core",
+ "futures-io",
  "futures-macro",
+ "futures-sink",
  "futures-task",
+ "memchr",
  "pin-project-lite",
  "pin-utils",
  "slab",
@@ -2489,7 +2520,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.50.0"
-source = "git+https://github.com/StardustXR/core.git#e45dfcc710d848c391517b2fd44128aa3b5068f0"
+source = "git+https://github.com/StardustXR/core.git#44f49267185e7bc703268749b006f242e267fb2d"
 dependencies = [
  "clap",
  "color-eyre",
@@ -2516,9 +2547,10 @@ dependencies = [
 [[package]]
 name = "stardust-xr-gluon"
 version = "2.0.0"
-source = "git+https://github.com/StardustXR/core.git#e45dfcc710d848c391517b2fd44128aa3b5068f0"
+source = "git+https://github.com/StardustXR/core.git#44f49267185e7bc703268749b006f242e267fb2d"
 dependencies = [
  "console-subscriber",
+ "futures",
  "nanoid",
  "tokio",
  "tokio-stream",
@@ -2529,7 +2561,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.50.0"
-source = "git+https://github.com/StardustXR/molecules.git#26248bb7e8ee1a24ee2b453a4a14efe1bbc43875"
+source = "git+https://github.com/StardustXR/molecules.git#be09b47d0f2d5f78b9009586f5556f36b014b1ec"
 dependencies = [
  "ashpd",
  "futures-util",
@@ -2548,7 +2580,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "2.0.0"
-source = "git+https://github.com/StardustXR/core.git#e45dfcc710d848c391517b2fd44128aa3b5068f0"
+source = "git+https://github.com/StardustXR/core.git#44f49267185e7bc703268749b006f242e267fb2d"
 dependencies = [
  "fnv",
  "kdl",
@@ -2558,7 +2590,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-wire"
 version = "0.50.0"
-source = "git+https://github.com/StardustXR/core.git#e45dfcc710d848c391517b2fd44128aa3b5068f0"
+source = "git+https://github.com/StardustXR/core.git#44f49267185e7bc703268749b006f242e267fb2d"
 dependencies = [
  "color-eyre",
  "dirs",

@@ -244,11 +244,15 @@ impl TurntableInner {
 			.iter()
 			.map(|i| {
 				i.datamap.with_data(|d| {
-					let scroll = d.idx("scroll_continuous").as_vector();
-					(scroll.idx(0).as_f32(), scroll.idx(1).as_f32())
+					let scroll_continuous = d.idx("scroll_continuous").as_vector();
+					let scroll_discrete = d.idx("scroll_discrete").as_vector();
+
+					scroll_continuous.idx(0).as_f32()
+						+ scroll_continuous.idx(1).as_f32()
+						+ (scroll_discrete.idx(0).as_f32() * 5.0)
+						+ (scroll_discrete.idx(1).as_f32() * 5.0)
 				})
 			})
-			.map(|(scroll_x, scroll_y)| scroll_x + scroll_y)
 			.reduce(|a, b| a + b)
 			.unwrap_or_default()
 	}
