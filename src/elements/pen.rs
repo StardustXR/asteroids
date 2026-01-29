@@ -110,8 +110,11 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 		info: CreateInnerInfo,
 		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let pen_visuals_root =
-			Lines::create(info.parent_space, Transform::none(), &[self.get_lines()])?;
+		let pen_visuals_root = Lines::create(
+			info.parent_space,
+			Transform::from_translation_rotation(self.pos, self.rot),
+			&[self.get_lines()],
+		)?;
 		let field = Field::create(
 			&pen_visuals_root,
 			Transform::from_translation([0.0, self.length * 0.5, 0.0]),
@@ -286,8 +289,8 @@ async fn asteroids_pen_test() {
 		fn default() -> Self {
 			Self {
 				pen_state: PenState::Floating,
-				pos: [0.0; 3].into(),
-				rot: Quat::IDENTITY.into(),
+				pos: [0.1; 3].into(),
+				rot: Quat::from_rotation_z(FRAC_PI_4).into(),
 			}
 		}
 	}
