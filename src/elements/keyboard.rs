@@ -3,7 +3,6 @@ use crate::{
 	custom::{CustomElement, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
-use derive_where::derive_where;
 use stardust_xr_fusion::{
 	fields::{Field, FieldAspect, Shape},
 	node::NodeError,

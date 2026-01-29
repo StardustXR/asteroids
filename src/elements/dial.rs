@@ -3,7 +3,6 @@ use crate::{
 	custom::{CustomElement, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
-use derive_where::derive_where;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec3Swizzles, vec3};
 use stardust_xr_fusion::{
 	drawable::{Line, Lines, LinesAspect},
