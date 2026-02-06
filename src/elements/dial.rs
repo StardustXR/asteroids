@@ -181,9 +181,7 @@ impl DialInner {
 			&self.input,
 			|data| data.distance < 0.0,
 			|data| match &data.input {
-				InputDataType::Hand(_) => data
-					.datamap
-					.with_data(|d| d.idx("pinch_strength").as_f32() > 0.5),
+				InputDataType::Hand(h) => h.pinch_strength() > 0.5,
 				_ => data.datamap.with_data(|d| d.idx("select").as_f32() > 0.5),
 			},
 		);
@@ -216,12 +214,7 @@ impl DialInner {
 				let result = origin + direction * t;
 				result.xy()
 			}
-			InputDataType::Hand(hand) => {
-				let index_tip_pos: Vec3 = hand.index.tip.position.into();
-				let thumb_tip_pos: Vec3 = hand.thumb.tip.position.into();
-				let pinch_point = (index_tip_pos + thumb_tip_pos) / 2.0;
-				pinch_point.xy()
-			}
+			InputDataType::Hand(hand) => Vec3::from(hand.predicted_pinch_position()).xy(),
 			InputDataType::Tip(tip) => Vec3::from(tip.origin).xy(),
 		};
 
@@ -259,14 +252,39 @@ impl DialInner {
 		let color = if interact_point.is_some() {
 			accent_color
 		} else {
-			rgba_linear!(1.0, 1.0, 1.0, 1.0)
+			rgba_linear!(1.0, 1.0, 1.0, 0.5)
 		};
 		let mut lines = vec![
 			// circles are z-facing
 			circle(32, 0.0, decl.radius)
 				.color(color)
 				.thickness(0.001)
-				.transform(Mat4::from_rotation_x(FRAC_PI_2)),
+				.transform(Mat4::from_rotation_x(FRAC_PI_2))
+				.shimmer(
+					&self
+						.single_action
+						.hovering()
+						.current()
+						.iter()
+						.flat_map(|i| match &i.input {
+							InputDataType::Pointer(pointer) => vec![pointer.deepest_point],
+							InputDataType::Hand(hand) => {
+								vec![
+									hand.index.tip.position,
+									hand.thumb.tip.position,
+									hand.stable_pinch_position(),
+								]
+							}
+							InputDataType::Tip(tip) => {
+								vec![tip.origin]
+							}
+						})
+						.collect::<Vec<_>>(),
+					0.025,
+					0.0,
+					accent_color,
+					1.25,
+				),
 			circle(32, 0.0, decl.radius)
 				.color(color)
 				.thickness(0.001)
