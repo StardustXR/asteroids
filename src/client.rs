@@ -6,6 +6,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use stardust_xr_fusion::{
 	Client,
 	node::NodeType,
+	object_registry::ObjectRegistry,
 	objects::connect_client,
 	root::{FrameInfo, RootAspect, RootEvent},
 };
@@ -97,10 +98,11 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 	}
 
 	let dbus_connection = connect_client().await.unwrap();
-
+	let object_registry = ObjectRegistry::new(&dbus_connection).await;
 	let accent_color = AccentColor::new(dbus_connection.clone());
 	let context = Context {
 		dbus_connection,
+		object_registry,
 		accent_color,
 	};
 
