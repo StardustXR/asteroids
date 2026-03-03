@@ -256,6 +256,7 @@ impl HandleInner {
 #[tokio::test]
 async fn asteroids_handle_element() {
 	use crate::{
+		Tasker,
 		client::{self, ClientState},
 		elements::Handle,
 	};
@@ -280,7 +281,11 @@ async fn asteroids_handle_element() {
 		const APP_ID: &'static str = "org.asteroids.handle";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			let width = 0.1;
 			let start_x = width * -0.5;
 			let end_x = width * 0.5;

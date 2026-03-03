@@ -1,5 +1,6 @@
 use crate::{
-	Context, Projector, Reify,
+	Context, Projector, Reify, Tasker,
+	task::RootTasker,
 	util::{Migrate, RonFile},
 };
 use serde::{Serialize, de::DeserializeOwned};
@@ -11,7 +12,7 @@ use stardust_xr_fusion::{
 	root::{FrameInfo, RootAspect, RootEvent},
 };
 use stardust_xr_molecules::accent_color::AccentColor;
-use std::fs::read_to_string;
+use std::{fs::read_to_string, sync::mpsc};
 use tokio::signal::unix::{SignalKind, signal};
 
 /// Represents a client that connects to the stardust server
@@ -21,6 +22,8 @@ pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned 
 
 	/// Update the client state when newly launched (e.g. for program arguments)
 	fn initial_state_update(&mut self) {}
+	/// Run this first thing any time! for tasks
+	fn on_start(&mut self, _context: &Context, _tasks: impl Tasker<Self>) {}
 	fn on_frame(&mut self, _info: &FrameInfo) {}
 }
 
@@ -112,9 +115,16 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 
 	dioxus_devtools::connect_subsecond();
 
+	let (tx, rx) = mpsc::channel();
+	let root_tasker = RootTasker(tx);
+
+	state.on_start(&context, root_tasker.clone());
+
 	let mut projector = Projector::create(
 		&state,
 		&context,
+		root_tasker,
+		rx,
 		client.get_root().clone().as_spatial_ref(),
 		"/".into(),
 	);

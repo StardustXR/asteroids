@@ -80,7 +80,7 @@ impl ReparentableInner {
 #[tokio::test]
 async fn asteroids_reparentable_element() {
 	use crate::{
-		Transformable,
+		Tasker, Transformable,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::Lines,
@@ -99,7 +99,11 @@ async fn asteroids_reparentable_element() {
 		const APP_ID: &'static str = "org.asteroids.turntable";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			Reparentable::default().build().child(
 				Lines::new(
 					bounding_box(BoundingBox {

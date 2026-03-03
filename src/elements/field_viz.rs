@@ -262,6 +262,7 @@ impl Transformable for FieldViz {
 #[tokio::test]
 async fn asteroids_field_viz_element() {
 	use crate::{
+		Tasker,
 		client::{self, ClientState},
 		elements::FieldViz,
 	};
@@ -284,7 +285,11 @@ async fn asteroids_field_viz_element() {
 		}
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			FieldViz::default()
 				.shape(Shape::Torus(TorusShape {
 					radius_a: 0.1,

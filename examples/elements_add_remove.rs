@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
-	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
+	ClientState, Context, CustomElement, Element, Migrate, Reify, Tasker, Transformable, client,
 	elements::{Button, Reparentable, Spatial, Text},
 };
 use stardust_xr_fusion::{
@@ -38,7 +38,7 @@ impl ClientState for State {
 	const APP_ID: &'static str = "org.asteroids.elements_add_remove";
 }
 impl Reify for State {
-	fn reify(&self) -> impl Element<Self> {
+	fn reify(&self, _context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
 		Reparentable::default()
 			.build()
 			.child(

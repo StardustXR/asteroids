@@ -2,7 +2,7 @@ use glam::Quat;
 use map_range::MapRange;
 use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
-	ClientState, CustomElement, Element, Migrate, Reify, Transformable, client,
+	ClientState, Context, CustomElement, Element, Migrate, Reify, Tasker, Transformable, client,
 	elements::{Button, Lines, Model, Reparentable, Spatial, Text},
 };
 use stardust_xr_fusion::{
@@ -67,7 +67,7 @@ impl ClientState for State {
 	}
 }
 impl Reify for State {
-	fn reify(&self) -> impl Element<State> {
+	fn reify(&self, _context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
 		Reparentable::default().build().child(
 			Spatial::default()
 				.pos([

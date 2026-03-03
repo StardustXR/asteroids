@@ -389,6 +389,7 @@ impl TurntableInner {
 #[tokio::test]
 async fn asteroids_turntable_element() {
 	use crate::{
+		Tasker,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::{Lines, Turntable},
@@ -417,7 +418,11 @@ async fn asteroids_turntable_element() {
 		const APP_ID: &'static str = "org.asteroids.turntable";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			crate::elements::Reparentable::default().build().child(
 				Turntable::new(self.rotation, Self::handle_rotation)
 					.line_count(64)

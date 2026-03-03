@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 pub mod client;
 mod context;
 mod custom;
@@ -7,37 +9,43 @@ pub mod elements;
 mod inner;
 mod mapped;
 mod resource;
+mod task;
 mod util;
 
+use crate::task::{FinishedTaskCallback, RootTasker};
 use bumpalo::{Bump, boxed::Box};
 use element::ElementDiffer;
 use inner::ElementInnerMap;
 use mapped::Mapped;
 use resource::ResourceRegistry;
 use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::mpsc};
 
 pub use client::ClientState;
 pub use context::*;
 pub use custom::*;
 pub use dynamic_element::*;
 pub use element::{Element, gen_inner_key};
+pub use task::Tasker;
 pub use util::*;
 
 pub trait ValidState: Sized + Send + Sync + 'static {}
 impl<T: Sized + Send + Sync + 'static> ValidState for T {}
 
 pub trait Reify: ValidState + Sized + Send + Sync + 'static {
-	fn reify(&self) -> impl Element<Self>;
+	fn reify(&self, context: &Context, tasks: impl Tasker<Self>) -> impl Element<Self>;
 
 	fn reify_substate<
 		SuperState: ValidState,
-		F: Fn(&mut SuperState) -> Option<&mut Self> + Send + Sync + 'static,
+		Mapper: Fn(&mut SuperState) -> Option<&mut Self> + Clone + Send + Sync + 'static,
 	>(
 		&self,
-		mapper: F,
-	) -> Mapped<SuperState, Self, F, impl Element<Self>> {
-		self.reify().map(mapper)
+		context: &Context,
+		tasks: impl Tasker<SuperState>,
+		mapper: Mapper,
+	) -> Mapped<SuperState, Self, Mapper, impl Element<Self>> {
+		let tasks = tasks.clone().map::<Self, Mapper>(mapper.clone());
+		self.reify(context, tasks).map(mapper)
 	}
 }
 
@@ -46,13 +54,15 @@ impl<State: Reify> Projector<State> {
 	pub fn create(
 		state: &State,
 		context: &Context,
+		tasker: RootTasker<State>,
+		rx: mpsc::Receiver<FinishedTaskCallback<State>>,
 		parent_spatial: SpatialRef,
 		root_element_path: PathBuf,
 	) -> Projector<State> {
 		let mut inner_map = ElementInnerMap::default();
 		let mut resource_registry = ResourceRegistry::default();
 
-		let blueprint = state.reify();
+		let blueprint = state.reify(context, tasker.clone());
 		blueprint.create_inner_recursive(
 			0,
 			context,
@@ -67,6 +77,8 @@ impl<State: Reify> Projector<State> {
 			parent_spatial,
 			inner_map,
 			resource_registry,
+			tasker,
+			rx,
 			root_element_path,
 			bump,
 			move |bump| unsafe {
@@ -83,7 +95,12 @@ impl<State: Reify> Projector<State> {
 			tracing::warn!("Projector not found on update... how??");
 			return;
 		};
-		let blueprint = state.reify();
+		projector.with_task_callback_rx_mut(|task_callback_rx| {
+			while let Ok(task_callback_rx) = task_callback_rx.try_recv() {
+				(task_callback_rx)(state);
+			}
+		});
+		let blueprint = state.reify(context, projector.borrow_root_tasker().clone());
 		projector.with_mut(|fields| {
 			blueprint.dynamic_diff(
 				0,
@@ -101,6 +118,8 @@ impl<State: Reify> Projector<State> {
 			mut bump,
 			root_element_path,
 			resource_registry,
+			root_tasker,
+			task_callback_rx,
 			inner_map,
 			root,
 			..
@@ -110,6 +129,8 @@ impl<State: Reify> Projector<State> {
 			root,
 			inner_map,
 			resource_registry,
+			root_tasker,
+			task_callback_rx,
 			root_element_path,
 			bump,
 			move |bump| unsafe {
@@ -138,6 +159,8 @@ struct ProjectorInner<State: Reify> {
 	root: SpatialRef,
 	inner_map: ElementInnerMap,
 	resource_registry: ResourceRegistry,
+	root_tasker: RootTasker<State>,
+	task_callback_rx: mpsc::Receiver<task::FinishedTaskCallback<State>>,
 	root_element_path: PathBuf,
 	bump: Bump,
 	#[borrows(bump)]

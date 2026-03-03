@@ -81,7 +81,10 @@ impl<State: ValidState> CustomElement<State> for Derezzable<State> {
 
 #[tokio::test]
 async fn asteroids_derezzable_element() {
-	use crate::client::{self, ClientState};
+	use crate::{
+		Tasker,
+		client::{self, ClientState},
+	};
 	use color::rgba_linear;
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::fields::Shape;
@@ -98,7 +101,11 @@ async fn asteroids_derezzable_element() {
 		const APP_ID: &'static str = "org.asteroids.derezzable";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			crate::elements::Derezzable::new(|_| std::process::exit(0), Shape::Box([0.1; 3].into()))
 				.build()
 				.child(

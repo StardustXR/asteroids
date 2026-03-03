@@ -39,6 +39,7 @@ impl<State: ValidState> CustomElement<State> for PlaySpace {
 #[tokio::test]
 async fn asteroids_playspace_element() {
 	use crate::{
+		Tasker,
 		client::{self, ClientState},
 		elements::PlaySpace,
 	};
@@ -55,7 +56,11 @@ async fn asteroids_playspace_element() {
 		const APP_ID: &'static str = "org.asteroids.playspace";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			PlaySpace
 				.build()
 				.child(crate::elements::Lines::new([crate::elements::circle(4, 0.0, 0.1)]).build())

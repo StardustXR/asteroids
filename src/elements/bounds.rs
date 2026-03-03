@@ -116,7 +116,7 @@ impl<State: ValidState> Transformable for Bounds<State> {
 #[tokio::test]
 async fn asteroids_bounds_element() {
 	use crate::{
-		Reify,
+		Reify, Tasker,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::Bounds,
@@ -135,7 +135,11 @@ async fn asteroids_bounds_element() {
 		const APP_ID: &'static str = "org.asteroids.bounds";
 	}
 	impl Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			let bounding_box = BoundingBox {
 				center: [0.02, 0.5, 0.7].into(),
 				size: [0.2, 0.6, 5.3].into(),

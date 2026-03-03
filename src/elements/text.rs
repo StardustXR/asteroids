@@ -89,6 +89,7 @@ impl Transformable for Text {
 #[tokio::test]
 async fn asteroids_text_test() {
 	use crate::{
+		Tasker,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::{Axes, Lines},
@@ -105,7 +106,11 @@ async fn asteroids_text_test() {
 		const APP_ID: &'static str = "org.asteroids.text";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			let cell_size_x = 0.1;
 			let cell_size_y = 0.01;
 			Lines::new([

@@ -82,6 +82,7 @@ fn axes(length: f32, thickness: f32) -> [Line; 3] {
 #[tokio::test]
 async fn asteroids_axes_test() {
 	use crate::{
+		Tasker,
 		client::{self, ClientState},
 		custom::CustomElement,
 	};
@@ -96,7 +97,11 @@ async fn asteroids_axes_test() {
 		const APP_ID: &'static str = "org.asteroids.axes";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			Axes::default().build()
 		}
 	}

@@ -270,6 +270,7 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 #[tokio::test]
 async fn asteroids_pen_test() {
 	use crate::{
+		Tasker,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::{Axes, Lines, Pen, line_from_points},
@@ -303,7 +304,11 @@ async fn asteroids_pen_test() {
 		const APP_ID: &'static str = "org.asteroids.pen";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			Axes::default()
 				.build()
 				.child(

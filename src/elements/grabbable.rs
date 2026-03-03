@@ -8,7 +8,9 @@ use stardust_xr_fusion::{
 	root::FrameInfo,
 	spatial::{SpatialAspect, SpatialRef, Transform},
 };
-use stardust_xr_molecules::{FrameSensitive, GrabbableSettings, MomentumSettings, PointerMode, UIElement};
+use stardust_xr_molecules::{
+	FrameSensitive, GrabbableSettings, MomentumSettings, PointerMode, UIElement,
+};
 
 #[derive_where::derive_where(Debug)]
 #[derive(Setters)]
@@ -156,7 +158,7 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 #[tokio::test]
 async fn asteroids_grabbable_element() {
 	use crate::{
-		Transformable,
+		Context, Tasker, Transformable,
 		client::{self, ClientState},
 		elements::{Grabbable, Spatial},
 	};
@@ -190,7 +192,11 @@ async fn asteroids_grabbable_element() {
 		const APP_ID: &'static str = "org.asteroids.grabbable";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			let shape = Shape::Box([0.1; 3].into());
 			Spatial::default().pos([0.0, 0.5, 0.0]).build().child(
 				Grabbable::new(

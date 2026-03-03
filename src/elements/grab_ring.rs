@@ -375,6 +375,7 @@ enum InputResult {
 #[tokio::test]
 async fn asteroids_grab_ring_element() {
 	use crate::{
+		Tasker,
 		client::{self, ClientState},
 		elements::GrabRing,
 	};
@@ -401,7 +402,11 @@ async fn asteroids_grab_ring_element() {
 		const APP_ID: &'static str = "org.asteroids.grab_ring";
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+		) -> impl crate::Element<Self> {
 			GrabRing::new(self.grab_pos, |state: &mut Self, pos| {
 				state.grab_pos = pos;
 			})
