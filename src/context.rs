@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use stardust_xr_fusion::object_registry::ObjectRegistry;
 use stardust_xr_molecules::accent_color::AccentColor;
 use std::sync::Arc;
