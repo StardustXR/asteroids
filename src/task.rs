@@ -3,7 +3,7 @@ use std::{future::Future, marker::PhantomData, sync::mpsc};
 
 pub type FinishedTaskCallback<State> = Box<dyn FnOnce(&mut State) + Send>;
 
-pub trait Tasker<State: ValidState>: Clone + Send + 'static {
+pub trait Tasker<State: ValidState>: Clone + Send + Sync + 'static {
 	/// Direct spawn from element frame() methods. Requires explicit State generic.
 	fn spawn<
 		T: Send + 'static,
