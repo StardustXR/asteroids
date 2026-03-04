@@ -40,7 +40,7 @@ impl ClientState for State {
 
 	fn on_start(&mut self, _context: &Context, tasks: impl Tasker<Self>) {
 		self.thingy = false;
-		tasks.spawn(tokio::time::sleep(Duration::from_secs(5)), |state, _| {
+		tasks.spawn(tokio::time::sleep(Duration::from_secs(5)), |_, state, _| {
 			state.thingy = true;
 			println!("async time elapsed");
 		});

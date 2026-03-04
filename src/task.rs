@@ -8,7 +8,7 @@ pub trait Tasker<State: ValidState>: Clone + Send + Sync + 'static {
 	fn spawn<
 		T: Send + 'static,
 		Fut: Future<Output = T> + Send + 'static,
-		CB: FnOnce(&mut State, T) + Send + 'static,
+		CB: FnOnce(Self, &mut State, T) + Send + 'static,
 	>(
 		&self,
 		future: Fut,
@@ -51,17 +51,18 @@ impl<State: ValidState> Tasker<State> for RootTasker<State> {
 	fn spawn<
 		T: Send + 'static,
 		Fut: Future<Output = T> + Send + 'static,
-		CB: FnOnce(&mut State, T) + Send + 'static,
+		CB: FnOnce(Self, &mut State, T) + Send + 'static,
 	>(
 		&self,
 		future: Fut,
 		callback: CB,
 	) {
 		let tx = self.0.clone();
+		let tasker = self.clone();
 		tokio::spawn(async move {
 			let result = future.await;
 			let boxed: Box<dyn FnOnce(&mut State) + Send> =
-				Box::new(move |state| callback(state, result));
+				Box::new(move |state| callback(tasker, state, result));
 			let _ = tx.send(boxed);
 		});
 	}
@@ -105,16 +106,17 @@ impl<
 	fn spawn<
 		T: Send + 'static,
 		Fut: Future<Output = T> + Send + 'static,
-		CB: FnOnce(&mut MappedState, T) + Send + 'static,
+		CB: FnOnce(Self, &mut MappedState, T) + Send + 'static,
 	>(
 		&self,
 		future: Fut,
 		callback: CB,
 	) {
 		let mapper = self.mapper.clone();
-		self.wrapped.spawn(future, move |state, t| {
+		let tasker = self.clone();
+		self.wrapped.spawn(future, move |_, state, t| {
 			if let Some(mapped_state) = (mapper)(state) {
-				(callback)(mapped_state, t)
+				(callback)(tasker, mapped_state, t)
 			}
 		});
 	}
