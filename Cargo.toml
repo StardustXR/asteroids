@@ -34,12 +34,12 @@ ouroboros = "0.18.5"
 shiva-color-rs = "0.0.1"
 
 [dependencies.stardust-xr-fusion]
-version = "0.50.0"
+version = "0.51.0"
 git = "https://github.com/StardustXR/core.git"
 # path = "../core/fusion"
 
 [dependencies.stardust-xr-molecules]
-version = "0.50.0"
+version = "0.51.0"
 git = "https://github.com/StardustXR/molecules.git"
 # path = "../molecules"
 

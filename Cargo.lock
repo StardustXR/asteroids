@@ -2017,7 +2017,7 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "stardust-xr-asteroids"
-version = "0.50.0"
+version = "0.51.0"
 dependencies = [
  "bumpalo",
  "derive-where",
@@ -2047,8 +2047,8 @@ dependencies = [
 
 [[package]]
 name = "stardust-xr-fusion"
-version = "0.50.0"
-source = "git+https://github.com/StardustXR/core.git#dab3536d2c354bae85abf96496abb94ffa0e512d"
+version = "0.51.0"
+source = "git+https://github.com/StardustXR/core.git#e7ce3bc3962c563967dfad6b00e1fb290f11eeb7"
 dependencies = [
  "color-eyre",
  "convert_case",
@@ -2073,8 +2073,8 @@ dependencies = [
 
 [[package]]
 name = "stardust-xr-gluon"
-version = "0.50.0"
-source = "git+https://github.com/StardustXR/core.git#dab3536d2c354bae85abf96496abb94ffa0e512d"
+version = "0.51.0"
+source = "git+https://github.com/StardustXR/core.git#e7ce3bc3962c563967dfad6b00e1fb290f11eeb7"
 dependencies = [
  "futures",
  "nanoid",
@@ -2086,8 +2086,8 @@ dependencies = [
 
 [[package]]
 name = "stardust-xr-molecules"
-version = "0.50.0"
-source = "git+https://github.com/StardustXR/molecules.git#4d59240537509201a03fd95269bc27c5b6372f47"
+version = "0.51.0"
+source = "git+https://github.com/StardustXR/molecules.git#1579b4c7cec85e2a823ad0baf50c268b98b4a522"
 dependencies = [
  "ashpd",
  "futures-util",
@@ -2104,8 +2104,8 @@ dependencies = [
 
 [[package]]
 name = "stardust-xr-protocol"
-version = "0.50.0"
-source = "git+https://github.com/StardustXR/core.git#dab3536d2c354bae85abf96496abb94ffa0e512d"
+version = "0.51.0"
+source = "git+https://github.com/StardustXR/core.git#e7ce3bc3962c563967dfad6b00e1fb290f11eeb7"
 dependencies = [
  "fnv",
  "kdl",
@@ -2114,8 +2114,8 @@ dependencies = [
 
 [[package]]
 name = "stardust-xr-wire"
-version = "0.50.0"
-source = "git+https://github.com/StardustXR/core.git#dab3536d2c354bae85abf96496abb94ffa0e512d"
+version = "0.51.0"
+source = "git+https://github.com/StardustXR/core.git#e7ce3bc3962c563967dfad6b00e1fb290f11eeb7"
 dependencies = [
  "dirs",
  "flatbuffers",
