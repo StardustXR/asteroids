@@ -172,5 +172,6 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 		_ = sigterm.recv() => {}
 	}
 	save_dev_state(&state);
+	drop(projector);
 	_ = client.try_flush().await;
 }
