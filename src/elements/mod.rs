@@ -1,7 +1,7 @@
 // Reexport types used in declarative element struct fields
 pub use stardust_xr_fusion::{
 	drawable::{MaterialParameter, TextBounds, XAlign, YAlign},
-	fields::{CylinderShape, Shape, TorusShape},
+	fields::{CubicControlPoint, CubicSplineShape, CylinderShape, Shape, TorusShape},
 	items::panel::{PanelItem, SurfaceId},
 	spatial::BoundingBox,
 	values::*,
@@ -36,9 +36,10 @@ mod_expose!(reparentable);
 mod_expose!(pen);
 mod_expose!(sky_light);
 mod_expose!(sky_texture);
-mod_expose!(turntable);
 mod_expose!(grab_ring);
 mod_expose!(file_watcher);
 mod_expose!(bounds);
 mod_expose!(spatial);
+mod_expose!(spline_rail);
 mod_expose!(text);
+mod_expose!(turntable);
