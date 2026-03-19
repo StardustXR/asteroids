@@ -16,7 +16,7 @@ impl Migrate for Test {
 	type Old = Self;
 }
 impl ClientState for Test {
-	const APP_ID: &'static str = "org.test";
+	const APP_ID: &'static str = "org.stardustxr.asteroids.Recursion";
 }
 impl Reify for Test {
 	fn reify(&self, context: &Context, tasks: impl Tasker<Self>) -> impl Element<Self> {

@@ -2,10 +2,11 @@ use std::time::Duration;
 
 use color::rgba_linear;
 use serde::{Deserialize, Serialize};
+use stardust_xr_asteroids::project_local_resources;
 use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Migrate, Reify, Tasker, client, elements::Lines,
 };
-use stardust_xr_fusion::{fields::Shape, project_local_resources};
+use stardust_xr_fusion::fields::Shape;
 use stardust_xr_molecules::lines::{LineExt, shape};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -25,7 +26,7 @@ async fn main() {
 		.with_filter(EnvFilter::from_default_env());
 	registry.with(log_layer).init();
 
-	client::run::<State>(&[&project_local_resources!("res")]).await
+	client::run::<State>(&[&project_local_resources!("data")]).await
 }
 
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,7 +37,7 @@ impl Migrate for State {
 	type Old = Self;
 }
 impl ClientState for State {
-	const APP_ID: &'static str = "org.asteroids.task_test";
+	const APP_ID: &'static str = "org.stardustxr.asteroids.TaskTest";
 
 	fn on_start(&mut self, _context: &Context, tasks: impl Tasker<Self>) {
 		self.thingy = false;

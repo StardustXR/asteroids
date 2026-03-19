@@ -15,6 +15,13 @@ use stardust_xr_molecules::accent_color::AccentColor;
 use std::{fs::read_to_string, sync::mpsc};
 use tokio::signal::unix::{SignalKind, signal};
 
+#[macro_export]
+macro_rules! project_local_resources {
+	($relative_path:expr) => {
+		std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join($relative_path)
+	};
+}
+
 /// Represents a client that connects to the stardust server
 pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned {
 	/// App ID, inverse domain name e.g. "org.stardustxr.asteroids_test".

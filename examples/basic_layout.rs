@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Migrate, Reify, Tasker, Transformable, client,
 	elements::{Button, Lines, Model, Reparentable, Spatial, Text},
+	project_local_resources,
 };
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
-	project_local_resources,
 	root::FrameInfo,
 	values::color::{Deg, Hsv, ToRgba},
 };
@@ -34,7 +34,7 @@ async fn main() {
 		.with_filter(EnvFilter::from_default_env());
 	registry.with(log_layer).init();
 
-	client::run::<State>(&[&project_local_resources!("res")]).await
+	client::run::<State>(&[&project_local_resources!("data")]).await
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ impl Migrate for State {
 	type Old = Self;
 }
 impl ClientState for State {
-	const APP_ID: &'static str = "org.asteroids.basic_layout";
+	const APP_ID: &'static str = "org.asteroids.BasicLayout";
 
 	fn initial_state_update(&mut self) {
 		println!("Initial state yippee");
@@ -76,7 +76,7 @@ impl Reify for State {
 					self.elapsed.cos() * 0.1,
 				])
 				.build()
-				.child(Model::namespaced("asteroids", "grabbable").build())
+				.child(Model::namespaced(Self::APP_ID, "grabbable").build())
 				.maybe_child((self.elapsed - self.pressed_time > 1.0).then(|| {
 					Button::new(|state: &mut State| {
 						state.text = "button press".to_string();

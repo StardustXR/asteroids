@@ -3,10 +3,10 @@ use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Migrate, Reify, Tasker, Transformable, client,
 	elements::{Button, Reparentable, Spatial, Text},
+	project_local_resources,
 };
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
-	project_local_resources,
 	spatial::Transform,
 };
 use tracing_subscriber::EnvFilter;
@@ -17,7 +17,7 @@ async fn main() {
 		.compact()
 		.with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
 		.init();
-	client::run::<State>(&[&project_local_resources!("res")]).await
+	client::run::<State>(&[&project_local_resources!("data")]).await
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -35,7 +35,7 @@ impl Migrate for State {
 	type Old = Self;
 }
 impl ClientState for State {
-	const APP_ID: &'static str = "org.asteroids.elements_add_remove";
+	const APP_ID: &'static str = "org.asteroids.ElementsAddRemove";
 }
 impl Reify for State {
 	fn reify(&self, _context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
