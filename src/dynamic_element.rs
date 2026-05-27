@@ -2,7 +2,7 @@ use crate::{
 	Context, Element, ValidState, element::ElementDiffer, inner::ElementInnerMap,
 	resource::ResourceRegistry,
 };
-use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
+use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::path::Path;
 
 /// Trait for elements that support dynamic type swapping (rare cases like KDL environments)

@@ -2,24 +2,26 @@ use crate::ValidState;
 use crate::context::Context;
 use crate::element::ElementWrapper;
 pub use derive_setters;
-use stardust_xr_fusion::root::FrameInfo;
-use stardust_xr_fusion::spatial::{SpatialAspect, SpatialRef, Transform};
+use stardust_xr_fusion::client::FrameInfo;
+use stardust_xr_fusion::spatial::{Spatial, SpatialRef, Transform};
 use std::any::Any;
 use std::fmt::Debug;
 use std::path::Path;
 
-pub struct CreateInnerInfo<'a> {
-	pub parent_space: &'a SpatialRef,
-	pub element_path: &'a Path,
+pub struct CreateInnerInfo {
+	pub parent_space: SpatialRef,
+	pub element_path: Path,
 }
 
-pub trait CustomElement<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
+pub trait CustomElement<State: ValidState>:
+	Any + Clone + Debug + Send + Sync + Sized + 'static
+{
 	/// The imperative struct containing non-saved state
 	type Inner: Send + Sync + 'static;
 	/// A global shared across the whole View
 	type Resource: Default + Send + Sync + 'static;
 	/// Error type for the element
-	type Error: ToString;
+	type Error: ToString + Send + Sync + 'static;
 	/// Create the inner imperative struct
 	fn create_inner(
 		&self,
@@ -62,7 +64,7 @@ impl<Signature: Send + Sync + ?Sized> PartialEq for FnWrapper<Signature> {
 pub trait Transformable: Sized {
 	fn transform(&self) -> &Transform;
 	fn transform_mut(&mut self) -> &mut Transform;
-	fn apply_transform(&self, other: &Self, spatial: &impl SpatialAspect) {
+	fn apply_transform(&self, other: &Self, spatial: &Spatial) {
 		if self.transform().translation != other.transform().translation
 			|| self.transform().rotation != other.transform().rotation
 			|| self.transform().scale != other.transform().scale
@@ -72,15 +74,15 @@ pub trait Transformable: Sized {
 	}
 
 	fn pos(mut self, pos: impl Into<mint::Vector3<f32>>) -> Self {
-		self.transform_mut().translation = Some(pos.into());
+		self.transform_mut().translation = pos.into();
 		self
 	}
 	fn rot(mut self, rot: impl Into<mint::Quaternion<f32>>) -> Self {
-		self.transform_mut().rotation = Some(rot.into());
+		self.transform_mut().rotation = rot.into();
 		self
 	}
 	fn scl(mut self, scl: impl Into<mint::Vector3<f32>>) -> Self {
-		self.transform_mut().scale = Some(scl.into());
+		self.transform_mut().scale = scl.into();
 		self
 	}
 }

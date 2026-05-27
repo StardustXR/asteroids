@@ -1,10 +1,9 @@
-use stardust_xr_fusion::object_registry::ObjectRegistry;
+use stardust_xr_fusion::client::{Client, DefaultHandler};
 use stardust_xr_molecules::accent_color::AccentColor;
-use std::sync::Arc;
 use zbus::Connection;
 
 pub struct Context {
+	pub stardust_client: Client<DefaultHandler>,
 	pub dbus_connection: Connection,
-	pub object_registry: Arc<ObjectRegistry>,
 	pub accent_color: AccentColor,
 }

@@ -3,12 +3,12 @@
 use crate::{
 	Context, CreateInnerInfo, CustomElement, ValidState,
 	dynamic_element::{DynamicDiffer, DynamicElement},
-	inner::ElementInnerMap,
+	inner::{ElementInner, ElementInnerMap},
 	mapped::Mapped,
 	resource::ResourceRegistry,
 };
 use rustc_hash::FxHashMap;
-use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
+use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::{
 	any::TypeId,
 	hash::{DefaultHasher, Hash, Hasher},
@@ -570,24 +570,25 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		let _ = self.inner_key.set(inner_key);
 
 		// Create this element's inner
-		if let Some(element) = &self.custom_element {
-			let result = element.create_inner(
-				context,
-				CreateInnerInfo {
-					parent_space,
-					element_path: &element_path,
-				},
-				resources.get::<State, E>(),
-			);
+		if let Some(element) = self.custom_element.clone() {
+			let task = tokio::task::spawn(async move {
+				let result = element.create_inner(
+					context,
+					CreateInnerInfo {
+						parent_space,
+						element_path: &element_path,
+					},
+					resources.get::<State, E>(),
+				);
+				(element, result)
+			});
 
-			if let Ok(inner) = result {
-				inner_map.insert::<State, E>(inner_key, inner);
-			}
+			inner_map.insert::<State, E>(inner_key, task);
 		}
 
 		// Get spatial ref for children
 		let child_parent_space = if let Some(element) = &self.custom_element {
-			if let Some(inner) = inner_map.get::<State, E>(inner_key) {
+			if let Some(ElementInner::Done(inner)) = inner_map.get::<State, E>(inner_key) {
 				element.spatial_aspect(inner)
 			} else {
 				parent_space.clone()

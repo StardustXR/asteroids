@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use stardust_xr_fusion::root::FrameInfo;
+use stardust_xr_fusion::client::FrameInfo;
 
 pub struct FrameWarning {
 	actual_time: Instant,

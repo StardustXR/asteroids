@@ -5,7 +5,7 @@ mod context;
 mod custom;
 mod dynamic_element;
 mod element;
-pub mod elements;
+// pub mod elements;
 mod inner;
 mod mapped;
 mod resource;
@@ -18,7 +18,7 @@ use element::ElementDiffer;
 use inner::ElementInnerMap;
 use mapped::Mapped;
 use resource::ResourceRegistry;
-use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
+use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::{path::PathBuf, sync::mpsc};
 
 pub use client::ClientState;

@@ -4,16 +4,11 @@ use crate::{
 	util::{Migrate, RonFile},
 };
 use serde::{Serialize, de::DeserializeOwned};
-use stardust_xr_fusion::{
-	Client,
-	node::NodeType,
-	object_registry::ObjectRegistry,
-	objects::connect_client,
-	root::{FrameInfo, RootAspect, RootEvent},
-};
+use stardust_xr_fusion::client::{ClientError, FrameInfo};
 use stardust_xr_molecules::accent_color::AccentColor;
 use std::{fs::read_to_string, sync::mpsc};
 use tokio::signal::unix::{SignalKind, signal};
+use zbus::Connection;
 
 #[macro_export]
 macro_rules! project_local_resources {
@@ -58,35 +53,37 @@ fn initial_state<State: ClientState>() -> State {
 	state
 }
 
-async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
-	if let Some(state) = load_dev_state() {
-		return Some(state);
-	}
+// Bring this back when we have session service
+// async fn state<State: ClientState>(client: &mut Client) -> Option<State> {
+// 	if let Some(state) = load_dev_state() {
+// 		return Some(state);
+// 	}
 
-	let saved_state = client
-		.await_method(client.handle().get_root().get_state())
-		.await
-		.ok()?
-		.ok()?;
+// 	let saved_state = client
+// 		.await_method(client.handle().get_root().get_state())
+// 		.await
+// 		.ok()?
+// 		.ok()?;
 
-	let state = saved_state
-		.data
-		.and_then(|m| ron::from_str(&String::from_utf8(m).ok()?).ok())
-		.unwrap_or_else(initial_state);
-	Some(state)
-}
+// 	let state = saved_state
+// 		.data
+// 		.and_then(|m| ron::from_str(&String::from_utf8(m).ok()?).ok())
+// 		.unwrap_or_else(initial_state);
 
-fn load_dev_state<State: ClientState>() -> Option<State> {
-	if std::env::var("ASTEROIDS_DEV").is_err() {
-		return None;
-	}
+// 	Some(state)
+// }
 
-	let initial_state_path = std::path::PathBuf::from("/tmp/asteroids_config")
-		.join(State::APP_ID.to_string() + "_dev.ron");
+// fn load_dev_state<State: ClientState>() -> Option<State> {
+// 	if std::env::var("ASTEROIDS_DEV").is_err() {
+// 		return None;
+// 	}
 
-	let serialized = std::fs::read_to_string(initial_state_path).ok()?;
-	ron::from_str(&serialized).ok()
-}
+// 	let initial_state_path = std::path::PathBuf::from("/tmp/asteroids_config")
+// 		.join(State::APP_ID.to_string() + "_dev.ron");
+
+// 	let serialized = std::fs::read_to_string(initial_state_path).ok()?;
+// 	ron::from_str(&serialized).ok()
+// }
 fn save_dev_state<State: ClientState>(state: &State) {
 	if std::env::var("ASTEROIDS_DEV").is_err() {
 		return;
@@ -99,26 +96,22 @@ fn save_dev_state<State: ClientState>(state: &State) {
 	let _ = std::fs::write(&initial_state_path, ron::to_string(&state).unwrap());
 }
 
-pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
-	let Ok(mut client) = stardust_xr_fusion::client::Client::connect().await else {
-		return;
-	};
-	if !resources.is_empty() {
-		let _ = client.setup_resources(resources);
-	}
+pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(), ClientError> {
+	let (stardust_client, root) =
+		stardust_xr_fusion::client::Client::auto_connect(resources).await?;
 
-	let dbus_connection = connect_client().await.unwrap();
-	let object_registry = ObjectRegistry::new(&dbus_connection).await;
+	let dbus_connection = Connection::session().await.unwrap();
 	let accent_color = AccentColor::new(dbus_connection.clone());
 	let context = Context {
+		stardust_client,
 		dbus_connection,
-		object_registry,
 		accent_color,
 	};
 
-	let Some(mut state): Option<State> = state(&mut client).await else {
-		return;
-	};
+	let mut state: State = initial_state();
+	// let Some(mut state): Option<State> = state(&mut context.stardust_client).await else {
+	// return;
+	// };
 
 	dioxus_devtools::connect_subsecond();
 
@@ -127,58 +120,72 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) {
 
 	state.on_start(&context, root_tasker.clone());
 
-	let mut projector = Projector::create(
-		&state,
-		&context,
-		root_tasker,
-		rx,
-		client.get_root().clone().as_spatial_ref(),
-		"/".into(),
-	);
-	let event_loop_future = client.sync_event_loop(|client, _| {
-		let mut frames = vec![];
-		while let Some(root_event) = client.get_root().recv_root_event() {
-			match root_event {
-				RootEvent::Ping { response: pong } => pong.send_ok(()),
-				RootEvent::Frame { info } => {
-					#[cfg(feature = "tracy")]
-					{
-						use tracing::info;
-						info!("frame info {info:#?}");
-						tracy_client::frame_mark();
-					}
-					frames.push(info);
+	let mut projector = Projector::create(&state, &context, root_tasker, rx, root, "/".into());
+	let mut frame_awaiter = context.stardust_client.frame_receiver();
+	let mut sigterm = signal(SignalKind::terminate()).unwrap();
+
+	loop {
+		let first_frame = tokio::select! {
+			result = frame_awaiter.recv() => match result {
+				Ok(info) => info,
+				Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+					tracing::warn!("Skipped {n} frames waiting for receiver");
+					continue;
 				}
-				RootEvent::SaveState { response } => {
-					response.send_ok(stardust_xr_fusion::root::ClientState {
-						data: ron::to_string(&state).ok().map(|s| s.into_bytes()),
-						root: client.get_root().id(),
-						spatial_anchors: Default::default(),
-					})
+				Err(_) => break,
+			},
+			_ = tokio::signal::ctrl_c() => break,
+			_ = sigterm.recv() => break,
+		};
+
+		let mut frames = vec![first_frame];
+		loop {
+			match frame_awaiter.try_recv() {
+				Ok(info) => frames.push(info),
+				Err(tokio::sync::broadcast::error::TryRecvError::Lagged(n)) => {
+					tracing::warn!("Dropped {n} frames!!");
+					break;
 				}
+				_ => break,
 			}
 		}
-		if frames.is_empty() {
-			return;
-		}
+
 		if frames.len() > 1 {
 			tracing::warn!("Dropped {} frames!!", frames.len() - 1);
 		}
 
-		for frame in frames {
-			state.on_frame(&frame);
-			projector.frame(&context, &frame, &mut state);
+		for frame in &frames {
+			#[cfg(feature = "tracy")]
+			{
+				use tracing::info;
+				info!("frame info {frame:#?}");
+				tracy_client::frame_mark();
+			}
+			state.on_frame(frame);
+			projector.frame(&context, frame, &mut state);
 		}
 		projector.update(&context, &mut state);
-	});
-	let mut sigterm = signal(SignalKind::terminate()).unwrap();
-	// make sure we call Drop impls
-	tokio::select! {
-		_ = event_loop_future => {}
-		_ = tokio::signal::ctrl_c() => {}
-		_ = sigterm.recv() => {}
 	}
+
 	save_dev_state(&state);
 	drop(projector);
-	_ = client.try_flush().await;
+	Ok(())
 }
+
+// pub struct Asteroids<State: ClientState> {
+// 	context: OnceLock<Context>,
+// 	projector: Mutex<Projector<State>>,
+// }
+// impl<State: ClientState> ClientHandler for Asteroids<State> {
+// 	fn ping(&self, _ctx: gluon::Context) -> impl Future<Output = ()> + Send + Sync {
+// 		todo!()
+// 	}
+
+// 	fn frame(
+// 		&self,
+// 		_ctx: gluon::Context,
+// 		info: FrameInfo,
+// 	) -> impl Future<Output = ()> + Send + Sync {
+// 		todo!()
+// 	}
+// }

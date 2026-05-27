@@ -1,7 +1,7 @@
 use crate::{
 	Context, Element, ElementDiffer, ValidState, inner::ElementInnerMap, resource::ResourceRegistry,
 };
-use stardust_xr_fusion::{root::FrameInfo, spatial::SpatialRef};
+use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::marker::PhantomData;
 
 pub struct Mapped<
