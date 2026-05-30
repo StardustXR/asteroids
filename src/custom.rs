@@ -6,11 +6,12 @@ use stardust_xr_fusion::client::FrameInfo;
 use stardust_xr_fusion::spatial::{Spatial, SpatialRef, Transform};
 use std::any::Any;
 use std::fmt::Debug;
-use std::path::Path;
+use std::path::PathBuf;
 
 pub struct CreateInnerInfo {
 	pub parent_space: SpatialRef,
-	pub element_path: Path,
+	pub child_space: Spatial,
+	pub element_path: PathBuf,
 }
 
 pub trait CustomElement<State: ValidState>:
@@ -27,11 +28,10 @@ pub trait CustomElement<State: ValidState>:
 		&self,
 		asteroids_context: &Context,
 		info: CreateInnerInfo,
-		resource: &mut Self::Resource,
-	) -> Result<Self::Inner, Self::Error>;
+	) -> impl Future<Output = Result<Self::Inner, Self::Error>> + Send + Sync + 'static;
 	/// Update the inner imperative struct with the new state of the node.
 	/// You will need to check for changes between `self` and `old_self` and update accordingly.
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, resource: &mut Self::Resource);
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner);
 	/// Every frame on the server
 	fn frame(
 		&self,

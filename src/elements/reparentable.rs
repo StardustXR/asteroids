@@ -37,7 +37,7 @@ impl<State: ValidState> CustomElement<State> for Reparentable {
 			reparentable: None,
 		})
 	}
-	fn diff(&self, _old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, _old_self: &Self, inner: &mut Self::Inner) {
 		if self.enabled {
 			inner.enable();
 		} else {

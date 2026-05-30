@@ -8,7 +8,6 @@ mod element;
 // pub mod elements;
 mod inner;
 mod mapped;
-mod resource;
 mod task;
 mod util;
 
@@ -17,9 +16,9 @@ use bumpalo::{Bump, boxed::Box};
 use element::ElementDiffer;
 use inner::ElementInnerMap;
 use mapped::Mapped;
-use resource::ResourceRegistry;
 use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::{path::PathBuf, sync::mpsc};
+use tokio::sync::watch;
 
 pub use client::ClientState;
 pub use context::*;
@@ -60,23 +59,20 @@ impl<State: Reify> Projector<State> {
 		root_element_path: PathBuf,
 	) -> Projector<State> {
 		let mut inner_map = ElementInnerMap::default();
-		let mut resource_registry = ResourceRegistry::default();
 
 		let blueprint = state.reify(context, tasker.clone());
 		blueprint.create_inner_recursive(
 			0,
 			context,
-			&parent_spatial,
+			watch::channel(Some(parent_spatial.clone())).1,
 			&root_element_path,
 			&mut inner_map,
-			&mut resource_registry,
 		);
 		let bump = Bump::new();
 
 		Self(Some(ProjectorInner::new(
 			parent_spatial,
 			inner_map,
-			resource_registry,
 			tasker,
 			rx,
 			root_element_path,
@@ -109,7 +105,6 @@ impl<State: Reify> Projector<State> {
 				fields.root,
 				fields.root_element_path,
 				fields.inner_map,
-				&mut *fields.resource_registry,
 			);
 		});
 
@@ -117,7 +112,6 @@ impl<State: Reify> Projector<State> {
 		let ouroboros_impl_projector_inner::Heads {
 			mut bump,
 			root_element_path,
-			resource_registry,
 			root_tasker,
 			task_callback_rx,
 			inner_map,
@@ -128,7 +122,6 @@ impl<State: Reify> Projector<State> {
 		self.0.replace(ProjectorInner::new(
 			root,
 			inner_map,
-			resource_registry,
 			root_tasker,
 			task_callback_rx,
 			root_element_path,
@@ -158,7 +151,6 @@ impl<State: Reify> Projector<State> {
 struct ProjectorInner<State: Reify> {
 	root: SpatialRef,
 	inner_map: ElementInnerMap,
-	resource_registry: ResourceRegistry,
 	root_tasker: RootTasker<State>,
 	task_callback_rx: mpsc::Receiver<task::FinishedTaskCallback<State>>,
 	root_element_path: PathBuf,

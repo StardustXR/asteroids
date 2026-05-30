@@ -68,7 +68,7 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		})
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, &inner.spatial);
 	}
 

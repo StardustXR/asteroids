@@ -30,7 +30,7 @@ impl<State: ValidState> CustomElement<State> for PlaySpace {
 		});
 		Ok(spatial)
 	}
-	fn diff(&self, _old_self: &Self, _inner: &mut Self::Inner, _resource: &mut Self::Resource) {}
+	fn diff(&self, _old_self: &Self, _inner: &mut Self::Inner) {}
 	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
 		inner.clone().as_spatial_ref()
 	}

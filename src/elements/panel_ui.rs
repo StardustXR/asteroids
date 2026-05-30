@@ -56,7 +56,7 @@ impl<State: ValidState> CustomElement<State> for PanelUI<State> {
 		Ok((panel_item_ui, info.parent_space.clone()))
 	}
 
-	fn diff(&self, _old_self: &Self, _inner: &mut Self::Inner, _resource: &mut Self::Resource) {}
+	fn diff(&self, _old_self: &Self, _inner: &mut Self::Inner) {}
 
 	fn frame(
 		&self,

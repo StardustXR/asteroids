@@ -26,7 +26,7 @@ impl<State: ValidState> CustomElement<State> for SkyLight {
 		Ok(SkyLightInner(info.parent_space.clone()))
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
 		if self.0 != old_self.0 {
 			_ = set_sky_light(inner.0.client(), Some(&self.0));
 		}

@@ -23,7 +23,7 @@ impl<State: ValidState> CustomElement<State> for Spatial {
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::spatial::Spatial::create(info.parent_space, self.0)
 	}
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, inner);
 	}
 	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {

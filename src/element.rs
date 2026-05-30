@@ -5,10 +5,12 @@ use crate::{
 	dynamic_element::{DynamicDiffer, DynamicElement},
 	inner::{ElementInner, ElementInnerMap},
 	mapped::Mapped,
-	resource::ResourceRegistry,
 };
 use rustc_hash::FxHashMap;
-use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
+use stardust_xr_fusion::{
+	client::FrameInfo,
+	spatial::{Spatial, SpatialExt, SpatialRef, Transform},
+};
 use std::{
 	any::TypeId,
 	hash::{DefaultHasher, Hash, Hasher},
@@ -16,6 +18,7 @@ use std::{
 	path::{Path, PathBuf},
 	sync::OnceLock,
 };
+use tokio::sync::watch;
 
 fn element_type_name<E: std::any::Any>() -> &'static str {
 	let type_name = std::any::type_name::<E>();
@@ -76,10 +79,9 @@ pub(crate) trait ElementDiffer<State: ValidState>:
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	);
 
 	/// Every frame on the server
@@ -101,7 +103,6 @@ pub(crate) trait ElementDiffer<State: ValidState>:
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	);
 
 	/// Clean up this element and all children
@@ -117,10 +118,9 @@ impl<State: ValidState> ElementDiffer<State> for () {
 		&self,
 		_inner_key: u64,
 		_context: &Context,
-		_parent_space: &SpatialRef,
+		_parent_space: watch::Receiver<Option<SpatialRef>>,
 		_element_path: &Path,
 		_inner_map: &mut ElementInnerMap,
-		_resources: &mut ResourceRegistry,
 	) {
 	}
 	fn frame_recursive(
@@ -139,7 +139,6 @@ impl<State: ValidState> ElementDiffer<State> for () {
 		_parent_space: &SpatialRef,
 		_element_path: &Path,
 		_inner_map: &mut ElementInnerMap,
-		_resources: &mut ResourceRegistry,
 	) {
 		// Empty tuple - nothing to diff
 	}
@@ -154,30 +153,22 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		// Create children with position-based keys
 		let child_key_0 = gen_inner_key::<A>(inner_key, 0);
 		self.0.create_inner_recursive(
 			child_key_0,
 			context,
-			parent_space,
+			parent_space.clone(),
 			element_path,
 			inner_map,
-			resources,
 		);
 		let child_key_1 = gen_inner_key::<B>(inner_key, 1);
-		self.1.create_inner_recursive(
-			child_key_1,
-			context,
-			parent_space,
-			element_path,
-			inner_map,
-			resources,
-		);
+		self.1
+			.create_inner_recursive(child_key_1, context, parent_space, element_path, inner_map);
 	}
 	fn frame_recursive(
 		&self,
@@ -197,7 +188,6 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		// Same tuple type, diff each child with fast path
 		let child_key_0 = gen_inner_key::<A>(inner_key, 0);
@@ -208,7 +198,6 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 			parent_space,
 			element_path,
 			inner_map,
-			resources,
 		);
 		let child_key_1 = gen_inner_key::<B>(inner_key, 1);
 		self.1.diff_same_type(
@@ -218,7 +207,6 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 			parent_space,
 			element_path,
 			inner_map,
-			resources,
 		);
 	}
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
@@ -233,20 +221,18 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		for (i, element) in self.iter().enumerate() {
 			let child_key = gen_inner_key::<E>(inner_key, i);
 			element.create_inner_recursive(
 				child_key,
 				context,
-				parent_space,
+				parent_space.clone(),
 				element_path,
 				inner_map,
-				resources,
 			);
 		}
 	}
@@ -271,7 +257,6 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		let max_len = self.len().max(old.len());
 		for i in 0..max_len {
@@ -287,17 +272,15 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 						parent_space,
 						element_path,
 						inner_map,
-						resources,
 					);
 				}
 				(Some(new), None) => {
 					new.create_inner_recursive(
 						gen_inner_key::<E>(inner_key, i),
 						context,
-						parent_space,
+						watch::channel(Some(parent_space.clone())).1,
 						element_path,
 						inner_map,
-						resources,
 					);
 				}
 				(None, Some(old)) => {
@@ -323,19 +306,17 @@ impl<State: ValidState, K: Hash + Eq + Clone + Send + Sync + 'static, E: Element
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		for (key, element) in self {
 			element.create_inner_recursive(
 				hash_inner_key::<E, K>(inner_key, key),
 				context,
-				parent_space,
+				parent_space.clone(),
 				element_path,
 				inner_map,
-				resources,
 			);
 		}
 	}
@@ -360,7 +341,6 @@ impl<State: ValidState, K: Hash + Eq + Clone + Send + Sync + 'static, E: Element
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		// Process all new elements (update existing or create new)
 		for (key, new_elem) in self {
@@ -376,7 +356,6 @@ impl<State: ValidState, K: Hash + Eq + Clone + Send + Sync + 'static, E: Element
 						parent_space,
 						element_path,
 						inner_map,
-						resources,
 					);
 				}
 				None => {
@@ -384,10 +363,9 @@ impl<State: ValidState, K: Hash + Eq + Clone + Send + Sync + 'static, E: Element
 					new_elem.create_inner_recursive(
 						child_key,
 						context,
-						parent_space,
+						watch::channel(Some(parent_space.clone())).1,
 						element_path,
 						inner_map,
-						resources,
 					);
 				}
 			}
@@ -414,10 +392,9 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		if let Some(element) = self {
 			// Option uses the same key as the parent - the element inside Option manages its own key
@@ -427,7 +404,6 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 				parent_space,
 				element_path,
 				inner_map,
-				resources,
 			);
 		}
 	}
@@ -450,7 +426,6 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		match (self, old) {
 			(Some(new), Some(old)) => {
@@ -462,7 +437,6 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 					parent_space,
 					element_path,
 					inner_map,
-					resources,
 				);
 			}
 			(Some(new), None) => {
@@ -470,10 +444,9 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 				new.create_inner_recursive(
 					inner_key,
 					context,
-					parent_space,
+					watch::channel(Some(parent_space.clone())).1,
 					element_path,
 					inner_map,
-					resources,
 				);
 			}
 			(None, Some(old)) => {
@@ -559,52 +532,63 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		let element_path = join_element_path::<E>(element_path, inner_key);
 
 		// Store the inner key for later use in frame/destroy
 		let _ = self.inner_key.set(inner_key);
 
+		let (child_space_tx, child_space_rx) = watch::channel(None);
+
 		// Create this element's inner
 		if let Some(element) = self.custom_element.clone() {
+			let element_path = element_path.to_path_buf();
+			let context = context.clone();
+			let mut parent_space = parent_space.clone();
 			let task = tokio::task::spawn(async move {
-				let result = element.create_inner(
-					context,
-					CreateInnerInfo {
-						parent_space,
-						element_path: &element_path,
-					},
-					resources.get::<State, E>(),
-				);
-				(element, result)
+				let parent_space = parent_space
+					.wait_for(|s| s.is_some())
+					.await
+					.as_deref()
+					.cloned()
+					.unwrap()
+					.unwrap()
+					.clone();
+				let (child_space, child_spatial_ref) =
+					Spatial::create(&context.stardust_client, &parent_space, Transform::IDENTITY)
+						.await
+						.unwrap();
+				let _ = child_space_tx.send(Some(child_spatial_ref.clone()));
+
+				// await spaital parent
+				// make new spatial
+				//
+				let result = element
+					.create_inner(
+						&context,
+						CreateInnerInfo {
+							parent_space,
+							child_space,
+							element_path,
+						},
+					)
+					.await;
+				(element, result, child_spatial_ref)
 			});
 
 			inner_map.insert::<State, E>(inner_key, task);
 		}
 
-		// Get spatial ref for children
-		let child_parent_space = if let Some(element) = &self.custom_element {
-			if let Some(ElementInner::Done(inner)) = inner_map.get::<State, E>(inner_key) {
-				element.spatial_aspect(inner)
-			} else {
-				parent_space.clone()
-			}
-		} else {
-			parent_space.clone()
-		};
-
 		// Create children
 		self.children.create_inner_recursive(
 			inner_key,
 			context,
-			&child_parent_space,
+			child_space_rx,
 			&element_path,
 			inner_map,
-			resources,
 		);
 	}
 
@@ -618,7 +602,8 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		// Call frame on this element using the stored inner key
 		if let Some(element) = &self.custom_element {
 			if let Some(&inner_key) = self.inner_key.get() {
-				if let Some(inner) = inner_map.get_mut::<State, E>(inner_key) {
+				if let Some(ElementInner::Done(inner, _)) = inner_map.get_mut::<State, E>(inner_key)
+				{
 					element.frame(context, info, state, inner);
 				}
 			}
@@ -637,7 +622,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		let element_path = join_element_path::<E>(element_path, inner_key);
 
@@ -647,8 +631,35 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		// Diff this element
 		match (&self.custom_element, &old.custom_element) {
 			(Some(new_element), Some(old_element)) => {
-				if let Some(inner) = inner_map.get_mut::<State, E>(inner_key) {
-					new_element.diff(old_element, inner, resources.get::<State, E>());
+				let Some(inner_mut) = inner_map.get_mut::<State, E>(inner_key) else {
+					return;
+				};
+				match inner_mut {
+					ElementInner::Creating(result) => {
+						// if the creation of async stuff is done, rip it out of the creating,
+						// block on it (should return immediately), then slap it in the done pile
+						if result.as_mut().is_some_and(|r| r.is_finished()) {
+							let Some(result) = result.take() else { return };
+							match tokio::runtime::Handle::current().block_on(result) {
+								Ok((decl, result, child_spatial)) => {
+									*inner_mut = match result {
+										Ok(mut element) => {
+											// diff from the stored state at creation to the most recent creation
+											// since async stuff *could* take several frames
+											new_element.diff(&decl, &mut element);
+											ElementInner::Done(element, child_spatial)
+										}
+										Err(err) => ElementInner::Error(err),
+									};
+								}
+								Err(_) => return,
+							};
+						}
+					}
+					ElementInner::Done(inner, _) => {
+						new_element.diff(old_element, inner);
+					}
+					_ => (),
 				}
 			}
 			(Some(_), None) => {
@@ -657,10 +668,9 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 					self,
 					inner_key,
 					context,
-					parent_space,
+					watch::channel(Some(parent_space.clone())).1,
 					&element_path,
 					inner_map,
-					resources,
 				);
 				return; // Don't diff children since we just created everything
 			}
@@ -675,12 +685,10 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		}
 
 		// Get spatial ref for children
-		let child_parent_space = if let Some(element) = &self.custom_element {
-			if let Some(inner) = inner_map.get::<State, E>(inner_key) {
-				element.spatial_aspect(inner)
-			} else {
-				parent_space.clone()
-			}
+		let child_parent_space = if let Some(ElementInner::Done(_, spatial_ref)) =
+			inner_map.get::<State, E>(inner_key)
+		{
+			spatial_ref.clone()
 		} else {
 			parent_space.clone()
 		};
@@ -693,7 +701,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 			&child_parent_space,
 			&element_path,
 			inner_map,
-			resources,
 		);
 	}
 

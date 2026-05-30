@@ -6,7 +6,10 @@ use crate::{
 use serde::{Serialize, de::DeserializeOwned};
 use stardust_xr_fusion::client::{ClientError, FrameInfo};
 use stardust_xr_molecules::accent_color::AccentColor;
-use std::{fs::read_to_string, sync::mpsc};
+use std::{
+	fs::read_to_string,
+	sync::{Arc, mpsc},
+};
 use tokio::signal::unix::{SignalKind, signal};
 use zbus::Connection;
 
@@ -103,9 +106,9 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 	let dbus_connection = Connection::session().await.unwrap();
 	let accent_color = AccentColor::new(dbus_connection.clone());
 	let context = Context {
-		stardust_client,
+		stardust_client: Arc::new(stardust_client),
 		dbus_connection,
-		accent_color,
+		accent_color: Arc::new(accent_color),
 	};
 
 	let mut state: State = initial_state();

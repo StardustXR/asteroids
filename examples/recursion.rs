@@ -5,7 +5,7 @@ use stardust_xr_asteroids::{
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-	client::run::<Test>(&[]).await
+	client::run::<Test>(&[]).await.unwrap()
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]

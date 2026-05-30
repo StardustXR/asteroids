@@ -114,7 +114,7 @@ impl<State: ValidState> CustomElement<State> for Model {
 	) -> Result<Self::Inner, Self::Error> {
 		ModelInner::create(info.parent_space, &context.dbus_connection, self)
 	}
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, &inner.model);
 		if self.resource != old_self.resource {
 			if let Ok(new_inner) = ModelInner::create(&inner.parent, &inner.dbus_connection, self) {

@@ -69,7 +69,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 		Ok(button)
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old, inner.touch_plane().root());
 		// if self.size != old.size {
 		//     inner.touch_plane().set_size(self.size);

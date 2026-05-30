@@ -104,7 +104,7 @@ impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 		})
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old, &inner.field);
 
 		if self.field_shape != old.field_shape {

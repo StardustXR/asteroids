@@ -26,7 +26,9 @@ async fn main() {
 		.with_filter(EnvFilter::from_default_env());
 	registry.with(log_layer).init();
 
-	client::run::<State>(&[&project_local_resources!("data")]).await
+	client::run::<State>(&[&project_local_resources!("data")])
+		.await
+		.unwrap()
 }
 
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize)]

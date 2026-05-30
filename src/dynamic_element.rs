@@ -1,9 +1,7 @@
-use crate::{
-	Context, Element, ValidState, element::ElementDiffer, inner::ElementInnerMap,
-	resource::ResourceRegistry,
-};
+use crate::{Context, Element, ValidState, element::ElementDiffer, inner::ElementInnerMap};
 use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::path::Path;
+use tokio::sync::watch;
 
 /// Trait for elements that support dynamic type swapping (rare cases like KDL environments)
 pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
@@ -12,10 +10,9 @@ pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	);
 
 	/// Every frame on the server
@@ -37,7 +34,6 @@ pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	);
 
 	/// Clean up this element and all children
@@ -53,10 +49,9 @@ where
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		ElementDiffer::create_inner_recursive(
 			self,
@@ -65,7 +60,6 @@ where
 			parent_space,
 			element_path,
 			inner_map,
-			resources,
 		)
 	}
 
@@ -87,7 +81,6 @@ where
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		// Try to downcast to same type for fast path
 		use std::any::Any;
@@ -100,7 +93,6 @@ where
 				parent_space,
 				element_path,
 				inner_map,
-				resources,
 			);
 		} else {
 			// Different types - destroy old and create new
@@ -108,10 +100,9 @@ where
 			self.create_inner_recursive(
 				inner_key,
 				context,
-				parent_space,
+				watch::channel(Some(parent_space.clone())).1,
 				element_path,
 				inner_map,
-				resources,
 			);
 		}
 	}
@@ -132,10 +123,9 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		self.0.dynamic_create_inner_recursive(
 			inner_key,
@@ -143,7 +133,6 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 			parent_space,
 			element_path,
 			inner_map,
-			resources,
 		)
 	}
 
@@ -166,7 +155,6 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 		parent_space: &SpatialRef,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		// Use dynamic diffing since we don't know the concrete types
 		self.0.dynamic_diff(
@@ -176,7 +164,6 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 			parent_space,
 			element_path,
 			inner_map,
-			resources,
 		)
 	}
 

@@ -213,7 +213,7 @@ impl<State: ValidState> CustomElement<State> for FieldViz {
 		})
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
 		if self.shape != old.shape {
 			let _ = inner.field.set_shape(self.shape.clone());
 

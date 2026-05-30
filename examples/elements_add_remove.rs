@@ -17,7 +17,9 @@ async fn main() {
 		.compact()
 		.with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
 		.init();
-	client::run::<State>(&[&project_local_resources!("data")]).await
+	client::run::<State>(&[&project_local_resources!("data")])
+		.await
+		.unwrap()
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]

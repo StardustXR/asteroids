@@ -85,7 +85,7 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 		)
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old, &inner.root);
 		if self.radius != old.radius || self.thickness != old.thickness {
 			let _ = inner.field.set_shape(Shape::Cylinder(CylinderShape {

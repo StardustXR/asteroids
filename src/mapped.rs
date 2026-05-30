@@ -1,8 +1,7 @@
-use crate::{
-	Context, Element, ElementDiffer, ValidState, inner::ElementInnerMap, resource::ResourceRegistry,
-};
+use crate::{Context, Element, ElementDiffer, ValidState, inner::ElementInnerMap};
 use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::marker::PhantomData;
+use tokio::sync::watch;
 
 pub struct Mapped<
 	State: ValidState,
@@ -42,10 +41,9 @@ impl<
 		&self,
 		inner_key: u64,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &std::path::Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		self.wrapped.create_inner_recursive(
 			inner_key,
@@ -53,7 +51,6 @@ impl<
 			parent_space,
 			element_path,
 			inner_map,
-			resources,
 		);
 	}
 
@@ -80,7 +77,6 @@ impl<
 		parent_space: &SpatialRef,
 		element_path: &std::path::Path,
 		inner_map: &mut ElementInnerMap,
-		resources: &mut ResourceRegistry,
 	) {
 		self.wrapped.diff_same_type(
 			inner_key,
@@ -89,7 +85,6 @@ impl<
 			parent_space,
 			element_path,
 			inner_map,
-			resources,
 		);
 	}
 

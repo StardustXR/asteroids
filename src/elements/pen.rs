@@ -144,7 +144,7 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 		})
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner, _resource: &mut Self::Resource) {
+	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
 		if self.pos != old.pos || self.rot != old.rot {
 			let transform = Transform::from_translation_rotation(self.pos, self.rot);
 			let _ = inner
