@@ -6,6 +6,7 @@ use crate::{
 	inner::{ElementInner, ElementInnerMap},
 	mapped::Mapped,
 };
+use futures::FutureExt;
 use rustc_hash::FxHashMap;
 use stardust_xr_fusion::{
 	client::FrameInfo,
@@ -633,58 +634,39 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		let _ = self.inner_key.set(inner_key);
 
 		// Diff this element
-		match (&self.custom_element, &old.custom_element) {
-			(Some(new_element), Some(old_element)) => {
-				let Some(inner_mut) = inner_map.get_mut::<State, E>(inner_key) else {
-					return;
-				};
-				match inner_mut {
-					ElementInner::Creating(result) => {
-						// if the creation of async stuff is done, rip it out of the creating,
-						// block on it (should return immediately), then slap it in the done pile
-						if result.as_mut().is_some_and(|r| r.is_finished()) {
-							let Some(result) = result.take() else { return };
-							match tokio::runtime::Handle::current().block_on(result) {
-								Ok((decl, result, child_spatial)) => {
-									*inner_mut = match result {
-										Ok(mut element) => {
-											// diff from the stored state at creation to the most recent creation
-											// since async stuff *could* take several frames
-											new_element.diff(&decl, &mut element);
-											ElementInner::Done(element, child_spatial)
-										}
-										Err(err) => ElementInner::Error(err),
-									};
-								}
-								Err(_) => return,
-							};
-						}
+		if let Some(new_element) = &self.custom_element
+			&& let Some(old_element) = &old.custom_element
+		{
+			let Some(inner_mut) = inner_map.get_mut::<State, E>(inner_key) else {
+				return;
+			};
+			match inner_mut {
+				ElementInner::Creating(result) => {
+					// if the creation of async stuff is done, rip it out of the creating,
+					// block on it (should return immediately), then slap it in the done pile
+					if result.as_mut().is_some_and(|r| r.is_finished()) {
+						let Some(result) = result.take() else { return };
+						// TODO: don't depend on a whole crate just for this 1 function
+						match result.now_or_never() {
+							Some(Ok((decl, result, child_spatial))) => {
+								*inner_mut = match result {
+									Ok(mut element) => {
+										// diff from the stored state at creation to the most recent creation
+										// since async stuff *could* take several frames
+										new_element.diff(&decl, &mut element);
+										ElementInner::Done(element, child_spatial)
+									}
+									Err(err) => ElementInner::Error(err),
+								};
+							}
+							_ => return,
+						};
 					}
-					ElementInner::Done(inner, _) => {
-						new_element.diff(old_element, inner);
-					}
-					_ => (),
 				}
-			}
-			(Some(_), None) => {
-				// New element, create it
-				ElementDiffer::create_inner_recursive(
-					self,
-					inner_key,
-					context,
-					watch::channel(Some(parent_space.clone())).1,
-					&element_path,
-					inner_map,
-				);
-				return; // Don't diff children since we just created everything
-			}
-			(None, Some(_)) => {
-				// Element removed, destroy it
-				ElementDiffer::destroy_inner_recursive(old, inner_map);
-				return; // Don't diff children since we destroyed everything
-			}
-			(None, None) => {
-				// Both None, nothing to do for this element
+				ElementInner::Done(inner, _) => {
+					new_element.diff(old_element, inner);
+				}
+				_ => (),
 			}
 		}
 
