@@ -51,13 +51,19 @@ impl ClientState for State {
 }
 impl Reify for State {
 	fn reify(&self, _context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
-		Lines::new(shape(Shape::Box([0.1; 3].into())).into_iter().map(|line| {
-			line.color(if self.thingy {
-				rgba_linear!(0.25, 1.0, 0.25, 1.0)
-			} else {
-				rgba_linear!(1.0, 0.25, 0.25, 1.0)
+		Lines::new(
+			shape(Shape::Box {
+				size: [0.1; 3].into(),
 			})
-		}))
+			.into_iter()
+			.map(|line| {
+				line.color(if self.thingy {
+					rgba_linear!(0.25, 1.0, 0.25, 1.0)
+				} else {
+					rgba_linear!(1.0, 0.25, 0.25, 1.0)
+				})
+			}),
+		)
 		.build()
 	}
 }

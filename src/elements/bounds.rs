@@ -132,15 +132,15 @@ async fn asteroids_bounds_element() {
 		) -> impl crate::Element<Self> {
 			let bounding_box = BoundingBox {
 				center: [0.02, 0.5, 0.7].into(),
-				size: [0.2, 0.6, 5.3].into(),
+				extents: [0.2, 0.6, 5.3].into(),
 			};
 			Bounds::new(move |state: &mut TestState, bounds| {
 				assert!((bounds.center.x - bounding_box.center.x).abs() < 0.01);
 				assert!((bounds.center.y - bounding_box.center.y).abs() < 0.01);
 				assert!((bounds.center.z - bounding_box.center.z).abs() < 0.01);
-				assert!((bounds.size.x - bounding_box.size.x).abs() < 0.01);
-				assert!((bounds.size.y - bounding_box.size.y).abs() < 0.01);
-				assert!((bounds.size.z - bounding_box.size.z).abs() < 0.01);
+				assert!((bounds.extents.x - bounding_box.extents.x).abs() < 0.01);
+				assert!((bounds.extents.y - bounding_box.extents.y).abs() < 0.01);
+				assert!((bounds.extents.z - bounding_box.extents.z).abs() < 0.01);
 				state.latest_bounds.replace(bounds);
 			})
 			.build()
