@@ -2,17 +2,17 @@ use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable},
 };
+use color::rgba_linear;
 use glam::Mat4;
 use stardust_xr_fusion::{
-	drawable::{Line, Lines, LinesAspect},
-	node::NodeError,
-	spatial::{SpatialRef, Transform},
-	values::color::rgba_linear,
+	Error,
+	drawable::{Line, Lines, LinesExt},
+	spatial::{Spatial, Transform},
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use std::{f32::consts::FRAC_PI_2, fmt::Debug};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Axes {
 	transform: Transform,
 	thickness: f32,
@@ -21,38 +21,37 @@ pub struct Axes {
 impl Default for Axes {
 	fn default() -> Self {
 		Self {
-			transform: Transform::identity(),
+			transform: Transform::IDENTITY,
 			thickness: 0.001,
 			length: 0.01,
 		}
 	}
 }
 impl<State: ValidState> CustomElement<State> for Axes {
-	type Inner = Lines;
-	type Resource = ();
-	type Error = NodeError;
+	type Inner = (Lines, Spatial);
+	type Error = Error;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
-		_asteroids_context: &Context,
+		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		Lines::create(
-			info.parent_space,
-			self.transform,
-			&axes(self.length, self.thickness),
-		)
+		Ok((
+			Lines::create(
+				&context.stardust_client,
+				&info.child_space,
+				axes(self.length, self.thickness).to_vec(),
+			)
+			.await?,
+			info.child_space,
+		))
 	}
 
 	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, inner);
+		self.apply_transform(old_self, &inner.1);
 		if self.length != old_self.length || self.thickness != old_self.thickness {
-			let _ = inner.set_lines(&axes(self.length, self.thickness));
+			let _ = inner.0.set_lines(axes(self.length, self.thickness));
 		}
-	}
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.clone().as_spatial().as_spatial_ref()
 	}
 }
 impl Transformable for Axes {
@@ -106,5 +105,5 @@ async fn asteroids_axes_test() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await;
+	client::run::<TestState>(&[]).await.unwrap();
 }

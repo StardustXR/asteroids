@@ -3,8 +3,7 @@ use crate::{
 	custom::{CustomElement, Transformable},
 };
 use stardust_xr_fusion::{
-	drawable::{Line, LinesAspect},
-	node::NodeError,
+	drawable::Line,
 	spatial::{SpatialRef, Transform},
 };
 use std::fmt::Debug;
@@ -26,14 +25,13 @@ impl Lines {
 }
 impl<State: ValidState> CustomElement<State> for Lines {
 	type Inner = stardust_xr_fusion::drawable::Lines;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Lines::create(info.parent_space, self.transform, &self.lines)
 	}
@@ -43,9 +41,6 @@ impl<State: ValidState> CustomElement<State> for Lines {
 		if self.lines != old_self.lines {
 			let _ = inner.set_lines(&self.lines);
 		}
-	}
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.clone().as_spatial().as_spatial_ref()
 	}
 }
 impl Transformable for Lines {

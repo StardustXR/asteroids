@@ -5,9 +5,8 @@ use crate::{
 use derive_setters::Setters;
 use glam::Vec3;
 use stardust_xr_fusion::{
-	drawable::{Line, Lines, LinesAspect},
-	fields::{CubicSplineShape, Field, FieldAspect, Shape},
-	input::{InputDataType, InputHandler},
+	drawable::{Line, Lines},
+	fields::{Field, Shape},
 	node::NodeError,
 	spatial::{Spatial, SpatialRef, Transform},
 	values::{Color, color::rgba_linear},
@@ -37,7 +36,7 @@ impl<State: ValidState> SplineRail<State> {
 		on_slide: impl Fn(&mut State, f32, f32) + Send + Sync + 'static,
 	) -> Self {
 		SplineRail {
-			transform: Transform::none(),
+			transform: Transform::IDENTITY,
 			spline: spline.into(),
 			interact_margin: 0.02,
 			on_slide: FnWrapper(Box::new(on_slide)),
@@ -56,14 +55,13 @@ impl<State: ValidState> Transformable for SplineRail<State> {
 
 impl<State: ValidState> CustomElement<State> for SplineRail<State> {
 	type Inner = SplineRailInner;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		SplineRailInner::create(
 			info.parent_space,
@@ -84,15 +82,11 @@ impl<State: ValidState> CustomElement<State> for SplineRail<State> {
 	fn frame(
 		&self,
 		context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
 		inner.update(self, state, context.accent_color.color());
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.input.handler().clone().as_spatial().as_spatial_ref()
 	}
 }
 

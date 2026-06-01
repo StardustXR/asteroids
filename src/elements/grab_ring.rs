@@ -7,10 +7,7 @@ use crate::{
 use derive_where::derive_where;
 use glam::Vec3;
 use mint::Vector3;
-use stardust_xr_fusion::{
-	drawable::{Line, Lines, LinesAspect},
-	fields::FieldAspect,
-};
+use stardust_xr_fusion::drawable::{Line, Lines};
 use stardust_xr_fusion::{
 	fields::{Field, Shape, TorusShape},
 	input::{InputData, InputDataType, InputHandler},
@@ -54,14 +51,13 @@ impl<State: ValidState> GrabRing<State> {
 }
 impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 	type Inner = GrabRingInner;
-	type Resource = ();
+
 	type Error = stardust_xr_fusion::node::NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		GrabRingInner::new(
 			self.reparentable,
@@ -84,17 +80,13 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 	fn frame(
 		&self,
 		_context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
 		if let Some(pos) = inner.handle_events(self.pos) {
 			(self.on_grab.0)(state, pos);
 		}
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.content_root.clone().as_spatial_ref()
 	}
 }
 

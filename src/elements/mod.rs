@@ -1,14 +1,11 @@
 // Reexport types used in declarative element struct fields
 pub use stardust_xr_fusion::{
 	drawable::{MaterialParameter, TextBounds, XAlign, YAlign},
-	fields::{CubicControlPoint, CubicSplineShape, CylinderShape, Shape, TorusShape},
-	items::panel::{PanelItem, SurfaceId},
 	spatial::BoundingBox,
-	values::*,
+	types::*,
 };
 pub use stardust_xr_molecules::{
-	DebugSettings, MomentumSettings, PointerMode, button::ButtonVisualSettings,
-	keyboard::KeypressInfo,
+	DebugSettings, button::ButtonVisualSettings, keyboard::KeypressInfo,
 };
 
 #[macro_export]
@@ -20,26 +17,26 @@ macro_rules! mod_expose {
 }
 
 mod_expose!(axes);
-mod_expose!(button);
-mod_expose!(derezzable);
-mod_expose!(dial);
-mod_expose!(field_viz);
-mod_expose!(grabbable);
-mod_expose!(handle);
-mod_expose!(keyboard);
-mod_expose!(lines);
-mod_expose!(model);
-mod_expose!(mouse);
-mod_expose!(panel_ui);
-mod_expose!(playspace);
-mod_expose!(reparentable);
-mod_expose!(pen);
-mod_expose!(sky_light);
-mod_expose!(sky_texture);
-mod_expose!(grab_ring);
-mod_expose!(file_watcher);
-mod_expose!(bounds);
-mod_expose!(spatial);
-mod_expose!(spline_rail);
-mod_expose!(text);
-mod_expose!(turntable);
+// mod_expose!(button);
+// mod_expose!(derezzable);
+// mod_expose!(dial);
+// mod_expose!(field_viz);
+// mod_expose!(grabbable);
+// mod_expose!(handle);
+// mod_expose!(keyboard);
+// mod_expose!(lines);
+// mod_expose!(model);
+// mod_expose!(mouse);
+// mod_expose!(panel_ui);
+// mod_expose!(playspace);
+// mod_expose!(reparentable);
+// mod_expose!(pen);
+// mod_expose!(sky_light);
+// mod_expose!(sky_texture);
+// mod_expose!(grab_ring);
+// mod_expose!(file_watcher);
+// mod_expose!(bounds);
+// mod_expose!(spatial);
+// mod_expose!(spline_rail);
+// mod_expose!(text);
+// mod_expose!(turntable);

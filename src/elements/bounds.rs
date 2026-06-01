@@ -2,11 +2,7 @@ use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable},
 };
-use stardust_xr_fusion::{
-	node::NodeError,
-	root::FrameInfo,
-	spatial::{BoundingBox, Spatial, SpatialRef, SpatialRefAspect, Transform},
-};
+use stardust_xr_fusion::spatial::{BoundingBox, Spatial, SpatialRef, Transform};
 use tokio::sync::mpsc;
 use tokio::time::{Duration, timeout};
 
@@ -39,14 +35,12 @@ impl<State: ValidState> Bounds<State> {
 }
 impl<State: ValidState> CustomElement<State> for Bounds<State> {
 	type Inner = BoundsInner;
-	type Resource = ();
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let (bounds_tx, bounds_rx) = mpsc::channel(1);
 		let spatial = Spatial::create(info.parent_space, self.transform)?;
@@ -98,10 +92,6 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 				let _ = tx.send(bounds).await;
 			}
 		});
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.spatial.clone().as_spatial_ref()
 	}
 }
 impl<State: ValidState> Transformable for Bounds<State> {

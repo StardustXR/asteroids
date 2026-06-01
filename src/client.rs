@@ -4,7 +4,7 @@ use crate::{
 	util::{Migrate, RonFile},
 };
 use serde::{Serialize, de::DeserializeOwned};
-use stardust_xr_fusion::client::{ClientError, FrameInfo};
+use stardust_xr_fusion::{Result, client::FrameInfo};
 use stardust_xr_molecules::accent_color::AccentColor;
 use std::{
 	fs::read_to_string,
@@ -99,7 +99,7 @@ fn save_dev_state<State: ClientState>(state: &State) {
 	let _ = std::fs::write(&initial_state_path, ron::to_string(&state).unwrap());
 }
 
-pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(), ClientError> {
+pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<()> {
 	let (stardust_client, root) =
 		stardust_xr_fusion::client::Client::auto_connect(resources).await?;
 

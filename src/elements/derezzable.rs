@@ -36,14 +36,13 @@ impl<State: ValidState> Transformable for Derezzable<State> {
 }
 impl<State: ValidState> CustomElement<State> for Derezzable<State> {
 	type Inner = (stardust_xr_molecules::Derezzable, Field);
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		asteroids_context: &Context,
 		info: crate::CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(info.parent_space, Transform::identity(), self.shape.clone())?;
 		let derez = stardust_xr_molecules::Derezzable::create(
@@ -72,10 +71,6 @@ impl<State: ValidState> CustomElement<State> for Derezzable<State> {
 		if inner.0.receiver.try_recv().is_ok() {
 			(self.on_derez.0)(state);
 		}
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.1.clone().as_spatial_ref()
 	}
 }
 

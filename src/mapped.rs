@@ -38,7 +38,7 @@ impl<
 > ElementDiffer<State> for Mapped<State, WrappedState, F, E>
 {
 	fn create_inner_recursive(
-		&self,
+		&mut self,
 		inner_key: u64,
 		context: &Context,
 		parent_space: watch::Receiver<Option<SpatialRef>>,
@@ -70,7 +70,7 @@ impl<
 	}
 
 	fn diff_same_type(
-		&self,
+		&mut self,
 		inner_key: u64,
 		old: &Self,
 		context: &Context,

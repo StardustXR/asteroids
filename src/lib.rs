@@ -5,7 +5,7 @@ mod context;
 mod custom;
 mod dynamic_element;
 mod element;
-// pub mod elements;
+pub mod elements;
 mod inner;
 mod mapped;
 mod task;
@@ -60,7 +60,7 @@ impl<State: Reify> Projector<State> {
 	) -> Projector<State> {
 		let mut inner_map = ElementInnerMap::default();
 
-		let blueprint = state.reify(context, tasker.clone());
+		let mut blueprint = state.reify(context, tasker.clone());
 		blueprint.create_inner_recursive(
 			0,
 			context,
@@ -96,7 +96,7 @@ impl<State: Reify> Projector<State> {
 				(task_callback_rx)(state);
 			}
 		});
-		let blueprint = state.reify(context, projector.borrow_root_tasker().clone());
+		let mut blueprint = state.reify(context, projector.borrow_root_tasker().clone());
 		projector.with_mut(|fields| {
 			blueprint.dynamic_diff(
 				0,

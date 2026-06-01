@@ -43,14 +43,13 @@ impl<State: ValidState> Default for PanelUI<State> {
 }
 impl<State: ValidState> CustomElement<State> for PanelUI<State> {
 	type Inner = (PanelItemUi, SpatialRef);
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let panel_item_ui = PanelItemUi::register(info.parent_space.client())?;
 		Ok((panel_item_ui, info.parent_space.clone()))
@@ -61,7 +60,7 @@ impl<State: ValidState> CustomElement<State> for PanelUI<State> {
 	fn frame(
 		&self,
 		_context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
@@ -90,9 +89,5 @@ impl<State: ValidState> CustomElement<State> for PanelUI<State> {
 				DestroyAcceptor { id } => (self.on_destroy_acceptor.0)(state, id),
 			}
 		}
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.1.clone()
 	}
 }

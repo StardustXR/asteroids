@@ -27,7 +27,7 @@ pub struct KeyboardHandler<State: ValidState> {
 impl<State: ValidState> Default for KeyboardHandler<State> {
 	fn default() -> Self {
 		KeyboardHandler {
-			transform: Transform::none(),
+			transform: Transform::IDENTITY,
 			field_shape: stardust_xr_fusion::fields::Shape::Sphere(1.0),
 			on_key: FnWrapper(Box::new(|_, _| {})),
 		}
@@ -39,7 +39,7 @@ impl<State: ValidState> KeyboardHandler<State> {
 		on_key: impl Fn(&mut State, KeypressInfo) + Send + Sync + 'static,
 	) -> KeyboardHandler<State> {
 		KeyboardHandler {
-			transform: Transform::none(),
+			transform: Transform::IDENTITY,
 			field_shape,
 			on_key: FnWrapper(Box::new(on_key)),
 		}
@@ -52,14 +52,13 @@ pub struct KeyboardElementInner {
 }
 impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 	type Inner = KeyboardElementInner;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(info.parent_space, self.transform, self.field_shape.clone())?;
 		let (key_tx, key_rx) = mpsc::unbounded_channel();
@@ -90,17 +89,13 @@ impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 	fn frame(
 		&self,
 		_context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
 		while let Ok(key_info) = inner.key_rx.try_recv() {
 			(self.on_key.0)(state, key_info);
 		}
-	}
-
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.field.clone().as_spatial().as_spatial_ref()
 	}
 }
 impl<State: ValidState> Transformable for KeyboardHandler<State> {

@@ -43,7 +43,7 @@ impl<State: ValidState> MouseHandler<State> {
 		on_scroll_continuous: impl Fn(&mut State, Vector2<f32>) + Send + Sync + 'static,
 	) -> MouseHandler<State> {
 		MouseHandler {
-			transform: Transform::none(),
+			transform: Transform::IDENTITY,
 			field_shape,
 			on_button: FnWrapper(Box::new(on_button)),
 			on_motion: FnWrapper(Box::new(on_motion)),
@@ -62,14 +62,13 @@ pub struct MouseElementInner {
 }
 impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 	type Inner = MouseElementInner;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(info.parent_space, self.transform, self.field_shape.clone())?;
 		let (button_tx, button_rx) = mpsc::unbounded_channel();
@@ -115,7 +114,7 @@ impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 	fn frame(
 		&self,
 		_context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
@@ -131,10 +130,6 @@ impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 		while let Ok(key_info) = inner.scroll_continuous_rx.try_recv() {
 			(self.on_scroll_continuous.0)(state, key_info);
 		}
-	}
-
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.field.clone().as_spatial().as_spatial_ref()
 	}
 }
 impl<State: ValidState> Transformable for MouseHandler<State> {

@@ -8,9 +8,8 @@ use derive_setters::Setters;
 use glam::Vec3;
 use mint::Vector3;
 use stardust_xr_fusion::{
-	drawable::{Line, LinesAspect},
-	fields::{Field, FieldAspect, FieldRefAspect, Shape},
-	node::NodeError,
+	drawable::Line,
+	fields::{Field, Shape},
 	spatial::{SpatialAspect, SpatialRef, Transform},
 	values::{Color, color::rgba_linear},
 };
@@ -167,14 +166,13 @@ impl FieldVizInner {
 
 impl<State: ValidState> CustomElement<State> for FieldViz {
 	type Inner = FieldVizInner;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(info.parent_space, Transform::identity(), self.shape.clone())?;
 		let lines =
@@ -243,10 +241,6 @@ impl<State: ValidState> CustomElement<State> for FieldViz {
 		}
 
 		self.apply_transform(old, &inner.lines);
-	}
-
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.lines.clone().as_spatial().as_spatial_ref()
 	}
 }
 

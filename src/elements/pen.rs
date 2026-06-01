@@ -7,8 +7,8 @@ use glam::{Quat, Vec3};
 use map_range::MapRange as _;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
-	drawable::{Line, LinePoint, Lines, LinesAspect},
-	fields::{CylinderShape, Field, FieldAspect, Shape},
+	drawable::{Line, LinePoint, Lines},
+	fields::{Field, Shape},
 	input::{InputDataType, InputHandler},
 	node::NodeError,
 	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
@@ -101,14 +101,13 @@ impl<State: ValidState> Pen<State> {
 }
 impl<State: ValidState> CustomElement<State> for Pen<State> {
 	type Inner = PenInner;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let pen_visuals_root = Lines::create(
 			info.parent_space,
@@ -123,7 +122,8 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 				radius: self.thickness,
 			}),
 		)?;
-		let queue = InputHandler::create(info.parent_space, Transform::none(), &field)?.queue()?;
+		let queue =
+			InputHandler::create(info.parent_space, Transform::IDENTITY, &field)?.queue()?;
 
 		let child_root = Spatial::create(
 			&pen_visuals_root,
@@ -164,7 +164,7 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 	fn frame(
 		&self,
 		_context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
@@ -260,10 +260,6 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 		};
 
 		(self.update.0)(state, pen_state, pos.into(), rot.into());
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.child_root.clone().as_spatial_ref()
 	}
 }
 

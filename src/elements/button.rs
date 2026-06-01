@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
 	CreateInnerInfo, ValidState,
 	context::Context,
@@ -5,18 +7,14 @@ use crate::{
 };
 use derive_setters::Setters;
 use mint::Vector2;
-use stardust_xr_fusion::{
-	node::NodeError,
-	spatial::{SpatialRef, Transform},
-};
+use stardust_xr_fusion::{Error, spatial::Transform};
 use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
 
-#[derive_where::derive_where(Debug, PartialEq)]
-#[derive(Setters)]
+#[derive(Setters, Clone, Debug)]
 #[setters(into, strip_option)]
 pub struct Button<State: ValidState> {
 	transform: Transform,
-	on_press: FnWrapper<dyn Fn(&mut State) + Send + Sync>,
+	on_press: Arc<FnWrapper<dyn Fn(&mut State) + Send + Sync>>,
 	size: Vector2<f32>,
 	max_hover_distance: f32,
 	line_thickness: f32,
@@ -25,8 +23,8 @@ pub struct Button<State: ValidState> {
 impl<State: ValidState> Default for Button<State> {
 	fn default() -> Self {
 		Button {
-			transform: Transform::none(),
-			on_press: FnWrapper(Box::new(|_| {})),
+			transform: Transform::IDENTITY,
+			on_press: Arc::new(FnWrapper(Box::new(|_| {}))),
 			size: [0.1; 2].into(),
 			max_hover_distance: 0.025,
 			line_thickness: 0.005,
@@ -44,16 +42,15 @@ impl<State: ValidState> Button<State> {
 }
 impl<State: ValidState> CustomElement<State> for Button<State> {
 	type Inner = stardust_xr_molecules::button::Button;
-	type Resource = ();
-	type Error = NodeError;
+	type Error = Error;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
-		let mut button = stardust_xr_molecules::button::Button::create(
+		let mut button = stardust_xr_molecules::button::Button::new(
+			&context.stardust_client,
 			info.parent_space,
 			self.transform,
 			self.size,
@@ -64,7 +61,8 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 					accent_color: context.accent_color.color(),
 				}),
 			},
-		)?;
+		)
+		.await?;
 		button.set_debug(self.debug);
 		Ok(button)
 	}
@@ -79,7 +77,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 	fn frame(
 		&self,
 		_context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
@@ -87,10 +85,6 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 		if inner.pressed() {
 			(self.on_press.0)(state);
 		}
-	}
-
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.touch_plane().root().clone().as_spatial_ref()
 	}
 }
 impl<State: ValidState> Transformable for Button<State> {

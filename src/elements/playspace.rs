@@ -9,14 +9,13 @@ use std::fmt::Debug;
 pub struct PlaySpace;
 impl<State: ValidState> CustomElement<State> for PlaySpace {
 	type Inner = Spatial;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let client = info.parent_space.client().clone();
 		let spatial = Spatial::create(info.parent_space, Transform::identity())?;
@@ -31,9 +30,6 @@ impl<State: ValidState> CustomElement<State> for PlaySpace {
 		Ok(spatial)
 	}
 	fn diff(&self, _old_self: &Self, _inner: &mut Self::Inner) {}
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.clone().as_spatial_ref()
-	}
 }
 
 #[tokio::test]

@@ -550,7 +550,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -593,7 +593,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1467,7 +1467,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1625,7 +1625,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1638,7 +1638,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1675,7 +1675,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#d657fe53fb00571f199830c636fbdc12e5073db0"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#7ae10bb50cdbb8f9f42409ff3adb776d9d9e74e6"
 dependencies = [
  "glam 0.30.7",
  "gluon",
@@ -1691,7 +1691,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.51.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=binder#7e9a1f5ef089a602a31ae845a7ee94cefb0a587f"
+source = "git+https://github.com/StardustXR/molecules.git?branch=binder#ac54f04f345eb6aaebeb40cb31c2e3f66e6a876e"
 dependencies = [
  "glam 0.29.3",
  "gluon",
@@ -1711,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules-protocols"
 version = "0.1.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=binder#7e9a1f5ef089a602a31ae845a7ee94cefb0a587f"
+source = "git+https://github.com/StardustXR/molecules.git?branch=binder#ac54f04f345eb6aaebeb40cb31c2e3f66e6a876e"
 dependencies = [
  "gluon",
  "gluon-codegen",
@@ -1721,7 +1721,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#d657fe53fb00571f199830c636fbdc12e5073db0"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#7ae10bb50cdbb8f9f42409ff3adb776d9d9e74e6"
 dependencies = [
  "fnv",
  "glam 0.29.3",
@@ -1798,7 +1798,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]

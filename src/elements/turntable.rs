@@ -6,13 +6,9 @@ use derive_where::derive_where;
 use glam::{Quat, Vec3};
 use map_range::MapRange;
 use stardust_xr_fusion::{
-	drawable::{Line, LinePoint, Lines, LinesAspect},
-	fields::{CylinderShape, Field, FieldAspect, Shape},
-	input::{InputData, InputDataType, InputHandler},
-	node::NodeError,
-	root::FrameInfo,
-	spatial::{Spatial, SpatialAspect, SpatialRef, SpatialRefAspect, Transform},
-	values::color::rgba_linear,
+	drawable::{Line, LinePoint, Lines},
+	fields::{Field, Shape},
+	spatial::{Spatial, SpatialRef, Transform},
 };
 use stardust_xr_molecules::input_action::{InputQueue, InputQueueable, SimpleAction, SingleAction};
 use std::f32::consts::{FRAC_PI_2, TAU};
@@ -43,10 +39,10 @@ impl<State: ValidState> Transformable for Turntable<State> {
 }
 impl<State: ValidState> CustomElement<State> for Turntable<State> {
 	type Inner = TurntableInner;
-	type Resource = ();
+
 	type Error = stardust_xr_fusion::node::NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
@@ -69,10 +65,6 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 		inner: &mut Self::Inner,
 	) {
 		inner.update(info.clone(), self, state);
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.content_parent.clone().as_spatial_ref()
 	}
 }
 
@@ -188,7 +180,7 @@ impl TurntableInner {
 		settings: &Turntable<State>,
 	) -> Result<Self, NodeError> {
 		let root = Spatial::create(parent, transform)?;
-		let content_parent = Spatial::create(&root, Transform::none())?;
+		let content_parent = Spatial::create(&root, Transform::IDENTITY)?;
 		let field = Field::create(
 			&root,
 			Transform::from_translation([0.0, -settings.height * 0.5, 0.0]),
@@ -197,10 +189,10 @@ impl TurntableInner {
 				radius: settings.inner_radius + settings.height,
 			}),
 		)?;
-		let input = InputHandler::create(&root, Transform::none(), &field)?.queue()?;
+		let input = InputHandler::create(&root, Transform::IDENTITY, &field)?.queue()?;
 
 		let grip_lines: Vec<Line> = settings.grip_lines();
-		let grip = Lines::create(&content_parent, Transform::none(), &grip_lines)?;
+		let grip = Lines::create(&content_parent, Transform::IDENTITY, &grip_lines)?;
 
 		Ok(Self {
 			root,

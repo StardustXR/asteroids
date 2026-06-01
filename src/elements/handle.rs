@@ -9,14 +9,12 @@ use glam::{Mat4, Vec3, vec3};
 use map_range::MapRange;
 use mint::Vector3;
 use stardust_xr_fusion::{
-	drawable::{Line, Lines, LinesAspect},
-	values::color::rgba_linear,
+	drawable::{Line, Lines},
+	error::ServerError,
 };
 use stardust_xr_fusion::{
 	fields::{Field, Shape},
-	input::{InputData, InputDataType, InputHandler},
-	node::NodeResult,
-	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
@@ -48,14 +46,12 @@ impl<State: ValidState> Handle<State> {
 }
 impl<State: ValidState> CustomElement<State> for Handle<State> {
 	type Inner = HandleInner;
-	type Resource = ();
-	type Error = stardust_xr_fusion::node::NodeError;
+	type Error = ServerError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		HandleInner::new(info.parent_space, self.pos)
 	}
@@ -72,17 +68,13 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 	fn frame(
 		&self,
 		_context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
 		if let Some(pos) = inner.handle_events(self.pos) {
 			(self.on_grab.0)(state, pos);
 		}
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.content_root.clone().as_spatial_ref()
 	}
 }
 

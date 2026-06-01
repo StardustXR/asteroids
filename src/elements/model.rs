@@ -103,14 +103,13 @@ pub struct Model {
 }
 impl<State: ValidState> CustomElement<State> for Model {
 	type Inner = ModelInner;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		ModelInner::create(info.parent_space, &context.dbus_connection, self)
 	}
@@ -156,9 +155,6 @@ impl<State: ValidState> CustomElement<State> for Model {
 			inner.model_parts.remove(&part_info.path);
 		}
 	}
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.model.clone().as_spatial().as_spatial_ref()
-	}
 }
 impl Transformable for Model {
 	fn transform(&self) -> &Transform {
@@ -171,14 +167,14 @@ impl Transformable for Model {
 impl Model {
 	pub fn namespaced(namespace: &str, path: &str) -> Self {
 		Model {
-			transform: Transform::none(),
+			transform: Transform::IDENTITY,
 			resource: ResourceID::new_namespaced(namespace, path),
 			model_parts: Default::default(),
 		}
 	}
 	pub fn direct(path: impl AsRef<Path>) -> std::io::Result<Self> {
 		Ok(Model {
-			transform: Transform::none(),
+			transform: Transform::IDENTITY,
 			resource: ResourceID::new_direct(path)?,
 			model_parts: Default::default(),
 		})

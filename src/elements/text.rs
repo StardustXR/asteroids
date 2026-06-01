@@ -4,7 +4,7 @@ use crate::{
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
-	drawable::{TextAspect, TextBounds, TextStyle, XAlign, YAlign},
+	drawable::{TextBounds, TextStyle, XAlign, YAlign},
 	node::NodeError,
 	spatial::{SpatialRef, Transform},
 	values::color::rgba_linear,
@@ -28,7 +28,7 @@ pub struct Text {
 impl Text {
 	pub fn new(text: impl ToString) -> Self {
 		Text {
-			transform: Transform::none(),
+			transform: Transform::IDENTITY,
 			text: text.to_string(),
 			character_height: 0.01,
 			color: rgba_linear!(1.0, 1.0, 1.0, 1.0),
@@ -41,14 +41,13 @@ impl Text {
 }
 impl<State: ValidState> CustomElement<State> for Text {
 	type Inner = stardust_xr_fusion::drawable::Text;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		_context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		stardust_xr_fusion::drawable::Text::create(
 			info.parent_space,
@@ -72,9 +71,6 @@ impl<State: ValidState> CustomElement<State> for Text {
 		if self.character_height != old_self.character_height {
 			let _ = inner.set_character_height(self.character_height);
 		}
-	}
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.clone().as_spatial().as_spatial_ref()
 	}
 }
 impl Transformable for Text {

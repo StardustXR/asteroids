@@ -7,7 +7,7 @@ use tokio::sync::watch;
 pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 	/// Create the inner imperative struct and all children
 	fn dynamic_create_inner_recursive(
-		&self,
+		&mut self,
 		inner_key: u64,
 		context: &Context,
 		parent_space: watch::Receiver<Option<SpatialRef>>,
@@ -27,7 +27,7 @@ pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 	/// Dynamic path: handles type checking and bridges to fast path
 	#[allow(clippy::too_many_arguments)]
 	fn dynamic_diff(
-		&self,
+		&mut self,
 		inner_key: u64,
 		old: &dyn DynamicDiffer<State>,
 		context: &Context,
@@ -46,7 +46,7 @@ where
 	T: ElementDiffer<State> + std::any::Any,
 {
 	fn dynamic_create_inner_recursive(
-		&self,
+		&mut self,
 		inner_key: u64,
 		context: &Context,
 		parent_space: watch::Receiver<Option<SpatialRef>>,
@@ -74,7 +74,7 @@ where
 	}
 
 	fn dynamic_diff(
-		&self,
+		&mut self,
 		inner_key: u64,
 		old: &dyn DynamicDiffer<State>,
 		context: &Context,
@@ -120,7 +120,7 @@ impl<State: ValidState> DynamicElement<State> {
 }
 impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 	fn create_inner_recursive(
-		&self,
+		&mut self,
 		inner_key: u64,
 		context: &Context,
 		parent_space: watch::Receiver<Option<SpatialRef>>,
@@ -148,7 +148,7 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 	}
 
 	fn diff_same_type(
-		&self,
+		&mut self,
 		inner_key: u64,
 		old: &Self,
 		context: &Context,

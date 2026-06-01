@@ -5,9 +5,8 @@ use crate::{
 use derive_setters::Setters;
 use glam::{Mat4, Quat, Vec2, Vec3, Vec3Swizzles, vec3};
 use stardust_xr_fusion::{
-	drawable::{Line, Lines, LinesAspect},
-	fields::{CylinderShape, Field, FieldAspect, Shape},
-	input::{InputDataType, InputHandler},
+	drawable::{Line, Lines},
+	fields::{Field, Shape},
 	node::{NodeError, NodeResult},
 	spatial::{Spatial, SpatialRef, Transform},
 	values::{Color, color::rgba_linear},
@@ -51,7 +50,7 @@ impl<State: ValidState> Dial<State> {
 		on_change: impl Fn(&mut State, f32) + Send + Sync + 'static,
 	) -> Dial<State> {
 		Dial {
-			transform: Transform::none(),
+			transform: Transform::IDENTITY,
 			current_value,
 			on_change: FnWrapper(Box::new(on_change)),
 			range: f32::NEG_INFINITY..f32::INFINITY,
@@ -67,14 +66,13 @@ impl<State: ValidState> Dial<State> {
 impl<State: ValidState> CustomElement<State> for Dial<State> {
 	// You'll need to create this type in stardust_xr_molecules
 	type Inner = DialInner;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		DialInner::create(
 			info.parent_space,
@@ -98,7 +96,7 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 	fn frame(
 		&self,
 		context: &Context,
-		_info: &stardust_xr_fusion::root::FrameInfo,
+		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
@@ -106,10 +104,6 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 		if new_value != self.current_value {
 			(self.on_change.0)(state, new_value);
 		}
-	}
-
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.input.handler().clone().as_spatial().as_spatial_ref()
 	}
 }
 impl<State: ValidState> Transformable for Dial<State> {

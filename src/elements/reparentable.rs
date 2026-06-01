@@ -19,14 +19,12 @@ impl Default for Reparentable {
 }
 impl<State: ValidState> CustomElement<State> for Reparentable {
 	type Inner = ReparentableInner;
-	type Resource = ();
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let spatial = Spatial::create(info.parent_space, Transform::identity())?;
 		Ok(ReparentableInner {
@@ -43,9 +41,6 @@ impl<State: ValidState> CustomElement<State> for Reparentable {
 		} else {
 			inner.disable();
 		}
-	}
-	fn spatial_aspect<'a>(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.spatial()
 	}
 }
 pub struct ReparentableInner {

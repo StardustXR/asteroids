@@ -1,12 +1,10 @@
-use crate::ValidState;
-use crate::context::Context;
-use crate::element::ElementWrapper;
+use crate::{ValidState, context::Context, element::ElementWrapper};
 pub use derive_setters;
-use stardust_xr_fusion::client::FrameInfo;
-use stardust_xr_fusion::spatial::{Spatial, SpatialRef, Transform};
-use std::any::Any;
-use std::fmt::Debug;
-use std::path::PathBuf;
+use stardust_xr_fusion::{
+	client::FrameInfo,
+	spatial::{Spatial, SpatialRef, Transform},
+};
+use std::{any::Any, error::Error, fmt::Debug, path::PathBuf};
 
 pub struct CreateInnerInfo {
 	pub parent_space: SpatialRef,
@@ -19,16 +17,14 @@ pub trait CustomElement<State: ValidState>:
 {
 	/// The imperative struct containing non-saved state
 	type Inner: Send + Sync + 'static;
-	/// A global shared across the whole View
-	type Resource: Default + Send + Sync + 'static;
 	/// Error type for the element
-	type Error: ToString + Send + Sync + 'static;
+	type Error: Error + Send + Sync + 'static;
 	/// Create the inner imperative struct
 	fn create_inner(
 		&self,
 		asteroids_context: &Context,
 		info: CreateInnerInfo,
-	) -> impl Future<Output = Result<Self::Inner, Self::Error>> + Send + Sync + 'static;
+	) -> impl Future<Output = Result<Self::Inner, Self::Error>> + Send + Sync;
 	/// Update the inner imperative struct with the new state of the node.
 	/// You will need to check for changes between `self` and `old_self` and update accordingly.
 	fn diff(&self, old_self: &Self, inner: &mut Self::Inner);
@@ -41,8 +37,6 @@ pub trait CustomElement<State: ValidState>:
 		_inner: &mut Self::Inner,
 	) {
 	}
-	/// Return the SpatialRef that all child elements should be parented under.
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef;
 	/// Call this to add the element as a child of another one.
 	fn build(self) -> ElementWrapper<State, Self, ()> {
 		ElementWrapper::<State, Self, ()>::new(self)

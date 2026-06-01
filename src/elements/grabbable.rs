@@ -84,14 +84,13 @@ impl<State: ValidState> Grabbable<State> {
 }
 impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 	type Inner = stardust_xr_molecules::Grabbable;
-	type Resource = ();
+
 	type Error = NodeError;
 
-	fn create_inner(
+	async fn create_inner(
 		&self,
 		context: &crate::Context,
 		info: crate::CreateInnerInfo,
-		_resource: &mut Self::Resource,
 	) -> Result<Self::Inner, Self::Error> {
 		let field = Field::create(
 			info.parent_space,
@@ -148,10 +147,6 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 		if inner.grab_action().actor_stopped() {
 			(self.grab_stop.0)(state);
 		}
-	}
-
-	fn spatial_aspect(&self, inner: &Self::Inner) -> SpatialRef {
-		inner.content_parent()
 	}
 }
 
