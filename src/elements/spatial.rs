@@ -2,10 +2,7 @@ use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable},
 };
-use stardust_xr_fusion::{
-	node::NodeError,
-	spatial::{SpatialRef, Transform},
-};
+use stardust_xr_fusion::{Error, spatial::Transform};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -13,14 +10,17 @@ pub struct Spatial(pub Transform);
 impl<State: ValidState> CustomElement<State> for Spatial {
 	type Inner = stardust_xr_fusion::spatial::Spatial;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
 		_context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		stardust_xr_fusion::spatial::Spatial::create(info.parent_space, self.0)
+		if self.0 != Transform::IDENTITY {
+			info.child_space.set_local_transform(self.0)?;
+		}
+		Ok(info.child_space)
 	}
 	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, inner);

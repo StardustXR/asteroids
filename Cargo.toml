@@ -39,6 +39,7 @@ futures = { version = "0.3.32", default-features = false }
 version = "0.51.0"
 git = "https://github.com/StardustXR/core.git"
 branch = "binder"
+features = ["serde"]
 # path = "../core/fusion"
 
 [dependencies.stardust-xr-molecules]

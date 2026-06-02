@@ -89,8 +89,8 @@ pub struct HandleInner {
 }
 impl HandleInner {
 	pub fn new(parent_space: &SpatialRef, pos: Vector3<f32>) -> NodeResult<Self> {
-		let field = Field::create(parent_space, Transform::identity(), Shape::Sphere(RADIUS))?;
-		let input = InputHandler::create(parent_space, Transform::identity(), &field)?.queue()?;
+		let field = Field::create(parent_space, Transform::IDENTITY, Shape::Sphere(RADIUS))?;
+		let input = InputHandler::create(parent_space, Transform::IDENTITY, &field)?.queue()?;
 		let content_root = Spatial::create(input.handler(), Transform::from_translation(pos))?;
 		field.set_spatial_parent(&content_root)?;
 
@@ -100,7 +100,7 @@ impl HandleInner {
 			diamond.clone().transform(Mat4::from_rotation_z(FRAC_PI_2)),
 			diamond,
 		];
-		let lines = Lines::create(input.handler(), Transform::identity(), &octahedron)?;
+		let lines = Lines::create(input.handler(), Transform::IDENTITY, &octahedron)?;
 
 		Ok(HandleInner {
 			_field: field,

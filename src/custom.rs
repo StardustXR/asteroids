@@ -12,9 +12,7 @@ pub struct CreateInnerInfo {
 	pub element_path: PathBuf,
 }
 
-pub trait CustomElement<State: ValidState>:
-	Any + Clone + Debug + Send + Sync + Sized + 'static
-{
+pub trait CustomElement<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
 	/// The imperative struct containing non-saved state
 	type Inner: Send + Sync + 'static;
 	/// Error type for the element
@@ -59,10 +57,7 @@ pub trait Transformable: Sized {
 	fn transform(&self) -> &Transform;
 	fn transform_mut(&mut self) -> &mut Transform;
 	fn apply_transform(&self, other: &Self, spatial: &Spatial) {
-		if self.transform().translation != other.transform().translation
-			|| self.transform().rotation != other.transform().rotation
-			|| self.transform().scale != other.transform().scale
-		{
+		if self.transform() != other.transform() {
 			let _ = spatial.set_local_transform(*self.transform());
 		}
 	}

@@ -550,7 +550,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -593,7 +593,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -805,7 +805,7 @@ dependencies = [
 [[package]]
 name = "gluon"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon#3e7f048d661e8d8100ef4c794a90d1a69a714e13"
+source = "git+https://github.com/technobaboo/gluon#2df24dea8156c58d54c2b13e9034731c4a92fb79"
 dependencies = [
  "binderbinder",
  "bitflags",
@@ -818,7 +818,7 @@ dependencies = [
 [[package]]
 name = "gluon-codegen"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon#3e7f048d661e8d8100ef4c794a90d1a69a714e13"
+source = "git+https://github.com/technobaboo/gluon#2df24dea8156c58d54c2b13e9034731c4a92fb79"
 dependencies = [
  "convert_case",
  "gluon",
@@ -832,7 +832,7 @@ dependencies = [
 [[package]]
 name = "gluon-derive"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon#3e7f048d661e8d8100ef4c794a90d1a69a714e13"
+source = "git+https://github.com/technobaboo/gluon#2df24dea8156c58d54c2b13e9034731c4a92fb79"
 dependencies = [
  "quote",
  "syn",
@@ -841,7 +841,7 @@ dependencies = [
 [[package]]
 name = "gluon-parser"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon#3e7f048d661e8d8100ef4c794a90d1a69a714e13"
+source = "git+https://github.com/technobaboo/gluon#2df24dea8156c58d54c2b13e9034731c4a92fb79"
 dependencies = [
  "ansi_term",
  "chumsky",
@@ -1104,6 +1104,9 @@ name = "mint"
 version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "mio"
@@ -1482,7 +1485,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1640,7 +1643,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1653,7 +1656,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1691,7 +1694,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#b1f44cdb882208ca6bd19f18c1959ce9dab616ce"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#9490234b6525dcc3857cc9b78eec06889375b889"
 dependencies = [
  "glam 0.30.7",
  "gluon",
@@ -1737,7 +1740,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#b1f44cdb882208ca6bd19f18c1959ce9dab616ce"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#9490234b6525dcc3857cc9b78eec06889375b889"
 dependencies = [
  "fnv",
  "glam 0.29.3",
@@ -1746,6 +1749,7 @@ dependencies = [
  "mint",
  "prettyplease",
  "rustix",
+ "serde",
  "shiva-color-rs",
  "syn",
  "thiserror",
@@ -1814,7 +1818,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]

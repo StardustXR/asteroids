@@ -40,7 +40,7 @@ impl<State: ValidState> Transformable for Turntable<State> {
 impl<State: ValidState> CustomElement<State> for Turntable<State> {
 	type Inner = TurntableInner;
 
-	type Error = stardust_xr_fusion::node::NodeError;
+	type Error = stardust_xr_fusion::node::Error;
 
 	async fn create_inner(
 		&self,
@@ -74,7 +74,7 @@ impl<State: ValidState> Turntable<State> {
 		on_rotate: F,
 	) -> Self {
 		Turntable {
-			transform: Transform::identity(),
+			transform: Transform::IDENTITY,
 			rotation,
 			line_count: 106,
 			line_thickness: 0.002,
@@ -178,7 +178,7 @@ impl TurntableInner {
 		parent: &impl SpatialRefAspect,
 		transform: Transform,
 		settings: &Turntable<State>,
-	) -> Result<Self, NodeError> {
+	) -> Result<Self, Error> {
 		let root = Spatial::create(parent, transform)?;
 		let content_parent = Spatial::create(&root, Transform::IDENTITY)?;
 		let field = Field::create(

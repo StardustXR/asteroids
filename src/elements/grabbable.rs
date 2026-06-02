@@ -3,10 +3,10 @@ use crate::custom::{CustomElement, FnWrapper};
 use derive_setters::Setters;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
-	fields::{Field, FieldAspect, Shape},
-	node::NodeError,
+	Error,
+	fields::{Field, Shape},
 	root::FrameInfo,
-	spatial::{SpatialAspect, SpatialRef, Transform},
+	spatial::{SpatialRef, Transform},
 };
 use stardust_xr_molecules::{
 	FrameSensitive, GrabbableSettings, MomentumSettings, PointerMode, UIElement,
@@ -52,7 +52,7 @@ impl<State: ValidState> Grabbable<State> {
 	) -> Self {
 		Grabbable {
 			field_shape,
-			field_transform: Transform::identity(),
+			field_transform: Transform::IDENTITY,
 			pos: pos.into(),
 			rot: rot.into(),
 			on_change_pose: FnWrapper(Box::new(on_change)),
@@ -85,7 +85,7 @@ impl<State: ValidState> Grabbable<State> {
 impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 	type Inner = stardust_xr_molecules::Grabbable;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
@@ -160,7 +160,7 @@ async fn asteroids_grabbable_element() {
 	use glam::Quat;
 	use mint::Vector3;
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::values::color::rgba_linear;
+	use stardust_xr_fusion::types::color::rgba_linear;
 	use stardust_xr_molecules::lines::LineExt as _;
 
 	#[derive(Debug, Serialize, Deserialize)]

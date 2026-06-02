@@ -1,18 +1,18 @@
 use stardust_xr_fusion::{
 	drawable::set_sky_light,
-	node::{NodeError, NodeType},
+	node::{Error, NodeType},
 	spatial::SpatialRef,
-	values::ResourceID,
+	types::Resource,
 };
 
 use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 
 #[derive(Debug)]
-pub struct SkyLight(pub ResourceID);
+pub struct SkyLight(pub Resource);
 impl<State: ValidState> CustomElement<State> for SkyLight {
 	type Inner = SkyLightInner;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,

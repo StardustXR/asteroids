@@ -1,7 +1,7 @@
 use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 use derive_setters::Setters;
 use stardust_xr_fusion::{
-	node::NodeError,
+	Error,
 	spatial::{Spatial, SpatialRef, Transform},
 };
 use std::{fmt::Debug, path::PathBuf};
@@ -19,14 +19,14 @@ impl Default for Reparentable {
 }
 impl<State: ValidState> CustomElement<State> for Reparentable {
 	type Inner = ReparentableInner;
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let spatial = Spatial::create(info.parent_space, Transform::identity())?;
+		let spatial = Spatial::create(info.parent_space, Transform::IDENTITY)?;
 		Ok(ReparentableInner {
 			connection: context.dbus_connection.clone(),
 			outer_spatial: info.parent_space.clone(),

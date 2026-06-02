@@ -4,8 +4,8 @@ use crate::{
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
-	fields::{Field, FieldAspect, Shape},
-	node::NodeError,
+	Error,
+	fields::{Field, Shape},
 	spatial::{SpatialRef, Transform},
 };
 use stardust_xr_molecules::{
@@ -53,7 +53,7 @@ pub struct KeyboardElementInner {
 impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 	type Inner = KeyboardElementInner;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,

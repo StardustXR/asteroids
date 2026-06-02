@@ -12,7 +12,7 @@ use stardust_xr_fusion::{
 	fields::{Field, Shape, TorusShape},
 	input::{InputData, InputDataType, InputHandler},
 	node::NodeResult,
-	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
@@ -52,7 +52,7 @@ impl<State: ValidState> GrabRing<State> {
 impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 	type Inner = GrabRingInner;
 
-	type Error = stardust_xr_fusion::node::NodeError;
+	type Error = stardust_xr_fusion::node::Error;
 
 	async fn create_inner(
 		&self,
@@ -119,7 +119,7 @@ impl GrabRingInner {
 	) -> NodeResult<Self> {
 		let field = Field::create(
 			parent_space,
-			Transform::identity(),
+			Transform::IDENTITY,
 			Shape::Torus(TorusShape {
 				radius_a: radius,
 				radius_b: thickness,
@@ -127,20 +127,20 @@ impl GrabRingInner {
 		)?;
 		let reparent_field = Field::create(
 			&field,
-			Transform::identity(),
+			Transform::IDENTITY,
 			Shape::Cylinder(stardust_xr_fusion::fields::CylinderShape {
 				length: thickness * 2.0,
 				radius: radius + thickness,
 			}),
 		)?;
-		let input = InputHandler::create(parent_space, Transform::identity(), &field)?.queue()?;
+		let input = InputHandler::create(parent_space, Transform::IDENTITY, &field)?.queue()?;
 		let content_root = Spatial::create(input.handler(), Transform::from_translation(pos))?;
 		field.set_spatial_parent(&content_root)?;
 
 		let ring_line = circle(64, 0.0, radius).thickness(thickness);
 		let ring_visual = Lines::create(
 			&content_root,
-			Transform::identity(),
+			Transform::IDENTITY,
 			std::slice::from_ref(&ring_line),
 		)?;
 

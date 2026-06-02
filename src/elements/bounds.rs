@@ -2,7 +2,11 @@ use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable},
 };
-use stardust_xr_fusion::spatial::{BoundingBox, Spatial, SpatialRef, Transform};
+use stardust_xr_fusion::{
+	Error,
+	client::FrameInfo,
+	spatial::{BoundingBox, Spatial, Transform},
+};
 use tokio::sync::mpsc;
 use tokio::time::{Duration, timeout};
 
@@ -28,14 +32,14 @@ impl<State: ValidState> Bounds<State> {
 		on_bounds_change: F,
 	) -> Self {
 		Self {
-			transform: Transform::identity(),
+			transform: Transform::IDENTITY,
 			on_bounds_change: Box::new(on_bounds_change),
 		}
 	}
 }
 impl<State: ValidState> CustomElement<State> for Bounds<State> {
 	type Inner = BoundsInner;
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
@@ -43,19 +47,12 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		let (bounds_tx, bounds_rx) = mpsc::channel(1);
-		let spatial = Spatial::create(info.parent_space, self.transform)?;
 
-		tokio::spawn({
-			let spatial = spatial.clone();
-			let tx = bounds_tx.clone();
-			async move {
-				if let Ok(bounds) = spatial.get_local_bounding_box().await {
-					let _ = tx.send(bounds).await;
-				}
-			}
-		});
+		if let Ok(bounds) = info.child_space.get_local_bounding_box().await {
+			let _ = bounds_tx.send(bounds).await;
+		}
 		Ok(BoundsInner {
-			spatial,
+			spatial: info.child_space,
 			previous_bounds: None,
 			bounds_tx,
 			bounds_rx,
@@ -76,7 +73,7 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		// Check if we have new bounds
 		if let Ok(current_bounds) = inner.bounds_rx.try_recv() {
 			if inner.previous_bounds.as_ref() != Some(&current_bounds) {
-				(self.on_bounds_change)(state, current_bounds.clone());
+				(self.on_bounds_change)(state, current_bounds);
 				inner.previous_bounds = Some(current_bounds);
 			}
 		}

@@ -1,7 +1,7 @@
 use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 use stardust_xr_fusion::{
-	node::{NodeError, NodeType},
-	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
+	node::{Error, NodeType},
+	spatial::{Spatial, SpatialRef, Transform},
 };
 use std::fmt::Debug;
 
@@ -10,7 +10,7 @@ pub struct PlaySpace;
 impl<State: ValidState> CustomElement<State> for PlaySpace {
 	type Inner = Spatial;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
@@ -18,7 +18,7 @@ impl<State: ValidState> CustomElement<State> for PlaySpace {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		let client = info.parent_space.client().clone();
-		let spatial = Spatial::create(info.parent_space, Transform::identity())?;
+		let spatial = Spatial::create(info.parent_space, Transform::IDENTITY)?;
 		tokio::spawn({
 			let spatial = spatial.clone();
 			async move {

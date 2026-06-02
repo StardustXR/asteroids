@@ -10,8 +10,8 @@ use mint::Vector3;
 use stardust_xr_fusion::{
 	drawable::Line,
 	fields::{Field, Shape},
-	spatial::{SpatialAspect, SpatialRef, Transform},
-	values::{Color, color::rgba_linear},
+	spatial::{SpatialRef, Transform},
+	types::{Color, color::rgba_linear},
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use tokio::{sync::mpsc, task::JoinSet};
@@ -46,7 +46,7 @@ impl std::fmt::Debug for FieldViz {
 impl Default for FieldViz {
 	fn default() -> Self {
 		Self {
-			transform: Transform::identity(),
+			transform: Transform::IDENTITY,
 			shape: Shape::Sphere(1.0),
 			grid_size: [5, 5, 5].into(),
 			sample_size: 0.5,
@@ -167,14 +167,14 @@ impl FieldVizInner {
 impl<State: ValidState> CustomElement<State> for FieldViz {
 	type Inner = FieldVizInner;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let field = Field::create(info.parent_space, Transform::identity(), self.shape.clone())?;
+		let field = Field::create(info.parent_space, Transform::IDENTITY, self.shape.clone())?;
 		let lines =
 			stardust_xr_fusion::drawable::Lines::create(info.parent_space, self.transform, &[])?;
 		field.set_spatial_parent(&lines)?;

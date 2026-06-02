@@ -1,18 +1,18 @@
 use stardust_xr_fusion::{
 	drawable::set_sky_tex,
-	node::{NodeError, NodeType},
+	node::{Error, NodeType},
 	spatial::SpatialRef,
-	values::ResourceID,
+	types::Resource,
 };
 
 use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 
 #[derive(Debug)]
-pub struct SkyTexture(pub ResourceID);
+pub struct SkyTexture(pub Resource);
 impl<State: ValidState> CustomElement<State> for SkyTexture {
 	type Inner = SkyTexInner;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,

@@ -4,11 +4,10 @@ use crate::{
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
-	drawable::{TextBounds, TextStyle, XAlign, YAlign},
-	node::NodeError,
-	spatial::{SpatialRef, Transform},
-	values::color::rgba_linear,
-	values::{Color, ResourceID},
+	Error,
+	drawable::{TextBounds, TextExt, TextStyle, XAlign, YAlign},
+	spatial::{Spatial, Transform},
+	types::{Color, Resource, rgba_linear},
 };
 use std::fmt::Debug;
 
@@ -20,7 +19,7 @@ pub struct Text {
 	text: String,
 	character_height: f32,
 	color: Color,
-	font: Option<ResourceID>,
+	font: Option<Resource>,
 	align_x: XAlign,
 	align_y: YAlign,
 	bounds: Option<TextBounds>,
@@ -40,36 +39,40 @@ impl Text {
 	}
 }
 impl<State: ValidState> CustomElement<State> for Text {
-	type Inner = stardust_xr_fusion::drawable::Text;
-
-	type Error = NodeError;
+	type Inner = (Spatial, stardust_xr_fusion::drawable::Text);
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
-		_context: &Context,
+		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		stardust_xr_fusion::drawable::Text::create(
-			info.parent_space,
-			self.transform,
-			&self.text,
+		if self.transform != Transform::IDENTITY {
+			info.child_space.set_local_transform(self.transform)?;
+		}
+		let text = stardust_xr_fusion::drawable::Text::create(
+			&context.stardust_client,
+			&info.child_space,
+			self.text.clone(),
 			TextStyle {
 				character_height: self.character_height,
 				color: self.color,
 				font: self.font.clone(),
 				text_align_x: self.align_x,
 				text_align_y: self.align_y,
-				bounds: self.bounds.clone(),
+				bounds: self.bounds,
 			},
 		)
+		.await?;
+		Ok((info.child_space, text))
 	}
 	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, inner);
+		self.apply_transform(old_self, &inner.0);
 		if self.text != old_self.text {
-			let _ = inner.set_text(&self.text);
+			let _ = inner.1.set_text(&self.text);
 		}
 		if self.character_height != old_self.character_height {
-			let _ = inner.set_character_height(self.character_height);
+			let _ = inner.1.set_character_height(self.character_height);
 		}
 	}
 }

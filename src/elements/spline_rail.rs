@@ -5,11 +5,11 @@ use crate::{
 use derive_setters::Setters;
 use glam::Vec3;
 use stardust_xr_fusion::{
+	Error,
 	drawable::{Line, Lines},
 	fields::{Field, Shape},
-	node::NodeError,
 	spatial::{Spatial, SpatialRef, Transform},
-	values::{Color, color::rgba_linear},
+	types::{Color, color::rgba_linear},
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
@@ -56,7 +56,7 @@ impl<State: ValidState> Transformable for SplineRail<State> {
 impl<State: ValidState> CustomElement<State> for SplineRail<State> {
 	type Inner = SplineRailInner;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
@@ -113,20 +113,20 @@ impl SplineRailInner {
 		transform: Transform,
 		spline: &CubicSplineShape,
 		accent_color: Color,
-	) -> Result<Self, NodeError> {
+	) -> Result<Self, Error> {
 		let root = Spatial::create(parent, transform)?;
 		let spline_shape = spline.clone();
 		let field = Field::create(
 			&root,
-			Transform::identity(),
+			Transform::IDENTITY,
 			Shape::Spline(spline_shape.clone()),
 		)?;
-		let input = InputHandler::create(&root, Transform::identity(), &field)?.queue()?;
+		let input = InputHandler::create(&root, Transform::IDENTITY, &field)?.queue()?;
 
 		let base_line = spline_shape.to_lines(SEGMENT_COUNT).thickness(0.001);
 		let graphics = Lines::create(
 			&root,
-			Transform::identity(),
+			Transform::IDENTITY,
 			&[base_line.clone().color(accent_color)],
 		)?;
 

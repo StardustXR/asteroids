@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
 	CreateInnerInfo, ValidState,
 	context::Context,
@@ -10,21 +8,34 @@ use mint::Vector2;
 use stardust_xr_fusion::{Error, spatial::Transform};
 use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
 
-#[derive(Setters, Clone, Debug)]
+#[derive(Setters)]
 #[setters(into, strip_option)]
 pub struct Button<State: ValidState> {
 	transform: Transform,
-	on_press: Arc<FnWrapper<dyn Fn(&mut State) + Send + Sync>>,
+	on_press: FnWrapper<dyn Fn(&mut State) + Send + Sync>,
 	size: Vector2<f32>,
 	max_hover_distance: f32,
 	line_thickness: f32,
 	debug: Option<DebugSettings>,
 }
+
+impl<State: ValidState> std::fmt::Debug for Button<State> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("Button")
+			.field("transform", &self.transform)
+			.field("on_press", &self.on_press)
+			.field("size", &self.size)
+			.field("max_hover_distance", &self.max_hover_distance)
+			.field("line_thickness", &self.line_thickness)
+			.field("debug", &self.debug)
+			.finish()
+	}
+}
 impl<State: ValidState> Default for Button<State> {
 	fn default() -> Self {
 		Button {
 			transform: Transform::IDENTITY,
-			on_press: Arc::new(FnWrapper(Box::new(|_| {}))),
+			on_press: FnWrapper(Box::new(|_| {})),
 			size: [0.1; 2].into(),
 			max_hover_distance: 0.025,
 			line_thickness: 0.005,
@@ -51,9 +62,9 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 	) -> Result<Self::Inner, Self::Error> {
 		let mut button = stardust_xr_molecules::button::Button::new(
 			&context.stardust_client,
-			info.parent_space,
+			&info.parent_space,
 			self.transform,
-			self.size,
+			self.size.into(),
 			stardust_xr_molecules::button::ButtonSettings {
 				max_hover_distance: self.max_hover_distance,
 				visuals: Some(ButtonVisualSettings {
@@ -128,5 +139,5 @@ async fn asteroids_button_element() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }

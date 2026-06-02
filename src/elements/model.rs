@@ -5,32 +5,29 @@ use crate::{
 use derive_setters::Setters;
 use rustc_hash::{FxHashMap, FxHashSet};
 use stardust_xr_fusion::{
-	drawable::{MaterialParameter, ModelPartAspect},
-	items::panel::{PanelItem, PanelItemAspect, SurfaceId},
-	node::{NodeError, NodeResult},
-	spatial::{SpatialRef, Transform},
-	values::ResourceID,
+	Error, Result,
+	drawable::{MaterialParameter, ModelExt},
+	spatial::{Spatial, Transform},
+	types::Resource,
 };
 use std::{fmt::Debug, hash::Hash, path::Path};
-use zbus::Connection;
 
 pub struct ModelInner {
-	dbus_connection: Connection,
-	parent: SpatialRef,
+	spatial: Spatial,
 	model: stardust_xr_fusion::drawable::Model,
 	model_parts: FxHashMap<String, stardust_xr_fusion::drawable::ModelPart>,
 }
 impl ModelInner {
-	pub fn create(
-		parent_space: &SpatialRef,
-		dbus_connection: &Connection,
+	pub async fn create(
+		context: &Context,
+		spatial: Spatial,
 		decl: &Model,
-	) -> NodeResult<Self> {
+	) -> Result<Self> {
 		let model = stardust_xr_fusion::drawable::Model::create(
-			parent_space,
-			decl.transform,
-			&decl.resource,
-		)?;
+			&context.stardust_client,
+			&spatial,
+			decl.resource,
+		).await?;
 		let model_parts = decl
 			.model_parts
 			.iter()
@@ -41,8 +38,7 @@ impl ModelInner {
 			})
 			.collect();
 		let inner = ModelInner {
-			dbus_connection: dbus_connection.clone(),
-			parent: parent_space.clone(),
+			spatial,
 			model,
 			model_parts,
 		};
@@ -53,16 +49,12 @@ impl ModelInner {
 pub struct ModelPart {
 	path: String,
 	material_parameter_overrides: FxHashMap<String, MaterialParameter>,
-	panel_item_override: Option<(PanelItem, SurfaceId)>,
-	panel_item_cursor_override: Option<PanelItem>,
 }
 impl ModelPart {
 	pub fn new(path: &str) -> Self {
 		ModelPart {
 			path: path.to_string(),
 			material_parameter_overrides: FxHashMap::default(),
-			panel_item_override: None,
-			panel_item_cursor_override: None,
 		}
 	}
 	pub fn mat_param(mut self, name: &str, value: MaterialParameter) -> Self {
@@ -70,20 +62,17 @@ impl ModelPart {
 			.insert(name.to_string(), value);
 		self
 	}
-	pub fn apply_panel_item(mut self, panel_item: PanelItem, surface_id: SurfaceId) -> Self {
-		self.panel_item_override.replace((panel_item, surface_id));
-		self
-	}
-	pub fn apply_panel_item_cursor(mut self, panel_item: PanelItem) -> Self {
-		self.panel_item_cursor_override.replace(panel_item);
-		self
-	}
 	fn apply_material_parameters(
 		&self,
 		part: &stardust_xr_fusion::drawable::ModelPart,
-	) -> NodeResult<()> {
-		for (param_name, param_value) in &self.material_parameter_overrides {
-			part.set_material_parameter(param_name, param_value.clone())?;
+	) -> Result<()> {
+		// TODO: use joinset or something nicer than this
+		for (param_name, param_value) in self.material_parameter_overrides.clone() {
+			let part = part.clone();
+			tokio::spawn(async move {
+				part.set_material_parameter(param_name, param_value.clone())
+					.await
+			});
 		}
 		Ok(())
 	}
@@ -98,25 +87,25 @@ impl Eq for ModelPart {}
 #[setters(into, strip_option)]
 pub struct Model {
 	transform: Transform,
-	pub resource: ResourceID,
+	pub resource: Resource,
 	pub model_parts: FxHashSet<ModelPart>,
 }
 impl<State: ValidState> CustomElement<State> for Model {
 	type Inner = ModelInner;
-
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
 		context: &Context,
 		info: CreateInnerInfo,
-	) -> Result<Self::Inner, Self::Error> {
-		ModelInner::create(info.parent_space, &context.dbus_connection, self)
+	) -> Result<Self::Inner> {
+		ModelInner::create(context,  info.child_space, self).await
 	}
 	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, &inner.model);
+		self.apply_transform(old_self, &inner.spatial);
 		if self.resource != old_self.resource {
-			if let Ok(new_inner) = ModelInner::create(&inner.parent, &inner.dbus_connection, self) {
+			if let Ok(new_inner) = ModelInner::create(&inner.spatial, , self)
+			{
 				*inner = new_inner;
 			}
 		}
@@ -135,12 +124,6 @@ impl<State: ValidState> CustomElement<State> for Model {
 			let Some(model_part) = inner.model_parts.get(&part_info.path) else {
 				return;
 			};
-			if let Some((panel_override, surface_id)) = &part_info.panel_item_override {
-				let _ = panel_override.apply_surface_material(*surface_id, model_part);
-			}
-			if let Some(panel_item_cursor) = &part_info.panel_item_cursor_override {
-				let _ = panel_item_cursor.apply_cursor_material(model_part);
-			}
 			if let Some(old_part_info) = old_self.model_parts.get(part_info) {
 				if part_info.material_parameter_overrides
 					!= old_part_info.material_parameter_overrides
@@ -168,14 +151,23 @@ impl Model {
 	pub fn namespaced(namespace: &str, path: &str) -> Self {
 		Model {
 			transform: Transform::IDENTITY,
-			resource: ResourceID::new_namespaced(namespace, path),
+			resource: Resource::Namespaced {
+				namespace: namespace.into(),
+				path: path.into(),
+			},
 			model_parts: Default::default(),
 		}
 	}
 	pub fn direct(path: impl AsRef<Path>) -> std::io::Result<Self> {
 		Ok(Model {
 			transform: Transform::IDENTITY,
-			resource: ResourceID::new_direct(path)?,
+			resource: Resource::Direct {
+				path: path
+					.as_ref()
+					.to_str()
+					.ok_or(std::io::ErrorKind::Other)?
+					.to_string(),
+			},
 			model_parts: Default::default(),
 		})
 	}

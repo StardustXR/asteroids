@@ -7,12 +7,12 @@ use glam::{Quat, Vec3};
 use map_range::MapRange as _;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
+	Error,
 	drawable::{Line, LinePoint, Lines},
 	fields::{Field, Shape},
 	input::{InputDataType, InputHandler},
-	node::NodeError,
-	spatial::{Spatial, SpatialAspect, SpatialRef, Transform},
-	values::color::{AlphaColor, Rgb, color_space::LinearRgb, rgba_linear},
+	spatial::{Spatial, SpatialRef, Transform},
+	types::color::{AlphaColor, Rgb, color_space::LinearRgb, rgba_linear},
 };
 use stardust_xr_molecules::input_action::{
 	InputQueue, InputQueueable as _, SimpleAction, SingleAction,
@@ -102,7 +102,7 @@ impl<State: ValidState> Pen<State> {
 impl<State: ValidState> CustomElement<State> for Pen<State> {
 	type Inner = PenInner;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,

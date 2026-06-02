@@ -13,7 +13,7 @@ use stardust_xr_fusion::{
 			PanelItemUiEvent::*,
 		},
 	},
-	node::{NodeError, NodeType},
+	node::{Error, NodeType},
 	spatial::SpatialRef,
 };
 
@@ -44,7 +44,7 @@ impl<State: ValidState> Default for PanelUI<State> {
 impl<State: ValidState> CustomElement<State> for PanelUI<State> {
 	type Inner = (PanelItemUi, SpatialRef);
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,

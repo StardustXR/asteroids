@@ -7,9 +7,9 @@ use glam::{Mat4, Quat, Vec2, Vec3, Vec3Swizzles, vec3};
 use stardust_xr_fusion::{
 	drawable::{Line, Lines},
 	fields::{Field, Shape},
-	node::{NodeError, NodeResult},
+	node::{Error, NodeResult},
 	spatial::{Spatial, SpatialRef, Transform},
-	values::{Color, color::rgba_linear},
+	types::{Color, color::rgba_linear},
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},
@@ -67,7 +67,7 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 	// You'll need to create this type in stardust_xr_molecules
 	type Inner = DialInner;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
@@ -139,11 +139,11 @@ impl DialInner {
 				length: thickness,
 			}),
 		)?;
-		let input = InputHandler::create(&root, Transform::identity(), &field)?.queue()?;
+		let input = InputHandler::create(&root, Transform::IDENTITY, &field)?.queue()?;
 
 		let lines = Lines::create(
 			&root,
-			Transform::identity(),
+			Transform::IDENTITY,
 			&[
 				// circles are z-facing
 				circle(32, 0.0, radius)

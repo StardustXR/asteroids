@@ -90,7 +90,7 @@ impl LabeledButton {
 			padding: 0.001,
 			height: 0.0,
 			label: String::new(),
-			transform: Transform::identity(),
+			transform: Transform::IDENTITY,
 		}
 	}
 	fn build(self) -> impl Element<State> {

@@ -5,8 +5,8 @@ use crate::{
 use derive_setters::Setters;
 use mint::Vector2;
 use stardust_xr_fusion::{
-	fields::{Field, FieldAspect, Shape},
-	node::NodeError,
+	Error,
+	fields::{Field, Shape},
 	spatial::{SpatialRef, Transform},
 };
 use stardust_xr_molecules::{
@@ -63,7 +63,7 @@ pub struct MouseElementInner {
 impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 	type Inner = MouseElementInner;
 
-	type Error = NodeError;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,

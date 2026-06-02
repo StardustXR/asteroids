@@ -9,7 +9,7 @@ use stardust_xr_asteroids::{
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	root::FrameInfo,
-	values::color::{Deg, Hsv, ToRgba},
+	types::color::{Deg, Hsv, ToRgba},
 };
 use stardust_xr_molecules::{
 	DebugSettings,

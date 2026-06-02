@@ -18,8 +18,8 @@ macro_rules! mod_expose {
 
 mod_expose!(axes);
 // mod_expose!(bounds);
-// mod_expose!(button);
-// mod_expose!(derezzable);
+mod_expose!(button);
+mod_expose!(derezzable);
 // mod_expose!(dial);
 // mod_expose!(field_viz);
 // mod_expose!(grabbable);
@@ -36,7 +36,7 @@ mod_expose!(lines);
 // mod_expose!(sky_texture);
 // mod_expose!(grab_ring);
 // mod_expose!(file_watcher);
-// mod_expose!(spatial);
+mod_expose!(spatial);
 // mod_expose!(spline_rail);
-// mod_expose!(text);
+mod_expose!(text);
 // mod_expose!(turntable);
