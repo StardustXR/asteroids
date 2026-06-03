@@ -1,3 +1,4 @@
+use color::{Deg, Hsv, ToRgba};
 use glam::Quat;
 use map_range::MapRange;
 use serde::{Deserialize, Serialize};
@@ -7,9 +8,8 @@ use stardust_xr_asteroids::{
 	project_local_resources,
 };
 use stardust_xr_fusion::{
+	client::FrameInfo,
 	drawable::{XAlign, YAlign},
-	root::FrameInfo,
-	types::color::{Deg, Hsv, ToRgba},
 };
 use stardust_xr_molecules::{
 	DebugSettings,
@@ -29,7 +29,7 @@ async fn main() {
 	);
 	let log_layer = tracing_subscriber::fmt::Layer::new()
 		.with_thread_names(true)
-		.with_ansi(true)
+		.with_ansi(false)
 		.with_line_number(true)
 		.with_filter(EnvFilter::from_default_env());
 	registry.with(log_layer).init();
@@ -70,34 +70,34 @@ impl ClientState for State {
 }
 impl Reify for State {
 	fn reify(&self, _context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
-		Reparentable::default().build().child(
-			Spatial::default()
-				.pos([
-					self.elapsed.sin() * 0.1,
-					0.0,
-					self.elapsed.cos() * 0.1,
-				])
+		// Reparentable::default().build().child(
+		Spatial::default()
+			.pos([
+				self.elapsed.sin() * 0.1,
+				0.0,
+				self.elapsed.cos() * 0.1,
+			])
+			.build()
+			.child(Model::namespaced(Self::APP_ID, "grabbable").build())
+			.maybe_child((self.elapsed - self.pressed_time > 1.0).then(|| {
+				Button::new(|state: &mut State| {
+					state.text = "button press".to_string();
+					state.pressed_time = state.elapsed;
+				})
+				.size([0.15, 0.3])
+				.debug(DebugSettings::default())
 				.build()
-				.child(Model::namespaced(Self::APP_ID, "grabbable").build())
-				.maybe_child((self.elapsed - self.pressed_time > 1.0).then(|| {
-					Button::new(|state: &mut State| {
-						state.text = "button press".to_string();
-						state.pressed_time = state.elapsed;
-					})
-					.size([0.15, 0.3])
-					.debug(DebugSettings::default())
-					.build()
-				}))
-				.child(
-					Text::new(&self.text)
-						.pos([0.0, -0.2, 0.0])
-						.align_x(XAlign::Center)
-						.align_y(YAlign::Top)
-						.character_height(0.1)
-						.build(),
-				)
-				.children(make_triangles(0.3, 25, 0.01)),
-		)
+			}))
+			.child(
+				Text::new(&self.text)
+					.pos([0.0, -0.2, 0.0])
+					.align_x(XAlign::Center)
+					.align_y(YAlign::Top)
+					.character_height(0.1)
+					.build(),
+			)
+			.children(make_triangles(0.3, 25, 0.01))
+		// )
 	}
 }
 

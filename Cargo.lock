@@ -204,10 +204,9 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 [[package]]
 name = "binderbinder"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/binderbinder#c5eab359d922500717674db5d8727eb394511bd8"
+source = "git+https://github.com/technobaboo/binderbinder#a65b5913d8373834d0dafa150829c6f2994d0e17"
 dependencies = [
  "bitflags",
- "byteorder",
  "dashmap",
  "rustix",
  "thiserror",
@@ -252,12 +251,6 @@ name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
-
-[[package]]
-name = "byteorder"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
@@ -805,7 +798,7 @@ dependencies = [
 [[package]]
 name = "gluon"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon#2df24dea8156c58d54c2b13e9034731c4a92fb79"
+source = "git+https://github.com/technobaboo/gluon#7910659982fbfa2d6e31f8741636f6af6b6836a8"
 dependencies = [
  "binderbinder",
  "bitflags",
@@ -818,7 +811,7 @@ dependencies = [
 [[package]]
 name = "gluon-codegen"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon#2df24dea8156c58d54c2b13e9034731c4a92fb79"
+source = "git+https://github.com/technobaboo/gluon#7910659982fbfa2d6e31f8741636f6af6b6836a8"
 dependencies = [
  "convert_case",
  "gluon",
@@ -832,7 +825,7 @@ dependencies = [
 [[package]]
 name = "gluon-derive"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon#2df24dea8156c58d54c2b13e9034731c4a92fb79"
+source = "git+https://github.com/technobaboo/gluon#7910659982fbfa2d6e31f8741636f6af6b6836a8"
 dependencies = [
  "quote",
  "syn",
@@ -841,7 +834,7 @@ dependencies = [
 [[package]]
 name = "gluon-parser"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon#2df24dea8156c58d54c2b13e9034731c4a92fb79"
+source = "git+https://github.com/technobaboo/gluon#7910659982fbfa2d6e31f8741636f6af6b6836a8"
 dependencies = [
  "ansi_term",
  "chumsky",
@@ -1694,7 +1687,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#9490234b6525dcc3857cc9b78eec06889375b889"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#3eca39701956c395750109296ec3046e757e0b22"
 dependencies = [
  "glam 0.30.7",
  "gluon",
@@ -1710,7 +1703,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.51.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=binder#ac54f04f345eb6aaebeb40cb31c2e3f66e6a876e"
+source = "git+https://github.com/StardustXR/molecules.git?branch=binder#8a6757cc745ea0ccf879a300a034ee63cb9f746d"
 dependencies = [
  "glam 0.29.3",
  "gluon",
@@ -1730,17 +1723,18 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules-protocols"
 version = "0.1.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=binder#ac54f04f345eb6aaebeb40cb31c2e3f66e6a876e"
+source = "git+https://github.com/StardustXR/molecules.git?branch=binder#8a6757cc745ea0ccf879a300a034ee63cb9f746d"
 dependencies = [
  "gluon",
  "gluon-codegen",
  "stardust-xr-protocol",
+ "tracing",
 ]
 
 [[package]]
 name = "stardust-xr-protocol"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#9490234b6525dcc3857cc9b78eec06889375b889"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#3eca39701956c395750109296ec3046e757e0b22"
 dependencies = [
  "fnv",
  "glam 0.29.3",
@@ -1754,6 +1748,7 @@ dependencies = [
  "syn",
  "thiserror",
  "tokio",
+ "tracing",
  "xdg",
 ]
 

@@ -5,7 +5,7 @@ use crate::{
 };
 use derive_setters::Setters;
 use mint::Vector2;
-use stardust_xr_fusion::{Error, spatial::Transform};
+use stardust_xr_fusion::{Error, spatial::{Spatial, Transform}};
 use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
 
 #[derive(Setters)]
@@ -52,7 +52,7 @@ impl<State: ValidState> Button<State> {
 	}
 }
 impl<State: ValidState> CustomElement<State> for Button<State> {
-	type Inner = stardust_xr_molecules::button::Button;
+	type Inner = (Spatial, stardust_xr_molecules::button::Button);
 	type Error = Error;
 
 	async fn create_inner(
@@ -75,13 +75,13 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 		)
 		.await?;
 		button.set_debug(self.debug);
-		Ok(button)
+		Ok((info.child_space, button))
 	}
 
 	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
-		self.apply_transform(old, inner.touch_plane().root());
+		self.apply_transform(old, inner.1.touch_plane().root());
 		// if self.size != old.size {
-		//     inner.touch_plane().set_size(self.size);
+		//     inner.1.touch_plane().set_size(self.size);
 		// }
 	}
 
@@ -92,8 +92,8 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		inner.handle_events();
-		if inner.pressed() {
+		inner.1.handle_events();
+		if inner.1.pressed() {
 			(self.on_press.0)(state);
 		}
 	}

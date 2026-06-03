@@ -1,77 +1,115 @@
 use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 use derive_setters::Setters;
 use stardust_xr_fusion::{
-	Error,
-	spatial::{Spatial, SpatialRef, Transform},
+	Error, Result,
+	fields::{Field, FieldExt, Shape},
+	spatial::{Spatial, SpatialRef},
 };
-use std::{fmt::Debug, path::PathBuf};
-use zbus::Connection;
+use std::fmt::Debug;
+use tokio::sync::mpsc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Setters)]
+#[derive(Debug, Clone, Setters)]
 #[setters(into, strip_option)]
 pub struct Reparentable {
 	enabled: bool,
+	pub shape: Shape,
 }
 impl Default for Reparentable {
 	fn default() -> Self {
-		Self { enabled: true }
+		Self {
+			enabled: true,
+			shape: Shape::Sphere { radius: 0.05 },
+		}
 	}
 }
+
+struct ActiveReparentable {
+	_field: Field,
+	_reparentable: stardust_xr_molecules::reparentable::Reparentable,
+}
+
+async fn make_active(
+	context: &Context,
+	spatial: Spatial,
+	parent: &SpatialRef,
+	shape: Shape,
+) -> Result<ActiveReparentable> {
+	let (field, _) = Field::create(&context.stardust_client, &spatial, shape).await?;
+	let reparentable = stardust_xr_molecules::reparentable::Reparentable::new(
+		&context.stardust_client,
+		spatial,
+		parent.clone(),
+		field.clone(),
+	)
+	.await?;
+	Ok(ActiveReparentable {
+		_field: field,
+		_reparentable: reparentable,
+	})
+}
+
+pub struct ReparentableInner {
+	context: Context,
+	child_space: Spatial,
+	parent_space: SpatialRef,
+	active: Option<ActiveReparentable>,
+	pending_tx: mpsc::UnboundedSender<ActiveReparentable>,
+	pending_rx: mpsc::UnboundedReceiver<ActiveReparentable>,
+}
+
 impl<State: ValidState> CustomElement<State> for Reparentable {
 	type Inner = ReparentableInner;
 	type Error = Error;
 
-	async fn create_inner(
-		&self,
-		context: &Context,
-		info: CreateInnerInfo,
-	) -> Result<Self::Inner, Self::Error> {
-		let spatial = Spatial::create(info.parent_space, Transform::IDENTITY)?;
+	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+		let active = if self.enabled {
+			Some(make_active(context, info.child_space.clone(), &info.parent_space, self.shape.clone()).await?)
+		} else {
+			None
+		};
+		let (pending_tx, pending_rx) = mpsc::unbounded_channel();
 		Ok(ReparentableInner {
-			connection: context.dbus_connection.clone(),
-			outer_spatial: info.parent_space.clone(),
-			inner_spatial: spatial,
-			path: info.element_path.to_path_buf(),
-			reparentable: None,
+			context: context.clone(),
+			child_space: info.child_space,
+			parent_space: info.parent_space.clone(),
+			active,
+			pending_tx,
+			pending_rx,
 		})
 	}
-	fn diff(&self, _old_self: &Self, inner: &mut Self::Inner) {
-		if self.enabled {
-			inner.enable();
-		} else {
-			inner.disable();
+
+	fn frame(
+		&self,
+		_context: &Context,
+		_info: &stardust_xr_fusion::client::FrameInfo,
+		_state: &mut State,
+		inner: &mut Self::Inner,
+	) {
+		while let Ok(active) = inner.pending_rx.try_recv() {
+			inner.active = Some(active);
+		}
+	}
+
+	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+		if self.enabled != old_self.enabled {
+			if self.enabled {
+				let context = inner.context.clone();
+				let spatial = inner.child_space.clone();
+				let parent = inner.parent_space.clone();
+				let shape = self.shape.clone();
+				let tx = inner.pending_tx.clone();
+				tokio::spawn(async move {
+					if let Ok(active) = make_active(&context, spatial, &parent, shape).await {
+						let _ = tx.send(active);
+					}
+				});
+			} else {
+				inner.active.take();
+			}
 		}
 	}
 }
-pub struct ReparentableInner {
-	connection: Connection,
-	outer_spatial: SpatialRef,
-	inner_spatial: Spatial,
-	path: PathBuf,
-	reparentable: Option<stardust_xr_molecules::reparentable::Reparentable>,
-}
-impl ReparentableInner {
-	fn enable(&mut self) {
-		if self.reparentable.is_none() {
-			self.reparentable = stardust_xr_molecules::reparentable::Reparentable::create(
-				self.connection.clone(),
-				self.path.clone(),
-				self.outer_spatial.clone(),
-				self.inner_spatial.clone(),
-				None,
-			)
-			.ok();
-		}
-	}
-	fn disable(&mut self) {
-		if self.reparentable.is_some() {
-			self.reparentable.take();
-		}
-	}
-	fn spatial(&self) -> SpatialRef {
-		self.inner_spatial.clone().as_spatial_ref()
-	}
-}
+
 #[tokio::test]
 async fn asteroids_reparentable_element() {
 	use crate::{
@@ -103,7 +141,7 @@ async fn asteroids_reparentable_element() {
 				Lines::new(
 					bounding_box(BoundingBox {
 						center: [0.0; 3].into(),
-						size: [0.05; 3].into(),
+						extents: [0.05; 3].into(),
 					})
 					.into_iter()
 					.map(|l| l.thickness(0.002)),
