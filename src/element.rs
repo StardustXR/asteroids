@@ -537,6 +537,13 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
+		let _span = tracing::debug_span!(
+			"Create inner",
+			inner_key,
+			parent_space = ?parent_space.borrow().clone(),
+			?element_path,
+		);
+		let _span_guard = _span.enter();
 		let element_path = join_element_path::<E>(element_path, inner_key);
 
 		// Store the inner key for later use in frame/destroy

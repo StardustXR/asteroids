@@ -25,7 +25,7 @@ async fn main() {
 	let registry = tracing_subscriber::registry();
 	let registry = registry.with(
 		tracing_tracy::TracyLayer::new(tracing_tracy::DefaultConfig::default())
-			.with_filter(LevelFilter::DEBUG),
+			.with_filter(LevelFilter::TRACE),
 	);
 	let log_layer = tracing_subscriber::fmt::Layer::new()
 		.with_thread_names(true)
