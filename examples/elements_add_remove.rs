@@ -9,14 +9,23 @@ use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	spatial::Transform,
 };
-use tracing_subscriber::EnvFilter;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-	tracing_subscriber::fmt()
-		.compact()
-		.with_env_filter(EnvFilter::from_env("LOG_LEVEL"))
-		.init();
+	let registry = tracing_subscriber::registry();
+	let registry = registry.with(
+		tracing_tracy::TracyLayer::new(tracing_tracy::DefaultConfig::default())
+			.with_filter(LevelFilter::TRACE),
+	);
+	let log_layer = tracing_subscriber::fmt::Layer::new()
+		.with_thread_names(true)
+		.with_ansi(false)
+		.with_line_number(true)
+		.with_filter(EnvFilter::from_default_env());
+	registry.with(log_layer).init();
+
 	client::run::<State>(&[&project_local_resources!("data")])
 		.await
 		.unwrap()
@@ -88,7 +97,7 @@ impl LabeledButton {
 		LabeledButton {
 			on_click,
 			padding: 0.001,
-			height: 0.0,
+			height: 0.01,
 			label: String::new(),
 			transform: Transform::IDENTITY,
 		}
