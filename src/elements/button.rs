@@ -5,7 +5,10 @@ use crate::{
 };
 use derive_setters::Setters;
 use mint::Vector2;
-use stardust_xr_fusion::{Error, spatial::{Spatial, Transform}};
+use stardust_xr_fusion::{
+	Error,
+	spatial::{Spatial, Transform},
+};
 use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
 
 #[derive(Setters)]
@@ -81,7 +84,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old, inner.1.touch_plane().root());
 		// if self.size != old.size {
-		//     inner.1.touch_plane().set_size(self.size);
+		// 	inner.1.touch_plane().set_size(self.size.into());
 		// }
 	}
 
@@ -132,7 +135,7 @@ async fn asteroids_button_element() {
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
 			Button::new(|_| {
-				std::process::exit(0);
+				// std::process::exit(0);
 			})
 			.size([0.1, 0.1])
 			.build()

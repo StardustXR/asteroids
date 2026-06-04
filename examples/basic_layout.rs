@@ -70,34 +70,34 @@ impl ClientState for State {
 }
 impl Reify for State {
 	fn reify(&self, _context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
-		// Reparentable::default().build().child(
-		Spatial::default()
-			.pos([
-				self.elapsed.sin() * 0.1,
-				0.0,
-				self.elapsed.cos() * 0.1,
-			])
-			.build()
-			.child(Model::namespaced(Self::APP_ID, "grabbable").build())
-			.maybe_child((self.elapsed - self.pressed_time > 1.0).then(|| {
-				Button::new(|state: &mut State| {
-					state.text = "button press".to_string();
-					state.pressed_time = state.elapsed;
-				})
-				.size([0.15, 0.3])
-				.debug(DebugSettings::default())
+		Reparentable::default().build().child(
+			Spatial::default()
+				.pos([
+					self.elapsed.sin() * 0.1,
+					0.0,
+					self.elapsed.cos() * 0.1,
+				])
 				.build()
-			}))
-			.child(
-				Text::new(&self.text)
-					.pos([0.0, -0.2, 0.0])
-					.align_x(XAlign::Center)
-					.align_y(YAlign::Top)
-					.character_height(0.1)
-					.build(),
-			)
-			.children(make_triangles(0.3, 25, 0.01))
-		// )
+				.child(Model::namespaced(Self::APP_ID, "grabbable").build())
+				.maybe_child((self.elapsed - self.pressed_time > 1.0).then(|| {
+					Button::new(|state: &mut State| {
+						state.text = "button press".to_string();
+						state.pressed_time = state.elapsed;
+					})
+					.size([0.15, 0.3])
+					.debug(DebugSettings::default())
+					.build()
+				}))
+				.child(
+					Text::new(&self.text)
+						.pos([0.0, -0.2, 0.0])
+						.align_x(XAlign::Center)
+						.align_y(YAlign::Top)
+						.character_height(0.1)
+						.build(),
+				)
+				.children(make_triangles(0.3, 25, 0.01)),
+		)
 	}
 }
 

@@ -568,9 +568,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 					.unwrap();
 					let _ = child_space_tx.send(Some(child_spatial_ref.clone()));
 
-					// await spaital parent
-					// make new spatial
-					//
 					let result = element
 						.create_inner(
 							&context,

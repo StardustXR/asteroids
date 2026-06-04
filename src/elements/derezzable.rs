@@ -120,5 +120,5 @@ async fn asteroids_derezzable_element() {
 				)
 		}
 	}
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap()
 }

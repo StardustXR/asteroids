@@ -63,7 +63,15 @@ impl<State: ValidState> CustomElement<State> for Reparentable {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		let active = if self.enabled {
-			Some(make_active(context, info.child_space.clone(), &info.parent_space, self.shape.clone()).await?)
+			Some(
+				make_active(
+					context,
+					info.child_space.clone(),
+					&info.parent_space,
+					self.shape.clone(),
+				)
+				.await?,
+			)
 		} else {
 			None
 		};
@@ -152,5 +160,5 @@ async fn asteroids_reparentable_element() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }
