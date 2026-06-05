@@ -9,6 +9,7 @@ use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	spatial::Transform,
 };
+use stardust_xr_molecules::DebugSettings;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -110,6 +111,7 @@ impl LabeledButton {
 				padding + (self.label.len() as f32 * self.height),
 				padding + self.height,
 			])
+			.debug(DebugSettings::default())
 			.build()
 			.child(
 				Text::new(&self.label)
@@ -145,6 +147,7 @@ fn make_list_item(index: usize, text: &String) -> impl Element<State> {
 			})
 			.size([size; 2])
 			.pos([-0.05, 0.0, 0.0])
+			.debug(DebugSettings::default())
 			.build(),
 		)
 		.child(

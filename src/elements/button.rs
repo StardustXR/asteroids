@@ -67,7 +67,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 			&context.stardust_client,
 			&info.parent_space,
 			self.transform,
-			self.size.into(),
+			self.size,
 			stardust_xr_molecules::button::ButtonSettings {
 				max_hover_distance: self.max_hover_distance,
 				visuals: Some(ButtonVisualSettings {
@@ -83,18 +83,22 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 
 	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
 		self.apply_transform(old, inner.1.touch_plane().root());
-		// if self.size != old.size {
-		// 	inner.1.touch_plane().set_size(self.size.into());
-		// }
+		if self.size != old.size {
+			inner.1.set_size(self.size);
+		}
 	}
 
 	fn frame(
 		&self,
-		_context: &Context,
+		context: &Context,
 		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
+		inner.1.set_visual_settings(Some(ButtonVisualSettings {
+			line_thickness: self.line_thickness,
+			accent_color: context.accent_color.color(),
+		}));
 		inner.1.handle_events();
 		if inner.1.pressed() {
 			(self.on_press.0)(state);
@@ -137,6 +141,7 @@ async fn asteroids_button_element() {
 			Button::new(|_| {
 				// std::process::exit(0);
 			})
+			.debug(DebugSettings::default())
 			.size([0.1, 0.1])
 			.build()
 		}
