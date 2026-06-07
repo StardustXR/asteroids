@@ -408,5 +408,5 @@ async fn asteroids_grab_ring_element() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }

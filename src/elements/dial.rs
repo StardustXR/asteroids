@@ -370,5 +370,5 @@ async fn asteroids_dial_element() {
 				)
 		}
 	}
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }

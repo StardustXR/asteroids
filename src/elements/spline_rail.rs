@@ -622,5 +622,5 @@ async fn asteroids_spline_rail_element() {
 				)
 		}
 	}
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }

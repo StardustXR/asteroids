@@ -301,5 +301,5 @@ async fn asteroids_handle_element() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }

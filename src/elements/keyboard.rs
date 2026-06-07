@@ -154,5 +154,5 @@ async fn asteroids_keyboard_element() {
 				)
 		}
 	}
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }

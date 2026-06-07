@@ -214,5 +214,5 @@ async fn asteroids_text_test() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await;
+	client::run::<TestState>(&[]).await.unwrap();
 }

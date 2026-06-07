@@ -20,7 +20,7 @@ use std::{
 	sync::OnceLock,
 };
 use tokio::sync::watch;
-use tracing::{debug_span, span, trace_span};
+use tracing::debug_span;
 
 fn element_type<E: std::any::Any>() -> &'static str {
 	let type_name = std::any::type_name::<E>();

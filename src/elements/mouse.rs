@@ -211,5 +211,5 @@ async fn asteroids_mouse_element() {
 					.build())
 		}
 	}
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }

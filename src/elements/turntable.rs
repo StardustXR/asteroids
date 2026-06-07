@@ -438,5 +438,5 @@ async fn asteroids_turntable_element() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }

@@ -233,5 +233,5 @@ async fn asteroids_grabbable_element() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }
