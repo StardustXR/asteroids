@@ -17,7 +17,7 @@ macro_rules! mod_expose {
 }
 
 mod_expose!(axes);
-// mod_expose!(bounds);
+mod_expose!(bounds);
 mod_expose!(button);
 mod_expose!(derezzable);
 // mod_expose!(dial);

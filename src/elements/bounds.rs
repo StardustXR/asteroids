@@ -142,13 +142,11 @@ async fn asteroids_bounds_element() {
 			})
 			.build()
 			.child(
-				crate::elements::Lines::new(crate::elements::lines::bounding_box(
-					bounding_box.clone(),
-				))
-				.build(),
+				crate::elements::Lines::new(crate::elements::lines::bounding_box(bounding_box))
+					.build(),
 			)
 		}
 	}
 
-	client::run::<TestState>(&[]).await
+	client::run::<TestState>(&[]).await.unwrap();
 }
