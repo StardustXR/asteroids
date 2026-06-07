@@ -204,7 +204,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 [[package]]
 name = "binderbinder"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/binderbinder#438403c12d95c0978392f0cd213df8e647d7a738"
+source = "git+https://github.com/technobaboo/binderbinder#79b1b74d086ccecda5c54d61bc034c5ec6a2a556"
 dependencies = [
  "bitflags",
  "dashmap",
@@ -543,7 +543,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -586,7 +586,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1256,7 +1256,7 @@ checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
 [[package]]
 name = "pion-binder"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/pion#5bb58a961dbee630af8c9476249d8b43a931a77c"
+source = "git+https://github.com/technobaboo/pion#c11a613d26a493e0da8a1e82ea4c06c350a10a59"
 dependencies = [
  "async-trait",
  "binderbinder",
@@ -1478,7 +1478,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1636,7 +1636,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1649,7 +1649,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1680,14 +1680,13 @@ dependencies = [
  "tracing-subscriber",
  "tracing-tracy",
  "tracy-client",
- "xkbcommon",
  "zbus",
 ]
 
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#3eca39701956c395750109296ec3046e757e0b22"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#41d00cf4bce58a085ca8fe4b9de492fa13acb48a"
 dependencies = [
  "glam 0.30.7",
  "gluon",
@@ -1703,8 +1702,9 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.51.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=binder#c45a1bb721a56df9ca25479d913a8655f023be47"
+source = "git+https://github.com/StardustXR/molecules.git?branch=binder#0ec0af185484b3690e0855649606c7fffc268800"
 dependencies = [
+ "futures",
  "glam 0.29.3",
  "gluon",
  "lazy_static",
@@ -1723,7 +1723,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules-protocols"
 version = "0.1.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=binder#c45a1bb721a56df9ca25479d913a8655f023be47"
+source = "git+https://github.com/StardustXR/molecules.git?branch=binder#0ec0af185484b3690e0855649606c7fffc268800"
 dependencies = [
  "gluon",
  "gluon-codegen",
@@ -1734,7 +1734,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#3eca39701956c395750109296ec3046e757e0b22"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#41d00cf4bce58a085ca8fe4b9de492fa13acb48a"
 dependencies = [
  "fnv",
  "glam 0.29.3",
@@ -1813,7 +1813,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2521,23 +2521,6 @@ name = "xdg"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fb433233f2df9344722454bc7e96465c9d03bff9d77c248f9e7523fe79585b5"
-
-[[package]]
-name = "xkbcommon"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d66ca9352cbd4eecbbc40871d8a11b4ac8107cfc528a6e14d7c19c69d0e1ac9"
-dependencies = [
- "libc",
- "memmap2",
- "xkeysym",
-]
-
-[[package]]
-name = "xkeysym"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 
 [[package]]
 name = "yansi"

@@ -10,6 +10,7 @@ use stardust_xr_fusion::{
 	spatial::{Spatial, Transform},
 };
 use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
+use tracing::debug_span;
 
 #[derive(Setters)]
 #[setters(into, strip_option)]
@@ -97,11 +98,13 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		inner.1.set_visual_settings(Some(ButtonVisualSettings {
+		inner.1.settings.visuals.replace(ButtonVisualSettings {
 			line_thickness: self.line_thickness,
 			accent_color: context.accent_color.color(),
-		}));
-		inner.1.handle_events();
+		});
+		debug_span!("button handle events").in_scope(|| {
+			inner.1.handle_events();
+		});
 		if inner.1.pressed() {
 			(self.on_press.0)(state);
 		}

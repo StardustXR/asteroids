@@ -98,6 +98,7 @@ impl<State: Reify> Projector<State> {
 		});
 		let mut blueprint = state.reify(context, projector.borrow_root_tasker().clone());
 		projector.with_mut(|fields| {
+			let _span = tracing::debug_span!("Diffing whole tree").entered();
 			blueprint.dynamic_diff(
 				0,
 				fields.old.as_ref(),

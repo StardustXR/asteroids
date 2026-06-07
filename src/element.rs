@@ -13,15 +13,16 @@ use stardust_xr_fusion::{
 	spatial::{Spatial, SpatialExt, SpatialRef, Transform},
 };
 use std::{
-	any::TypeId,
+	any::{TypeId, type_name_of_val},
 	hash::{DefaultHasher, Hash, Hasher},
 	marker::PhantomData,
 	path::{Path, PathBuf},
 	sync::OnceLock,
 };
 use tokio::sync::watch;
+use tracing::{debug_span, span, trace_span};
 
-fn element_type_name<E: std::any::Any>() -> &'static str {
+fn element_type<E: std::any::Any>() -> &'static str {
 	let type_name = std::any::type_name::<E>();
 	// Cut off generics first
 	let no_generics = type_name.find('<').map_or(type_name, |i| &type_name[..i]);
@@ -35,7 +36,7 @@ fn element_type_name<E: std::any::Any>() -> &'static str {
 fn join_element_path<E: std::any::Any>(path: &Path, inner_key: u64) -> PathBuf {
 	let segment = format!(
 		"{}_{inner_key}",
-		element_type_name::<E>(), // we want to get the element name without the namespace or generics
+		element_type::<E>(), // we want to get the element name without the namespace or generics
 	);
 	path.join(segment)
 }
@@ -529,6 +530,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> ElementDiffer<State>
 	for ElementWrapper<State, E, C>
 {
+	#[tracing::instrument(level = "debug", skip(self, context, parent_space, inner_map))]
 	fn create_inner_recursive(
 		&mut self,
 		inner_key: u64,
@@ -601,6 +603,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		);
 	}
 
+	#[tracing::instrument(level = "debug", skip(self, context, state, inner_map))]
 	fn frame_recursive(
 		&self,
 		context: &Context,
@@ -613,6 +616,8 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 			if let Some(&inner_key) = self.inner_key.get() {
 				if let Some(ElementInner::Done(inner, _)) = inner_map.get_mut::<State, E>(inner_key)
 				{
+					let element_type = type_name_of_val(&element);
+					let _guard = debug_span!("Element frame", ?element_type).entered();
 					element.frame(context, info, state, inner);
 				}
 			}
@@ -623,6 +628,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 			.frame_recursive(context, info, state, inner_map);
 	}
 
+	#[tracing::instrument(level = "debug", skip(self, old, context, parent_space, inner_map))]
 	fn diff_same_type(
 		&mut self,
 		inner_key: u64,
@@ -694,6 +700,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		);
 	}
 
+	#[tracing::instrument(level = "debug", skip(self, inner_map))]
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
 		// Destroy children first
 		self.children.destroy_inner_recursive(inner_map);
