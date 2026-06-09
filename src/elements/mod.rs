@@ -17,11 +17,12 @@ macro_rules! mod_expose {
 }
 
 mod_expose!(axes);
-mod_expose!(bounds);
 mod_expose!(button);
 mod_expose!(derezzable);
 // mod_expose!(dial);
 // mod_expose!(field_viz);
+// mod_expose!(file_watcher);
+// mod_expose!(grab_ring);
 // mod_expose!(grabbable);
 // mod_expose!(handle);
 // mod_expose!(keyboard);
@@ -32,10 +33,9 @@ mod_expose!(model);
 // mod_expose!(playspace);
 mod_expose!(reparentable);
 // mod_expose!(pen);
+// mod_expose!(size_constrainer);
 // mod_expose!(sky_light);
 // mod_expose!(sky_texture);
-// mod_expose!(grab_ring);
-// mod_expose!(file_watcher);
 mod_expose!(spatial);
 // mod_expose!(spline_rail);
 mod_expose!(text);

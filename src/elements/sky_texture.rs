@@ -23,7 +23,7 @@ impl<State: ValidState> CustomElement<State> for SkyTexture {
 		Ok(SkyTexInner(info.parent_space.clone()))
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.0 != old_self.0 {
 			_ = set_sky_tex(inner.0.client(), Some(&self.0));
 		}

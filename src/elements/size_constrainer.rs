@@ -6,39 +6,37 @@ use stardust_xr_fusion::{
 	Error,
 	client::FrameInfo,
 	spatial::{BoundingBox, Spatial, Transform},
+	types::Vec3F,
 };
-use tokio::sync::mpsc;
+use tokio::sync::watch;
 use tokio::time::{Duration, timeout};
 
-pub struct BoundsInner {
+pub struct SizeConstrainerInner {
 	spatial: Spatial,
-	previous_bounds: Option<BoundingBox>,
-	bounds_tx: mpsc::Sender<BoundingBox>,
-	bounds_rx: mpsc::Receiver<BoundingBox>,
+	previous_bounds: BoundingBox,
+	bounds_tx: watch::Sender<BoundingBox>,
+	bounds_rx: watch::Receiver<BoundingBox>,
 }
 
-type OnBoundsChange<State> = Box<dyn Fn(&mut State, BoundingBox) + Send + Sync>;
-pub struct Bounds<State: ValidState> {
+pub struct SizeConstrainer {
 	transform: Transform,
-	on_bounds_change: OnBoundsChange<State>,
+	max_size: Vec3F,
 }
-impl<State: ValidState> std::fmt::Debug for Bounds<State> {
+impl std::fmt::Debug for SizeConstrainer {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Bounds").finish()
 	}
 }
-impl<State: ValidState> Bounds<State> {
-	pub fn new<F: Fn(&mut State, BoundingBox) + Send + Sync + 'static>(
-		on_bounds_change: F,
-	) -> Self {
+impl SizeConstrainer {
+	pub fn new(max_size: impl Into<Vec3F>) -> Self {
 		Self {
 			transform: Transform::IDENTITY,
-			on_bounds_change: Box::new(on_bounds_change),
+			max_size: max_size.into(),
 		}
 	}
 }
-impl<State: ValidState> CustomElement<State> for Bounds<State> {
-	type Inner = BoundsInner;
+impl<State: ValidState> CustomElement<State> for SizeConstrainer {
+	type Inner = SizeConstrainerInner;
 	type Error = Error;
 
 	async fn create_inner(
@@ -46,20 +44,26 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		_asteroids_context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let (bounds_tx, bounds_rx) = mpsc::channel(1);
+		let (bounds_tx, bounds_rx) = watch::channel(BoundingBox {
+			center: [0.0; 3].into(),
+			extents: [0.0; 3].into(),
+		});
 
 		if let Ok(bounds) = info.child_space.get_local_bounding_box().await {
-			let _ = bounds_tx.send(bounds).await;
+			let _ = bounds_tx.send(bounds);
 		}
-		Ok(BoundsInner {
+		Ok(SizeConstrainerInner {
 			spatial: info.child_space,
-			previous_bounds: None,
+			previous_bounds: BoundingBox {
+				center: [0.0; 3].into(),
+				extents: [0.0; 3].into(),
+			},
 			bounds_tx,
 			bounds_rx,
 		})
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, &inner.spatial);
 	}
 
@@ -70,12 +74,14 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
+		let current_bounds = *inner.bounds_rx.borrow();
 		// Check if we have new bounds
-		if let Ok(current_bounds) = inner.bounds_rx.try_recv() {
-			if inner.previous_bounds.as_ref() != Some(&current_bounds) {
-				(self.on_bounds_change)(state, current_bounds);
-				inner.previous_bounds = Some(current_bounds);
-			}
+		if inner.previous_bounds != current_bounds {
+			let scale_factor_x = self.max_size.x / current_bounds.extents.x;
+			let scale_factor_y = self.max_size.y / current_bounds.extents.y;
+			let scale_factor_z = self.max_size.z / current_bounds.extents.z;
+
+			inner.previous_bounds = current_bounds;
 		}
 
 		// Spawn a task to check bounds for next frame with timeout
@@ -91,7 +97,7 @@ impl<State: ValidState> CustomElement<State> for Bounds<State> {
 		});
 	}
 }
-impl<State: ValidState> Transformable for Bounds<State> {
+impl Transformable for SizeConstrainer {
 	fn transform(&self) -> &Transform {
 		&self.transform
 	}
@@ -106,7 +112,7 @@ async fn asteroids_bounds_element() {
 		Reify, Tasker,
 		client::{self, ClientState},
 		custom::CustomElement,
-		elements::Bounds,
+		elements::SizeConstrainer,
 	};
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::spatial::BoundingBox;
@@ -127,22 +133,13 @@ async fn asteroids_bounds_element() {
 			_context: &Context,
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
-			let bounding_box = BoundingBox {
+			let expected_bounds = BoundingBox {
 				center: [0.02, 0.5, 0.7].into(),
 				extents: [0.2, 0.6, 5.3].into(),
 			};
-			Bounds::new(move |state: &mut TestState, bounds| {
-				assert!((bounds.center.x - bounding_box.center.x).abs() < 0.01);
-				assert!((bounds.center.y - bounding_box.center.y).abs() < 0.01);
-				assert!((bounds.center.z - bounding_box.center.z).abs() < 0.01);
-				assert!((bounds.extents.x - bounding_box.extents.x).abs() < 0.01);
-				assert!((bounds.extents.y - bounding_box.extents.y).abs() < 0.01);
-				assert!((bounds.extents.z - bounding_box.extents.z).abs() < 0.01);
-				state.latest_bounds.replace(bounds);
-			})
-			.build()
-			.child(
-				crate::elements::Lines::new(crate::elements::lines::bounding_box(bounding_box))
+			SizeConstrainer::new([0.1; 3]).build().child(
+				// race condition here, the inner can be made after checking for bounds!
+				crate::elements::Lines::new(crate::elements::lines::bounding_box(expected_bounds))
 					.build(),
 			)
 		}

@@ -58,7 +58,7 @@ impl<State: ValidState> CustomElement<State> for Derezzable<State> {
 		Ok((info.child_space, field, derez))
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, &inner.0);
 		if self.shape != old_self.shape {
 			_ = inner.1.set_shape(self.shape.clone());

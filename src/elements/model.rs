@@ -106,7 +106,7 @@ impl<State: ValidState> CustomElement<State> for Model {
 			inner.model_parts.insert(path, part);
 		}
 	}
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, &inner.spatial);
 		if self.resource != old_self.resource {
 			// TODO: resource changes require full element recreation

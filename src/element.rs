@@ -663,7 +663,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 									Ok(mut element) => {
 										// diff from the stored state at creation to the most recent creation
 										// since async stuff *could* take several frames
-										new_element.diff(&decl, &mut element);
+										new_element.diff(&decl, context, &mut element);
 										ElementInner::Done(element, child_spatial)
 									}
 									Err(err) => ElementInner::Error(err),
@@ -674,7 +674,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 					}
 				}
 				ElementInner::Done(inner, _) => {
-					new_element.diff(old_element, inner);
+					new_element.diff(old_element, context, inner);
 				}
 				_ => (),
 			}

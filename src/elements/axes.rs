@@ -47,7 +47,7 @@ impl<State: ValidState> CustomElement<State> for Axes {
 		))
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, &inner.1);
 		if self.length != old_self.length || self.thickness != old_self.thickness {
 			let _ = inner.0.set_lines(axes(self.length, self.thickness));

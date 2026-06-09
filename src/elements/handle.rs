@@ -56,7 +56,7 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 		HandleInner::new(info.parent_space, self.pos)
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.pos != old_self.pos {
 			// Update the position of the handle
 			let _ = inner

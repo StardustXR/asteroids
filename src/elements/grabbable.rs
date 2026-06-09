@@ -116,7 +116,7 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 		Ok(grabbable)
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.field_shape != old_self.field_shape {
 			let _ = inner.field().set_shape(self.field_shape.clone());
 		}

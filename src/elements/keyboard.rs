@@ -5,13 +5,10 @@ use crate::{
 use derive_setters::Setters;
 use stardust_xr_fusion::{
 	Error,
-	fields::{Field, Shape},
-	spatial::{SpatialRef, Transform},
+	fields::{Field, FieldExt, Shape},
+	spatial::{Spatial, Transform},
 };
-use stardust_xr_molecules::{
-	dbus::DbusObjectHandles,
-	keyboard::{KeyboardHandler as MoleculesKeyboardHandler, KeypressInfo},
-};
+use stardust_xr_molecules::keyboard::{Keyboard, KeypressInfo};
 use tokio::sync::mpsc;
 
 #[derive_where::derive_where(Debug, PartialEq)]
@@ -28,7 +25,7 @@ impl<State: ValidState> Default for KeyboardHandler<State> {
 	fn default() -> Self {
 		KeyboardHandler {
 			transform: Transform::IDENTITY,
-			field_shape: stardust_xr_fusion::fields::Shape::Sphere(1.0),
+			field_shape: stardust_xr_fusion::fields::Shape::Sphere { radius: 1.0 },
 			on_key: FnWrapper(Box::new(|_, _| {})),
 		}
 	}
@@ -46,13 +43,13 @@ impl<State: ValidState> KeyboardHandler<State> {
 	}
 }
 pub struct KeyboardElementInner {
+	spatial: Spatial,
 	field: Field,
-	_dbus_object_handles: DbusObjectHandles,
 	key_rx: mpsc::UnboundedReceiver<KeypressInfo>,
+	_keyboard: Keyboard,
 }
 impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 	type Inner = KeyboardElementInner;
-
 	type Error = Error;
 
 	async fn create_inner(
@@ -60,26 +57,32 @@ impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let field = Field::create(info.parent_space, self.transform, self.field_shape.clone())?;
+		let (field, _) = Field::create(
+			&context.stardust_client,
+			&info.child_space,
+			self.field_shape.clone(),
+		)
+		.await?;
 		let (key_tx, key_rx) = mpsc::unbounded_channel();
-		let _dbus_object_handles = MoleculesKeyboardHandler::create(
-			context.dbus_connection.clone(),
-			info.element_path,
-			None,
-			&field,
+		let _keyboard = Keyboard::new(
+			&context.stardust_client,
+			info.child_space.clone(),
+			field.clone(),
 			move |key_info| {
 				let _ = key_tx.send(key_info);
 			},
-		);
+		)
+		.await?;
 		Ok(KeyboardElementInner {
+			spatial: info.child_space,
 			field,
-			_dbus_object_handles,
+			_keyboard,
 			key_rx,
 		})
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
-		self.apply_transform(old, &inner.field);
+	fn diff(&self, old: &Self, context: &Context, inner: &mut Self::Inner) {
+		self.apply_transform(old, &inner.spatial);
 
 		if self.field_shape != old.field_shape {
 			let _ = inner.field.set_shape(self.field_shape.clone());

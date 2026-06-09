@@ -98,7 +98,7 @@ impl<State: ValidState> CustomElement<State> for Reparentable {
 		}
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.enabled != old_self.enabled {
 			if self.enabled {
 				let context = inner.context.clone();

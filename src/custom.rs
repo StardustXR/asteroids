@@ -25,7 +25,7 @@ pub trait CustomElement<State: ValidState>: Any + Debug + Send + Sync + Sized + 
 	) -> impl Future<Output = Result<Self::Inner, Self::Error>> + Send + Sync;
 	/// Update the inner imperative struct with the new state of the node.
 	/// You will need to check for changes between `self` and `old_self` and update accordingly.
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner);
+	fn diff(&self, old_self: &Self, context: &Context, inner: &mut Self::Inner);
 	/// Every frame on the server
 	fn frame(
 		&self,

@@ -66,7 +66,7 @@ impl<State: ValidState> CustomElement<State> for Text {
 		.await?;
 		Ok((info.child_space, text))
 	}
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, &inner.0);
 		if self.text != old_self.text {
 			let _ = inner.1.set_text(&self.text);

@@ -77,7 +77,7 @@ impl<State: ValidState> CustomElement<State> for FileWatcher<State> {
 		})
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if old_self.file_path != self.file_path {
 			inner.watch_loop.abort();
 			inner.modified.store(false, Ordering::Relaxed);

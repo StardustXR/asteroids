@@ -70,7 +70,7 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 		)
 	}
 
-	fn diff(&self, old_self: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.radius != old_self.radius || self.thickness != old_self.thickness {
 			inner.resize(self.radius, self.thickness);
 		}
