@@ -6,6 +6,7 @@ pub use stardust_xr_fusion::{
 };
 pub use stardust_xr_molecules::{
 	DebugSettings, button::ButtonVisualSettings, keyboard_handler::protocol::KeyEvent,
+	mouse_handler::ScrollSource,
 };
 
 #[macro_export]
@@ -28,7 +29,7 @@ mod_expose!(derezzable);
 mod_expose!(keyboard_handler);
 mod_expose!(lines);
 mod_expose!(model);
-// mod_expose!(mouse);
+mod_expose!(mouse_handler);
 // mod_expose!(panel_ui);
 // mod_expose!(playspace);
 mod_expose!(reparentable);
