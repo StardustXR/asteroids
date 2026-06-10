@@ -204,7 +204,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 [[package]]
 name = "binderbinder"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/binderbinder#79b1b74d086ccecda5c54d61bc034c5ec6a2a556"
+source = "git+https://github.com/technobaboo/binderbinder#81d5c28b9940650984c3a6997c4b5f45005d51dd"
 dependencies = [
  "bitflags",
  "dashmap",
@@ -543,7 +543,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -586,7 +586,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1478,7 +1478,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1636,7 +1636,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1649,7 +1649,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1686,7 +1686,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#41d00cf4bce58a085ca8fe4b9de492fa13acb48a"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#665454348c85f9c7f60a3af231797840da812645"
 dependencies = [
  "glam 0.30.7",
  "gluon",
@@ -1702,7 +1702,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.51.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=binder#0ec0af185484b3690e0855649606c7fffc268800"
+source = "git+https://github.com/StardustXR/molecules.git?branch=binder#99bbf2b1070c202ddeb38003e3584023e924ec70"
 dependencies = [
  "futures",
  "glam 0.29.3",
@@ -1723,7 +1723,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules-protocols"
 version = "0.1.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=binder#0ec0af185484b3690e0855649606c7fffc268800"
+source = "git+https://github.com/StardustXR/molecules.git?branch=binder#99bbf2b1070c202ddeb38003e3584023e924ec70"
 dependencies = [
  "gluon",
  "gluon-codegen",
@@ -1734,7 +1734,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#41d00cf4bce58a085ca8fe4b9de492fa13acb48a"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#665454348c85f9c7f60a3af231797840da812645"
 dependencies = [
  "fnv",
  "glam 0.29.3",
@@ -1813,7 +1813,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]

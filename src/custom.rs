@@ -4,7 +4,7 @@ use stardust_xr_fusion::{
 	client::FrameInfo,
 	spatial::{Spatial, SpatialRef, Transform},
 };
-use std::{any::Any, error::Error, fmt::Debug, path::PathBuf};
+use std::{any::Any, error::Error, fmt::Debug, path::PathBuf, sync::Arc};
 
 pub struct CreateInnerInfo {
 	pub parent_space: SpatialRef,
@@ -51,6 +51,22 @@ impl<Signature: Send + Sync + ?Sized> PartialEq for FnWrapper<Signature> {
 	fn eq(&self, _other: &Self) -> bool {
 		true
 	}
+}
+pub struct CloneFnWrapper<Signature: Send + Sync + ?Sized>(pub Arc<Signature>);
+impl<Signature: Send + Sync + ?Sized> Debug for CloneFnWrapper<Signature> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_tuple("Function").finish()
+	}
+}
+impl<Signature: Send + Sync + ?Sized> PartialEq for CloneFnWrapper<Signature> {
+	fn eq(&self, _other: &Self) -> bool {
+		true
+	}
+}
+impl<Signature: Send + Sync + ?Sized> Clone for CloneFnWrapper<Signature> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
 }
 
 pub trait Transformable: Sized {

@@ -5,7 +5,7 @@ pub use stardust_xr_fusion::{
 	types::*,
 };
 pub use stardust_xr_molecules::{
-	DebugSettings, button::ButtonVisualSettings, keyboard::KeypressInfo,
+	DebugSettings, button::ButtonVisualSettings, keyboard_handler::protocol::KeyEvent,
 };
 
 #[macro_export]
@@ -25,7 +25,7 @@ mod_expose!(derezzable);
 // mod_expose!(grab_ring);
 // mod_expose!(grabbable);
 // mod_expose!(handle);
-// mod_expose!(keyboard);
+mod_expose!(keyboard_handler);
 mod_expose!(lines);
 mod_expose!(model);
 // mod_expose!(mouse);
