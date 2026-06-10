@@ -69,8 +69,7 @@ impl<State: ValidState> KeyboardHandler<State> {
 #[derive(Debug, Handler)]
 struct KbHandler {
 	key_tx: mpsc::UnboundedSender<(KeyEvent, Option<Timestamp>)>,
-	on_key_asnyc:
-		Arc<RwLock<Option<OnKeyAsync>>>,
+	on_key_asnyc: Arc<RwLock<Option<OnKeyAsync>>>,
 }
 impl KeyboardHandlerHandler for KbHandler {
 	async fn key(
@@ -143,6 +142,13 @@ impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 		if self.field_shape != old.field_shape {
 			let _ = inner.field.set_shape(self.field_shape.clone());
 		}
+
+		let on_key_async = self.on_key_async.clone();
+		let rwlock = inner.kb_handler.on_key_asnyc.clone();
+		// maybe theres a better way to do this?
+		tokio::spawn(async move {
+			*rwlock.write().await = on_key_async;
+		});
 	}
 
 	fn frame(
@@ -152,17 +158,11 @@ impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		if let Some(on_key) = self.on_key.as_ref() {
-			while let Ok((key_event, timestamp)) = inner.key_rx.try_recv() {
+		while let Ok((key_event, timestamp)) = inner.key_rx.try_recv() {
+			if let Some(on_key) = self.on_key.as_ref() {
 				(on_key.0)(state, key_event, timestamp);
 			}
 		}
-		let on_key_async = self.on_key_async.clone();
-		let rwlock = inner.kb_handler.on_key_asnyc.clone();
-		// maybe theres a better way to do this?
-		tokio::spawn(async move {
-			*rwlock.write().await = on_key_async;
-		});
 	}
 }
 impl<State: ValidState> Transformable for KeyboardHandler<State> {
