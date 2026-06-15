@@ -568,7 +568,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 						.unwrap()
 						.unwrap()
 						.clone();
-					let (child_space, child_spatial_ref) = Spatial::create(
+					let (child_space, child_spatial_ref) = Spatial::new(
 						&context.stardust_client,
 						&parent_space,
 						Transform::IDENTITY,

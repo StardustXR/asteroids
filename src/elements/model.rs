@@ -22,7 +22,7 @@ pub struct ModelInner {
 }
 impl ModelInner {
 	pub async fn create(context: &Context, spatial: Spatial, decl: &Model) -> Result<Self> {
-		let model = stardust_xr_fusion::drawable::Model::create(
+		let model = stardust_xr_fusion::drawable::Model::new(
 			&context.stardust_client,
 			&spatial,
 			decl.resource.clone(),

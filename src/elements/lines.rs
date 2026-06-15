@@ -34,7 +34,7 @@ impl<State: ValidState> CustomElement<State> for Lines {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		info.child_space.set_local_transform(self.transform)?;
-		let lines = stardust_xr_fusion::drawable::Lines::create(
+		let lines = stardust_xr_fusion::drawable::Lines::new(
 			&context.stardust_client,
 			&info.child_space,
 			self.lines.clone(),

@@ -37,7 +37,7 @@ impl<State: ValidState> CustomElement<State> for Axes {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		Ok((
-			Lines::create(
+			Lines::new(
 				&context.stardust_client,
 				&info.child_space,
 				axes(self.length, self.thickness).to_vec(),

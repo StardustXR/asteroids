@@ -43,7 +43,7 @@ impl<State: ValidState> CustomElement<State> for Derezzable<State> {
 		context: &Context,
 		info: crate::CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let (field, _) = Field::create(
+		let (field, _) = Field::new(
 			&context.stardust_client,
 			&info.child_space,
 			self.shape.clone(),

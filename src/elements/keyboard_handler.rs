@@ -103,7 +103,7 @@ impl<State: ValidState> CustomElement<State> for KeyboardHandler<State> {
 		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let (field, _) = Field::create(
+		let (field, _) = Field::new(
 			&context.stardust_client,
 			&info.child_space,
 			self.field_shape.clone(),

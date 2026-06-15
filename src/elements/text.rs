@@ -50,7 +50,7 @@ impl<State: ValidState> CustomElement<State> for Text {
 		if self.transform != Transform::IDENTITY {
 			info.child_space.set_local_transform(self.transform)?;
 		}
-		let text = stardust_xr_fusion::drawable::Text::create(
+		let text = stardust_xr_fusion::drawable::Text::new(
 			&context.stardust_client,
 			&info.child_space,
 			self.text.clone(),

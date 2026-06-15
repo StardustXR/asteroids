@@ -34,7 +34,7 @@ async fn make_active(
 	parent: &SpatialRef,
 	shape: Shape,
 ) -> Result<ActiveReparentable> {
-	let (field, _) = Field::create(&context.stardust_client, &spatial, shape).await?;
+	let (field, _) = Field::new(&context.stardust_client, &spatial, shape).await?;
 	let reparentable = stardust_xr_molecules::reparentable::Reparentable::new(
 		&context.stardust_client,
 		spatial,
