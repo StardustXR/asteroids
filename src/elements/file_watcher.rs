@@ -5,7 +5,6 @@ use crate::{
 use derive_where::derive_where;
 use futures_util::StreamExt;
 use inotify::{EventMask, Inotify, WatchMask};
-use stardust_xr_fusion::spatial::SpatialRef;
 use std::{
 	path::PathBuf,
 	sync::{
@@ -16,7 +15,6 @@ use std::{
 use tokio::task::AbortHandle;
 
 pub struct FileWatcherInner {
-	spatial: SpatialRef,
 	watch_loop: AbortHandle,
 	modified: Arc<AtomicBool>,
 }
@@ -64,14 +62,13 @@ impl<State: ValidState> CustomElement<State> for FileWatcher<State> {
 	async fn create_inner(
 		&self,
 		_context: &Context,
-		info: CreateInnerInfo,
+		_info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		let modified = Arc::new(AtomicBool::new(false));
 		let watch_loop =
 			tokio::spawn(Self::watch_loop(self.file_path.clone(), modified.clone())).abort_handle();
 
 		Ok(FileWatcherInner {
-			spatial: info.parent_space.clone(),
 			watch_loop,
 			modified,
 		})
