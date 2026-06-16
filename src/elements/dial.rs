@@ -3,16 +3,17 @@ use crate::{
 	custom::{CustomElement, FnWrapper, Transformable},
 };
 use derive_setters::Setters;
-use glam::{Mat4, Quat, Vec2, Vec3, Vec3Swizzles, vec3};
+use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, vec3};
 use stardust_xr_fusion::{
-	drawable::{Line, Lines},
-	fields::{Field, Shape},
-	node::{Error, NodeResult},
-	spatial::{Spatial, SpatialRef, Transform},
-	types::{Color, color::rgba_linear},
+	Error, Result,
+	drawable::{Line, Lines, LinesExt},
+	fields::{Field, FieldExt, Shape},
+	spatial::{Spatial, Transform},
+	suis::InputDataType,
+	types::{Color, Vec3F, rgba_linear},
 };
 use stardust_xr_molecules::{
-	input_action::{InputQueue, InputQueueable, SingleAction},
+	input_action::{InputQueue, SingleAction},
 	lines::{LineExt, circle, line_from_points},
 };
 use std::{
@@ -69,27 +70,68 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 
 	type Error = Error;
 
-	async fn create_inner(
-		&self,
-		context: &Context,
-		info: CreateInnerInfo,
-	) -> Result<Self::Inner, Self::Error> {
-		DialInner::create(
-			info.parent_space,
-			*self.transform(),
-			self.radius,
-			self.thickness,
-			context.accent_color.color(),
+	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+		if self.transform != Transform::IDENTITY {
+			info.child_space.set_local_transform(self.transform)?;
+		}
+		let (field, _field_ref) = Field::new(
+			&context.stardust_client,
+			&info.child_space,
+			Shape::Transform {
+				shape: Box::new(Shape::Cylinder {
+					radius: self.radius,
+					length: self.thickness,
+				}),
+				transform: Mat4::from_rotation_x(FRAC_PI_2).into(),
+			},
 		)
+		.await?;
+		let input = InputQueue::new(
+			&context.stardust_client,
+			info.child_space.clone(),
+			field.clone(),
+			info.child_space.spatial_ref().await?,
+		)
+		.await?;
+
+		let accent_color = context.accent_color.color();
+		let lines = Lines::new(
+			&context.stardust_client,
+			&info.child_space,
+			[
+				// circles are z-facing
+				circle(32, 0.0, self.radius)
+					.color(accent_color)
+					.transform(Mat4::from_rotation_x(FRAC_PI_2)),
+				circle(32, 0.0, self.radius)
+					.color(accent_color)
+					.transform(Mat4::from_rotation_x(FRAC_PI_2))
+					.transform(Mat4::from_translation(vec3(0.0, 0.0, self.thickness))),
+			]
+			.to_vec(),
+		)
+		.await?;
+
+		Ok(DialInner {
+			spatial: info.child_space,
+			lines,
+			input,
+			single_action: SingleAction::default(),
+			field,
+			last_vector: None,
+		})
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
-		self.apply_transform(old, &inner.root);
+	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
+		self.apply_transform(old, &inner.spatial);
 		if self.radius != old.radius || self.thickness != old.thickness {
-			let _ = inner.field.set_shape(Shape::Cylinder(CylinderShape {
-				radius: self.radius,
-				length: self.thickness,
-			}));
+			let _ = inner.field.set_shape(Shape::Transform {
+				shape: Box::new(Shape::Cylinder {
+					radius: self.radius,
+					length: self.thickness,
+				}),
+				transform: Mat4::from_rotation_x(FRAC_PI_2).into(),
+			});
 		}
 	}
 
@@ -115,7 +157,7 @@ impl<State: ValidState> Transformable for Dial<State> {
 	}
 }
 pub struct DialInner {
-	root: Spatial,
+	spatial: Spatial,
 	lines: Lines,
 	input: InputQueue,
 	single_action: SingleAction,
@@ -123,49 +165,6 @@ pub struct DialInner {
 	last_vector: Option<Vec2>,
 }
 impl DialInner {
-	pub fn create(
-		parent: &SpatialRef,
-		transform: Transform,
-		radius: f32,
-		thickness: f32,
-		accent_color: Color,
-	) -> NodeResult<Self> {
-		let root = Spatial::create(parent, transform)?;
-		let field = Field::create(
-			&root,
-			Transform::from_rotation(Quat::from_rotation_x(FRAC_PI_2)),
-			Shape::Cylinder(CylinderShape {
-				radius,
-				length: thickness,
-			}),
-		)?;
-		let input = InputHandler::create(&root, Transform::IDENTITY, &field)?.queue()?;
-
-		let lines = Lines::create(
-			&root,
-			Transform::IDENTITY,
-			&[
-				// circles are z-facing
-				circle(32, 0.0, radius)
-					.color(accent_color)
-					.transform(Mat4::from_rotation_x(FRAC_PI_2)),
-				circle(32, 0.0, radius)
-					.color(accent_color)
-					.transform(Mat4::from_rotation_x(FRAC_PI_2))
-					.transform(Mat4::from_translation(vec3(0.0, 0.0, thickness))),
-			],
-		)?;
-
-		Ok(Self {
-			root,
-			lines,
-			input,
-			single_action: SingleAction::default(),
-			field,
-			last_vector: None,
-		})
-	}
-
 	pub fn update<State: ValidState>(&mut self, decl: &Dial<State>, accent_color: Color) -> f32 {
 		if !self.input.handle_events() {
 			return decl.current_value;
@@ -173,10 +172,10 @@ impl DialInner {
 		self.single_action.update(
 			false,
 			&self.input,
-			|data| data.distance < 0.0,
-			|data| match &data.input {
-				InputDataType::Hand(h) => h.pinch_strength() > 0.5,
-				_ => data.datamap.with_data(|d| d.idx("select").as_f32() > 0.5),
+			|data| data.distance() < 0.0,
+			|data| match &data.input() {
+				InputDataType::Hand { data: hand } => hand.pinch_strength() > 0.5,
+				_ => data.datamap_f32("select") > 0.5,
 			},
 		);
 		// remove the start value when we stop pinching or such
@@ -186,17 +185,17 @@ impl DialInner {
 		let Some(actor) = self.single_action.actor() else {
 			let _ = self
 				.lines
-				.set_lines(&self.signifier_lines::<State>(None, decl, accent_color));
+				.set_lines(self.signifier_lines::<State>(None, decl, accent_color));
 			return decl.current_value;
 		};
-		if actor.distance <= 0.0 {
+		if actor.distance() <= 0.0 {
 			self.last_vector.take();
 		}
 
 		// We need the 2D projected/intersected interaction point
-		let interact_point: Vec2 = match &actor.input {
-			InputDataType::Pointer(pointer) => {
-				let origin: Vec3 = pointer.origin.into();
+		let interact_point: Vec2 = match actor.input() {
+			InputDataType::Pointer { data: pointer } => {
+				let origin: Vec3 = pointer.pose.position.into();
 				let direction: Vec3 = pointer.direction().into();
 
 				// Line-plane intersection with XY plane (z=0)
@@ -208,8 +207,8 @@ impl DialInner {
 				let result = origin + direction * t;
 				result.xy()
 			}
-			InputDataType::Hand(hand) => Vec3::from(hand.predicted_pinch_position()).xy(),
-			InputDataType::Tip(tip) => Vec3::from(tip.origin).xy(),
+			InputDataType::Hand { data: hand } => Vec3::from(hand.predicted_pinch_position()).xy(),
+			InputDataType::Tip { data: tip } => Vec3::from(tip.pose.position).xy(),
 		};
 
 		let new_value = if let Some(last_vector) = &mut self.last_vector {
@@ -223,13 +222,13 @@ impl DialInner {
 			self.last_vector.replace(interact_point);
 			new_value.clamp(decl.range.start, decl.range.end)
 		} else {
-			if actor.distance > 0.0 {
+			if actor.distance() > 0.0 {
 				self.last_vector.replace(interact_point);
 			}
 			decl.current_value
 		};
 
-		let _ = self.lines.set_lines(&self.signifier_lines::<State>(
+		let _ = self.lines.set_lines(self.signifier_lines::<State>(
 			Some(interact_point),
 			decl,
 			accent_color,
@@ -260,17 +259,24 @@ impl DialInner {
 						.hovering()
 						.current()
 						.iter()
-						.flat_map(|i| match &i.input {
-							InputDataType::Pointer(pointer) => vec![pointer.deepest_point],
-							InputDataType::Hand(hand) => {
-								vec![
-									hand.index.tip.position,
-									hand.thumb.tip.position,
-									hand.stable_pinch_position(),
-								]
-							}
-							InputDataType::Tip(tip) => {
-								vec![tip.origin]
+						.flat_map(|i| -> Vec<Vec3F> {
+							match i.input() {
+								InputDataType::Pointer { data: pointer } => {
+									vec![
+										(Vec3::from(pointer.direction()) * pointer.deepest_point)
+											.into(),
+									]
+								}
+								InputDataType::Hand { data: hand } => {
+									vec![
+										hand.index.tip.pose.position,
+										hand.thumb.tip.pose.position,
+										hand.stable_pinch_position(),
+									]
+								}
+								InputDataType::Tip { data: tip } => {
+									vec![tip.pose.position]
+								}
 							}
 						})
 						.collect::<Vec<_>>(),
