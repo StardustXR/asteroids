@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, FnWrapper, derive_setters::Setters},
@@ -7,19 +5,19 @@ use crate::{
 use derive_where::derive_where;
 use glam::Vec3;
 use mint::Vector3;
-use stardust_xr_fusion::drawable::{Line, Lines};
 use stardust_xr_fusion::{
-	fields::{Field, Shape, TorusShape},
-	input::{InputData, InputDataType, InputHandler},
-	node::NodeResult,
+	Error, Result,
+	drawable::{Line, Lines, LinesExt},
+	fields::{Field, FieldExt, Shape},
 	spatial::{Spatial, SpatialRef, Transform},
+	suis::InputDataType,
 };
 use stardust_xr_molecules::{
-	input_action::{InputQueue, InputQueueable, SingleAction},
+	input_action::{InputQueue, InputSnapshot, SingleAction},
 	lines::{LineExt, circle},
-	reparentable::{ReparentTransformReceiver, Reparentable},
+	reparentable::Reparentable,
 };
-use zbus::Connection;
+use tokio::sync::mpsc;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 #[derive(Setters)]
@@ -52,29 +50,82 @@ impl<State: ValidState> GrabRing<State> {
 impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 	type Inner = GrabRingInner;
 
-	type Error = stardust_xr_fusion::node::Error;
+	type Error = Error;
 
-	async fn create_inner(
-		&self,
-		context: &Context,
-		info: CreateInnerInfo,
-	) -> Result<Self::Inner, Self::Error> {
-		GrabRingInner::new(
-			self.reparentable,
-			context.dbus_connection.clone(),
-			info.element_path,
-			info.parent_space,
-			self.radius,
-			self.thickness,
-			self.pos,
+	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+		let content_root = info.child_space;
+		content_root.set_local_transform(Transform::from_translation(self.pos))?;
+
+		let (field, _field_ref) = Field::new(
+			&context.stardust_client,
+			&content_root,
+			Shape::Torus {
+				major_radius: self.radius,
+				minor_radius: self.thickness,
+			},
 		)
+		.await?;
+		let (reparent_field, _reparent_field_ref) = Field::new(
+			&context.stardust_client,
+			&content_root,
+			Shape::Cylinder {
+				length: self.thickness * 2.0,
+				radius: self.radius + self.thickness,
+			},
+		)
+		.await?;
+		let input = InputQueue::new(
+			&context.stardust_client,
+			content_root.clone(),
+			field.clone(),
+			// input data is reported relative to the *stationary* parent space, not the
+			// moving content_root — otherwise dragging fights itself (jitter + half movement)
+			info.parent_space.clone(),
+		)
+		.await?;
+
+		let ring_line = circle(64, 0.0, self.radius).thickness(self.thickness);
+		let ring_visual = Lines::new(
+			&context.stardust_client,
+			&content_root,
+			vec![ring_line.clone()],
+		)
+		.await?;
+
+		let (pending_tx, pending_rx) = mpsc::unbounded_channel();
+		let mut ring = GrabRingInner {
+			context: context.clone(),
+			parent_space: info.parent_space.clone(),
+			is_reparentable: self.reparentable,
+			active_reparentable: None,
+			pending: false,
+			pending_tx,
+			pending_rx,
+			field,
+			reparent_field,
+			input,
+			grab_action: SingleAction::default(),
+			pointer_distance: 0.0,
+			old_interact_point: Vec3::ZERO,
+			content_root,
+			ring_visual,
+			ring_line,
+		};
+		ring.make_reparentable();
+		Ok(ring)
 	}
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.radius != old_self.radius || self.thickness != old_self.thickness {
 			inner.resize(self.radius, self.thickness);
 		}
-		inner.is_reparentable = self.reparentable;
+		if self.reparentable != old_self.reparentable {
+			inner.is_reparentable = self.reparentable;
+			if !self.reparentable {
+				inner.active_reparentable.take();
+				inner.pending = false;
+			}
+		}
 	}
 
 	fn frame(
@@ -91,10 +142,13 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 }
 
 pub struct GrabRingInner {
-	connection: Connection,
-	path: PathBuf,
+	context: Context,
+	parent_space: SpatialRef,
 	is_reparentable: bool,
-	reparentable: Option<Reparentable>,
+	active_reparentable: Option<Reparentable>,
+	pending: bool,
+	pending_tx: mpsc::UnboundedSender<Reparentable>,
+	pending_rx: mpsc::UnboundedReceiver<Reparentable>,
 	field: Field,
 	reparent_field: Field,
 	input: InputQueue,
@@ -104,160 +158,90 @@ pub struct GrabRingInner {
 	content_root: Spatial,
 	ring_visual: Lines,
 	ring_line: Line,
-	transform_changed: Option<ReparentTransformReceiver>,
-	waiting_for_transform: bool,
 }
 impl GrabRingInner {
-	pub fn new(
-		reparentable: bool,
-		connection: Connection,
-		path: impl AsRef<Path>,
-		parent_space: &SpatialRef,
-		radius: f32,
-		thickness: f32,
-		pos: Vector3<f32>,
-	) -> NodeResult<Self> {
-		let field = Field::create(
-			parent_space,
-			Transform::IDENTITY,
-			Shape::Torus(TorusShape {
-				radius_a: radius,
-				radius_b: thickness,
-			}),
-		)?;
-		let reparent_field = Field::create(
-			&field,
-			Transform::IDENTITY,
-			Shape::Cylinder(stardust_xr_fusion::fields::CylinderShape {
-				length: thickness * 2.0,
-				radius: radius + thickness,
-			}),
-		)?;
-		let input = InputHandler::create(parent_space, Transform::IDENTITY, &field)?.queue()?;
-		let content_root = Spatial::create(input.handler(), Transform::from_translation(pos))?;
-		field.set_spatial_parent(&content_root)?;
-
-		let ring_line = circle(64, 0.0, radius).thickness(thickness);
-		let ring_visual = Lines::create(
-			&content_root,
-			Transform::IDENTITY,
-			std::slice::from_ref(&ring_line),
-		)?;
-
-		let mut ring = GrabRingInner {
-			connection,
-			path: path.as_ref().to_path_buf(),
-			is_reparentable: reparentable,
-			reparentable: None,
-			field,
-			reparent_field,
-			input,
-			grab_action: SingleAction::default(),
-			pointer_distance: 0.0,
-			old_interact_point: Vec3::ZERO,
-			content_root,
-			ring_visual,
-			ring_line,
-			transform_changed: None,
-			waiting_for_transform: false,
-		};
-		ring.make_reparentable();
-		Ok(ring)
+	fn make_reparentable(&mut self) {
+		if !self.is_reparentable || self.active_reparentable.is_some() || self.pending {
+			return;
+		}
+		self.pending = true;
+		let context = self.context.clone();
+		let spatial = self.content_root.clone();
+		let parent = self.parent_space.clone();
+		let field = self.reparent_field.clone();
+		let tx = self.pending_tx.clone();
+		tokio::spawn(async move {
+			if let Ok(reparentable) =
+				Reparentable::new(&context.stardust_client, spatial, parent, field).await
+			{
+				let _ = tx.send(reparentable);
+			}
+		});
 	}
 
-	fn make_reparentable(&mut self) {
-		if self.reparentable.is_none() {
-			self.reparentable = self
-				.is_reparentable
-				.then(|| {
-					Reparentable::create(
-						self.connection.clone(),
-						&self.path,
-						self.input.handler().clone().as_spatial_ref(),
-						self.content_root.clone(),
-						Some(self.reparent_field.clone()),
-					)
-					.ok()
-				})
-				.flatten();
-			self.transform_changed = self.reparentable.as_ref().map(|v| v.transform_recv());
+	fn drain_pending(&mut self) {
+		while let Ok(reparentable) = self.pending_rx.try_recv() {
+			self.pending = false;
+			if self.is_reparentable {
+				self.active_reparentable = Some(reparentable);
+			}
 		}
 	}
 
-	fn interact_point(&self, input: &InputData) -> Vec3 {
-		match &input.input {
-			InputDataType::Hand(h) => {
+	fn interact_point(&self, input: &InputSnapshot) -> Vec3 {
+		match input.input() {
+			InputDataType::Hand { data: hand } => {
 				// For hands, use midpoint between thumb and index finger (pinch position)
-				Vec3::from(h.thumb.tip.position).lerp(Vec3::from(h.index.tip.position), 0.5)
+				Vec3::from(hand.thumb.tip.pose.position)
+					.lerp(Vec3::from(hand.index.tip.pose.position), 0.5)
 			}
-			InputDataType::Tip(t) => {
+			InputDataType::Tip { data: tip } => {
 				// For tips, use the origin point
-				Vec3::from(t.origin)
+				Vec3::from(tip.pose.position)
 			}
-			InputDataType::Pointer(p) => {
+			InputDataType::Pointer { data: pointer } => {
 				// Calculate position at current distance along pointer ray
-				let origin = Vec3::from(p.origin);
-				let direction = Vec3::from(p.direction()).normalize();
+				let origin = Vec3::from(pointer.pose.position);
+				let direction = Vec3::from(pointer.direction()).normalize();
 				origin + (direction * self.pointer_distance)
 			}
 		}
 	}
 
-	fn update_input(&mut self) -> InputResult {
+	fn update_input(&mut self) -> bool {
 		if !self.input.handle_events() {
-			return InputResult::EventsNotHandled;
+			return false;
 		}
 		self.grab_action.update(
 			true,
 			&self.input,
-			|i| i.distance < 0.05,
-			|i| {
-				i.datamap.with_data(|d| match &i.input {
-					InputDataType::Hand(_) => d.idx("pinch_strength").as_f32() > 0.8,
-					_ => d.idx("grab").as_f32() > 0.8,
-				})
+			|i| i.distance() < 0.05,
+			|i| match i.input() {
+				InputDataType::Hand { .. } => i.datamap_f32("pinch_strength") > 0.8,
+				_ => i.datamap_f32("grab") > 0.8,
 			},
 		);
-		let mut pos = None;
-		let start_grab = self.waiting_for_transform
-			|| (self.transform_changed.is_none() && self.grab_action.actor_started());
-		if let Some(recv) = self.transform_changed.as_ref()
-			&& let Some(pose) = recv.try_changed()
-		{
-			self.waiting_for_transform = false;
-			pos = pose.translation;
-		}
-		if self.grab_action.actor_started() && self.transform_changed.is_some() {
-			self.reparentable.take();
-			self.waiting_for_transform = true;
-		}
-		if self.waiting_for_transform {
-			return InputResult::EventsNotHandled;
-		}
 
-		// Initialize pointer distance when grab starts with a pointer
+		let start_grab = self.grab_action.actor_started();
 		if let Some(input) = self.grab_action.actor() {
-			if let InputDataType::Pointer(p) = &input.input {
+			if let InputDataType::Pointer { data: pointer } = input.input() {
 				if start_grab {
-					// Set initial pointer distance based on deepest point
-					self.pointer_distance =
-						Vec3::from(p.origin).distance(Vec3::from(p.deepest_point));
+					// deepest_point is now a distance along the ray
+					self.pointer_distance = pointer.deepest_point;
 				}
 				// Adjust pointer_distance based on scroll input
-				self.pointer_distance += input.datamap.with_data(|d| {
-					(-d.idx("scroll_continuous").as_vector().idx(1).as_f32() * 0.01) + // continuous +Y -> 1cm farther away
-						(-d.idx("scroll_discrete").as_vector().idx(1).as_f32() * 0.1) // discrete +Y -> 10cm farther away
-				});
+				// TODO(api): verify the datamap vector accessor name in the new suis API
+				let scroll_continuous = input.datamap_vec2("scroll_continuous").y;
+				let scroll_discrete = input.datamap_vec2("scroll_discrete").y;
+				self.pointer_distance += (scroll_continuous * 0.01) + // continuous +Y -> 1cm farther away
+					(scroll_discrete * 0.1); // discrete +Y -> 10cm farther away
 			}
 
 			if start_grab {
 				self.old_interact_point = self.interact_point(input);
 			}
 		}
-		match pos {
-			Some(pos) => InputResult::PosChanged(pos),
-			None => InputResult::EventsHandled,
-		}
+		true
 	}
 
 	fn handle_grab(&mut self, pos: Vec3) -> Option<Vec3> {
@@ -269,15 +253,14 @@ impl GrabRingInner {
 	}
 
 	pub fn handle_events(&mut self, pos: Vector3<f32>) -> Option<Vector3<f32>> {
-		match self.update_input() {
-			InputResult::EventsHandled => {}
-			InputResult::EventsNotHandled => return None,
-			InputResult::PosChanged(pos) => return Some(pos),
+		self.drain_pending();
+		if !self.update_input() {
+			return None;
 		}
 
 		let new_pos = self.handle_grab(pos.into());
 		if let Some(new_pos) = new_pos.as_ref() {
-			self.reparentable.take();
+			self.active_reparentable.take();
 			let _ = self
 				.content_root
 				.set_local_transform(Transform::from_translation(*new_pos));
@@ -341,27 +324,17 @@ impl GrabRingInner {
 	// }
 
 	pub fn resize(&mut self, radius: f32, thickness: f32) {
-		let _ = self.field.set_shape(Shape::Torus(TorusShape {
-			radius_a: radius,
-			radius_b: thickness,
-		}));
-		let _ = self.reparent_field.set_shape(Shape::Cylinder(
-			stardust_xr_fusion::fields::CylinderShape {
-				length: thickness * 2.0,
-				radius: radius + thickness,
-			},
-		));
+		let _ = self.field.set_shape(Shape::Torus {
+			major_radius: radius,
+			minor_radius: thickness,
+		});
+		let _ = self.reparent_field.set_shape(Shape::Cylinder {
+			length: thickness * 2.0,
+			radius: radius + thickness,
+		});
 		self.ring_line = circle(64, 0.0, radius).thickness(thickness);
-		let _ = self
-			.ring_visual
-			.set_lines(std::slice::from_ref(&self.ring_line));
+		let _ = self.ring_visual.set_lines(vec![self.ring_line.clone()]);
 	}
-}
-
-enum InputResult {
-	EventsHandled,
-	EventsNotHandled,
-	PosChanged(Vector3<f32>),
 }
 
 #[tokio::test]
