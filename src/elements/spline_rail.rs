@@ -9,7 +9,7 @@ use stardust_xr_fusion::{
 	drawable::{Line, Lines},
 	fields::{Field, Shape},
 	spatial::{Spatial, SpatialRef, Transform},
-	types::{Color, color::rgba_linear},
+	types::{Color, rgba_linear},
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputQueueable, SingleAction},

@@ -160,7 +160,7 @@ async fn asteroids_grabbable_element() {
 	use glam::Quat;
 	use mint::Vector3;
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::types::color::rgba_linear;
+	use stardust_xr_fusion::types::rgba_linear;
 	use stardust_xr_molecules::lines::LineExt as _;
 
 	#[derive(Debug, Serialize, Deserialize)]

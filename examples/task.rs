@@ -1,13 +1,12 @@
-use std::time::Duration;
-
-use color::rgba_linear;
 use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::project_local_resources;
 use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Migrate, Reify, Tasker, client, elements::Lines,
 };
 use stardust_xr_fusion::fields::Shape;
+use stardust_xr_fusion::types::rgba_linear;
 use stardust_xr_molecules::lines::{LineExt, shape};
+use std::time::Duration;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, Layer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};

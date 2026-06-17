@@ -2,12 +2,12 @@ use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable},
 };
-use color::rgba_linear;
 use glam::Mat4;
 use stardust_xr_fusion::{
 	Error,
 	drawable::{Line, Lines, LinesExt},
 	spatial::{Spatial, Transform},
+	types::rgba_linear,
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use std::{f32::consts::FRAC_PI_2, fmt::Debug};

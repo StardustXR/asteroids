@@ -84,9 +84,8 @@ async fn asteroids_derezzable_element() {
 		Tasker,
 		client::{self, ClientState},
 	};
-	use color::rgba_linear;
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::fields::Shape;
+	use stardust_xr_fusion::{fields::Shape, types::rgba_linear};
 	use stardust_xr_molecules::lines::LineExt;
 
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]

@@ -204,7 +204,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 [[package]]
 name = "binderbinder"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/binderbinder#be24952c02486e745c7b9d63f9cd77b42ecefdc7"
+source = "git+https://github.com/technobaboo/binderbinder#bc67300889b264553697fd5d720a929c21571954"
 dependencies = [
  "bitflags",
  "dashmap",
@@ -543,7 +543,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -586,7 +586,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1478,7 +1478,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1636,7 +1636,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1649,7 +1649,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1672,7 +1672,6 @@ dependencies = [
  "ron",
  "rustc-hash",
  "serde",
- "shiva-color-rs",
  "stardust-xr-fusion",
  "stardust-xr-molecules",
  "tokio",
@@ -1686,7 +1685,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#7f0147719c754fa6620fcdc4d1e8dfb9539e0691"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#327c1abd30d82ffee34990eba7ea15d9fb64a9ec"
 dependencies = [
  "glam 0.30.7",
  "gluon",
@@ -1734,7 +1733,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=binder#7f0147719c754fa6620fcdc4d1e8dfb9539e0691"
+source = "git+https://github.com/StardustXR/core.git?branch=binder#327c1abd30d82ffee34990eba7ea15d9fb64a9ec"
 dependencies = [
  "fnv",
  "glam 0.29.3",
@@ -1813,7 +1812,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

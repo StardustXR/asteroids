@@ -1,4 +1,3 @@
-use color::{Deg, Hsv, ToRgba};
 use glam::Quat;
 use map_range::MapRange;
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,7 @@ use stardust_xr_asteroids::{
 use stardust_xr_fusion::{
 	client::FrameInfo,
 	drawable::{XAlign, YAlign},
+	types::color::{Deg, Hsv, ToRgba},
 };
 use stardust_xr_molecules::{
 	DebugSettings,

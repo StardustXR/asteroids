@@ -11,7 +11,7 @@ use stardust_xr_fusion::{
 	drawable::Line,
 	fields::{Field, Shape},
 	spatial::{SpatialRef, Transform},
-	types::{Color, color::rgba_linear},
+	types::{Color, rgba_linear},
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use tokio::{sync::mpsc, task::JoinSet};
