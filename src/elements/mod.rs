@@ -30,7 +30,6 @@ mod_expose!(keyboard_handler);
 mod_expose!(lines);
 mod_expose!(model);
 mod_expose!(mouse_handler);
-// mod_expose!(panel_ui);
 // mod_expose!(playspace);
 mod_expose!(reparentable);
 // mod_expose!(pen);
