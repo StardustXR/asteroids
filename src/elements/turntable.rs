@@ -453,7 +453,10 @@ async fn asteroids_turntable_element() {
 			_context: &Context,
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
-			crate::elements::Reparentable::default().build().child(
+			crate::Entity::new(stardust_xr_fusion::fields::Shape::Sphere { radius: 0.05 })
+				.component(crate::components::Reparentable::default())
+				.build()
+				.child(
 				Turntable::new(self.rotation, Self::handle_rotation)
 					.line_count(64)
 					.line_thickness(0.002)

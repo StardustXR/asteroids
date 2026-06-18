@@ -1,11 +1,13 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod client;
+pub mod components;
 mod context;
 mod custom;
 mod dynamic_element;
 mod element;
 pub mod elements;
+mod entity;
 mod inner;
 mod mapped;
 mod task;
@@ -25,8 +27,17 @@ pub use context::*;
 pub use custom::*;
 pub use dynamic_element::*;
 pub use element::{Element, gen_inner_key};
+pub use entity::*;
 pub use task::Tasker;
 pub use util::*;
+
+#[macro_export]
+macro_rules! mod_expose {
+	($mod_name:ident) => {
+		pub mod $mod_name;
+		pub use $mod_name::*;
+	};
+}
 
 pub trait ValidState: Sized + Send + Sync + 'static {}
 impl<T: Sized + Send + Sync + 'static> ValidState for T {}

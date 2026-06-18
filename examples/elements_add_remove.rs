@@ -1,12 +1,15 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
-	ClientState, Context, CustomElement, Element, Migrate, Reify, Tasker, Transformable, client,
-	elements::{Button, Reparentable, Spatial, Text},
+	ClientState, Context, CustomElement, Element, Entity, Migrate, Reify, Tasker, Transformable,
+	client,
+	components::Reparentable,
+	elements::{Button, Spatial, Text},
 	project_local_resources,
 };
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
+	fields::Shape,
 	spatial::Transform,
 };
 use stardust_xr_molecules::DebugSettings;
@@ -51,7 +54,8 @@ impl ClientState for State {
 }
 impl Reify for State {
 	fn reify(&self, _context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
-		Reparentable::default()
+		Entity::new(Shape::Sphere { radius: 0.05 })
+			.component(Reparentable::default())
 			.build()
 			.child(
 				LabeledButton::new(|state: &mut State| {

@@ -1,69 +1,37 @@
-use crate::{Context, CustomElement, FnWrapper, Transformable, ValidState};
-use derive_setters::Setters;
-use stardust_xr_fusion::{
-	Error,
-	client::FrameInfo,
-	fields::{Field, FieldExt, Shape},
-	spatial::{Spatial, Transform},
-};
+use crate::{Component, ComponentCreateInfo, Context, ValidState, custom::FnWrapper};
+use stardust_xr_fusion::{Error, client::FrameInfo};
 
 #[derive_where::derive_where(Debug)]
-#[derive(Setters)]
-#[setters(into, strip_option)]
 pub struct Derezzable<State: ValidState> {
-	#[setters(skip)]
-	shape: Shape,
-	transform: Transform,
-	#[setters(skip)]
 	on_derez: FnWrapper<dyn Fn(&mut State) + Send + Sync + 'static>,
 }
 impl<State: ValidState> Derezzable<State> {
-	pub fn new(on_derez: impl Fn(&mut State) + Send + Sync + 'static, shape: Shape) -> Self {
+	pub fn new(on_derez: impl Fn(&mut State) + Send + Sync + 'static) -> Self {
 		Self {
-			transform: Transform::IDENTITY,
 			on_derez: FnWrapper(Box::new(on_derez)),
-			shape,
 		}
 	}
 }
-impl<State: ValidState> Transformable for Derezzable<State> {
-	fn transform(&self) -> &Transform {
-		&self.transform
-	}
-	fn transform_mut(&mut self) -> &mut Transform {
-		&mut self.transform
-	}
-}
-impl<State: ValidState> CustomElement<State> for Derezzable<State> {
-	type Inner = (Spatial, Field, stardust_xr_molecules::Derezzable);
+impl<State: ValidState> Component<State> for Derezzable<State> {
+	// the entity owns the shared spatial/field; we just attach a molecules Derezzable to them
+	type Inner = stardust_xr_molecules::Derezzable;
 	type Error = Error;
 
 	async fn create_inner(
 		&self,
 		context: &Context,
-		info: crate::CreateInnerInfo,
+		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
-		let (field, _) = Field::new(
-			&context.stardust_client,
-			&info.child_space,
-			self.shape.clone(),
-		)
-		.await?;
 		let derez = stardust_xr_molecules::Derezzable::new(
 			&context.stardust_client,
-			info.child_space.clone(),
-			field.clone(),
+			info.spatial.clone(),
+			info.field.clone(),
 		)
 		.await?;
-		Ok((info.child_space, field, derez))
+		Ok(derez)
 	}
 
-	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, &inner.0);
-		if self.shape != old_self.shape {
-			_ = inner.1.set_shape(self.shape.clone());
-		}
-	}
+	fn diff(&self, _old_self: &Self, _context: &Context, _inner: &mut Self::Inner) {}
 
 	fn frame(
 		&self,
@@ -72,7 +40,7 @@ impl<State: ValidState> CustomElement<State> for Derezzable<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		if inner.2.receiver.try_recv().is_ok() {
+		if inner.receiver.try_recv().is_ok() {
 			(self.on_derez.0)(state);
 		}
 	}
@@ -81,8 +49,9 @@ impl<State: ValidState> CustomElement<State> for Derezzable<State> {
 #[tokio::test]
 async fn asteroids_derezzable_element() {
 	use crate::{
-		Tasker,
+		Context, Entity, Tasker,
 		client::{self, ClientState},
+		custom::CustomElement,
 	};
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::{fields::Shape, types::rgba_linear};
@@ -107,7 +76,8 @@ async fn asteroids_derezzable_element() {
 			let shape = Shape::Box {
 				size: [0.1; 3].into(),
 			};
-			crate::elements::Derezzable::new(|_| std::process::exit(0), shape.clone())
+			Entity::new(shape.clone())
+				.component(crate::components::Derezzable::new(|_| std::process::exit(0)))
 				.build()
 				.child(
 					crate::elements::Lines::new(

@@ -64,9 +64,9 @@ impl<Signature: Send + Sync + ?Sized> PartialEq for CloneFnWrapper<Signature> {
 	}
 }
 impl<Signature: Send + Sync + ?Sized> Clone for CloneFnWrapper<Signature> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
 }
 
 pub trait Transformable: Sized {

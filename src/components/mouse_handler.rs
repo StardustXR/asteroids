@@ -1,17 +1,13 @@
 use std::sync::Arc;
 
 use crate::{
-	CloneFnWrapper, Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, FnWrapper, Transformable},
+	CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState, custom::FnWrapper,
 };
-use derive_setters::Setters;
 use gluon::{Handler, Object};
 use mint::Vector2;
 use stardust_xr_fusion::{
 	Error,
-	fields::{Field, FieldExt as _, Shape},
-	query::{QueryableInterfaceGuard, QueryableObject},
-	spatial::{Spatial, Transform},
+	query::QueryableInterfaceGuard,
 	types::{Timestamp, proxies::Vec2F},
 };
 use stardust_xr_molecules::mouse_handler::{
@@ -21,21 +17,14 @@ use stardust_xr_molecules::mouse_handler::{
 use tokio::sync::{RwLock, mpsc};
 
 #[derive_where::derive_where(Debug, PartialEq)]
-#[derive(Setters)]
-#[setters(into, strip_option)]
 pub struct MouseHandler<State: ValidState> {
-	transform: Transform,
-	field_shape: stardust_xr_fusion::fields::Shape,
-	#[setters(skip)]
 	#[allow(clippy::type_complexity)]
 	on_button:
 		Option<FnWrapper<dyn Fn(&mut State, u32, bool, Option<Timestamp>) + Send + Sync + 'static>>,
-	#[setters(skip)]
 	#[allow(clippy::type_complexity)]
 	on_motion: Option<
 		FnWrapper<dyn Fn(&mut State, Vector2<f32>, Option<Timestamp>) + Send + Sync + 'static>,
 	>,
-	#[setters(skip)]
 	#[allow(clippy::type_complexity)]
 	on_scroll_discrete: Option<
 		FnWrapper<
@@ -45,7 +34,6 @@ pub struct MouseHandler<State: ValidState> {
 				+ 'static,
 		>,
 	>,
-	#[setters(skip)]
 	#[allow(clippy::type_complexity)]
 	on_scroll_continuous: Option<
 		FnWrapper<
@@ -55,7 +43,6 @@ pub struct MouseHandler<State: ValidState> {
 				+ 'static,
 		>,
 	>,
-	#[setters(skip)]
 	async_callbacks: AsyncMouseCallbacks,
 }
 
@@ -81,10 +68,8 @@ struct AsyncMouseCallbacks {
 }
 
 impl<State: ValidState> MouseHandler<State> {
-	pub fn new(field_shape: Shape) -> MouseHandler<State> {
+	pub fn new() -> MouseHandler<State> {
 		MouseHandler {
-			transform: Transform::IDENTITY,
-			field_shape,
 			on_button: None,
 			on_motion: None,
 			on_scroll_discrete: None,
@@ -169,6 +154,11 @@ impl<State: ValidState> MouseHandler<State> {
 		self
 	}
 }
+impl<State: ValidState> Default for MouseHandler<State> {
+	fn default() -> Self {
+		Self::new()
+	}
+}
 #[derive(Debug, Handler)]
 struct MouseHandlerQueryable {
 	button_tx: mpsc::UnboundedSender<(u32, bool, Option<Timestamp>)>,
@@ -229,17 +219,15 @@ impl MouseHandlerHandler for MouseHandlerQueryable {
 	}
 }
 pub struct MouseElementInner {
-	field: Field,
-	spatial: Spatial,
 	button_rx: mpsc::UnboundedReceiver<(u32, bool, Option<Timestamp>)>,
 	motion_rx: mpsc::UnboundedReceiver<(Vector2<f32>, Option<Timestamp>)>,
 	scroll_discrete_rx: mpsc::UnboundedReceiver<(Vector2<f32>, ScrollSource, Option<Timestamp>)>,
 	scroll_continuous_rx: mpsc::UnboundedReceiver<(Vector2<f32>, ScrollSource, Option<Timestamp>)>,
 	mouse_handler: Object<MouseHandlerQueryable>,
-	_queryable: QueryableObject,
+	// the entity owns the shared queryable; we just hold our interface guard on it
 	_queryable_interface_guard: QueryableInterfaceGuard,
 }
-impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
+impl<State: ValidState> Component<State> for MouseHandler<State> {
 	type Inner = MouseElementInner;
 
 	type Error = Error;
@@ -247,14 +235,8 @@ impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 	async fn create_inner(
 		&self,
 		context: &Context,
-		info: CreateInnerInfo,
+		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
-		let (field, _) = Field::new(
-			&context.stardust_client,
-			&info.child_space,
-			self.field_shape.clone(),
-		)
-		.await?;
 		let (button_tx, button_rx) = mpsc::unbounded_channel();
 		let (motion_tx, motion_rx) = mpsc::unbounded_channel();
 		let (scroll_discrete_tx, scroll_discrete_rx) = mpsc::unbounded_channel();
@@ -270,34 +252,21 @@ impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 					scroll_continuous_tx,
 					callbacks: Arc::new(RwLock::new(self.async_callbacks.clone())),
 				});
-		let queryable = context
-			.stardust_client
-			.query_interface()
-			.register_queryable(info.child_space.clone(), field.clone())
-			.await??;
-		let queryable_interface_guard = queryable
+		let queryable_interface_guard = info
+			.queryable
 			.add_interface(&mouse_handler, EXTERNAL_PROTOCOL.protocol_name)
 			.await?;
 		Ok(MouseElementInner {
-			field,
-			spatial: info.child_space,
 			button_rx,
 			motion_rx,
 			scroll_discrete_rx,
 			scroll_continuous_rx,
 			mouse_handler,
-			_queryable: queryable,
 			_queryable_interface_guard: queryable_interface_guard,
 		})
 	}
 
-	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old, &inner.spatial);
-
-		if self.field_shape != old.field_shape {
-			let _ = inner.field.set_shape(self.field_shape.clone());
-		}
-
+	fn diff(&self, _old: &Self, _context: &Context, inner: &mut Self::Inner) {
 		let callbacks = self.async_callbacks.clone();
 		let rwlock = inner.mouse_handler.callbacks.clone();
 		// maybe theres a better way to do this?
@@ -335,21 +304,14 @@ impl<State: ValidState> CustomElement<State> for MouseHandler<State> {
 		}
 	}
 }
-impl<State: ValidState> Transformable for MouseHandler<State> {
-	fn transform(&self) -> &Transform {
-		&self.transform
-	}
-	fn transform_mut(&mut self) -> &mut Transform {
-		&mut self.transform
-	}
-}
 #[tokio::test]
 async fn asteroids_mouse_element() {
 	use crate::{
-		Tasker,
+		Context, Entity, Tasker,
 		client::{self, ClientState},
+		components::MouseHandler,
 		custom::CustomElement,
-		elements::{MouseHandler, Text},
+		elements::Text,
 	};
 	use mint::Vector2;
 	use serde::{Deserialize, Serialize};
@@ -405,21 +367,14 @@ async fn asteroids_mouse_element() {
 			_context: &Context,
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
-			MouseHandler::new(
-					Shape::Sphere {radius: 0.5},
-				).on_button(
-
-					Self::handle_button,
-                ).on_motion(
-
-					Self::handle_motion,
-                ).on_scroll_discrete(
-
-					Self::handle_scroll_discrete,
-                ).on_scroll_continuous(
-
-					Self::handle_scroll_continuous,
-                )
+			Entity::new(Shape::Sphere { radius: 0.5 })
+				.component(
+					MouseHandler::new()
+						.on_button(Self::handle_button)
+						.on_motion(Self::handle_motion)
+						.on_scroll_discrete(Self::handle_scroll_discrete)
+						.on_scroll_continuous(Self::handle_scroll_continuous),
+				)
 				.build().child(Text::new(
 					format!(
 						"Latest button: {:?}\nLatest motion: {:?}\nLatest discrete scroll: {:?}\nLatest continuous scroll: {:?}",

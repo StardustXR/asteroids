@@ -1,17 +1,11 @@
 use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, FnWrapper, derive_setters::Setters},
+	Component, ComponentCreateInfo, Context, ValidState,
+	custom::{FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
 use glam::{Affine3A, Quat, Vec3, vec3};
 use mint::{Quaternion, Vector3};
-use stardust_xr_fusion::{
-	Error, Result,
-	client::FrameInfo,
-	fields::{Field, FieldExt, Shape},
-	spatial::{Spatial, Transform},
-	suis::InputDataType,
-};
+use stardust_xr_fusion::{Error, Result, client::FrameInfo, suis::InputDataType};
 use stardust_xr_molecules::input_action::{
 	InputQueue, InputSnapshot, SingleAction, grab_pinch_interact,
 };
@@ -39,8 +33,6 @@ pub struct Grabbable<State: ValidState> {
 	#[setters(skip)]
 	rot: Quaternion<f32>,
 	#[setters(skip)]
-	field_shape: Shape,
-	#[setters(skip)]
 	on_change_pose: OnChangePose<State>,
 	#[setters(skip)]
 	grab_start: GrabStart<State>,
@@ -53,13 +45,11 @@ pub struct Grabbable<State: ValidState> {
 }
 impl<State: ValidState> Grabbable<State> {
 	pub fn new<F: Fn(&mut State, Vector3<f32>, Quaternion<f32>) + Send + Sync + 'static>(
-		field_shape: Shape,
 		pos: impl Into<Vector3<f32>>,
 		rot: impl Into<Quaternion<f32>>,
 		on_change: F,
 	) -> Self {
 		Grabbable {
-			field_shape,
 			pos: pos.into(),
 			rot: rot.into(),
 			on_change_pose: FnWrapper(Box::new(on_change)),
@@ -79,36 +69,28 @@ impl<State: ValidState> Grabbable<State> {
 		self
 	}
 }
-impl<State: ValidState> CustomElement<State> for Grabbable<State> {
+impl<State: ValidState> Component<State> for Grabbable<State> {
 	type Inner = GrabbableInner;
 
 	type Error = Error;
 
-	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
-		let content_parent = info.child_space;
-		content_parent
-			.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot))?;
-
-		let (field, _field_ref) = Field::new(
-			&context.stardust_client,
-			&content_parent,
-			self.field_shape.clone(),
-		)
-		.await?;
-
+	async fn create_inner(
+		&self,
+		context: &Context,
+		info: ComponentCreateInfo<'_>,
+	) -> Result<Self::Inner> {
+		// the entity owns the spatial/field/transform now — we just sense input on them.
 		// input is reported relative to the *stationary* parent space, not the moving
-		// content_parent — otherwise dragging fights itself (jitter + half movement)
+		// entity spatial — otherwise dragging fights itself (jitter + half movement)
 		let input = InputQueue::new(
 			&context.stardust_client,
-			content_parent.clone(),
-			field.clone(),
+			info.spatial.clone(),
+			info.field.clone(),
 			info.parent_space.clone(),
 		)
 		.await?;
 
 		Ok(GrabbableInner {
-			content_parent,
-			field,
 			input,
 			grab_action: SingleAction::default(),
 			max_distance: self.max_distance,
@@ -118,20 +100,10 @@ impl<State: ValidState> CustomElement<State> for Grabbable<State> {
 		})
 	}
 
-	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		if self.field_shape != old_self.field_shape {
-			let _ = inner.field.set_shape(self.field_shape.clone());
-		}
+	fn diff(&self, _old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
+		// the entity applies the state-owned pose onto the shared spatial; we only sync knobs.
 		inner.max_distance = self.max_distance;
 		inner.pointer_mode = self.pointer_mode;
-
-		// State is authoritative for the pose: render it onto the content space whenever
-		// it changes (whether moved by us during a grab or by the game externally).
-		if self.pos != old_self.pos || self.rot != old_self.rot {
-			let _ = inner
-				.content_parent
-				.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot));
-		}
 	}
 
 	fn frame(
@@ -167,8 +139,6 @@ struct GrabUpdate {
 }
 
 pub struct GrabbableInner {
-	content_parent: Spatial,
-	field: Field,
 	input: InputQueue,
 	grab_action: SingleAction,
 
@@ -284,14 +254,14 @@ fn snap_grab_rotation(snap: &InputSnapshot) -> Quat {
 #[tokio::test]
 async fn asteroids_grabbable_element() {
 	use crate::{
-		Context, Tasker, Transformable,
+		Context, Entity, Tasker, Transformable,
 		client::{self, ClientState},
-		elements::{Grabbable, Spatial},
+		custom::CustomElement,
 	};
 	use glam::Quat;
 	use mint::Vector3;
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::types::rgba_linear;
+	use stardust_xr_fusion::{fields::Shape, types::rgba_linear};
 	use stardust_xr_molecules::lines::LineExt as _;
 
 	#[derive(Debug, Serialize, Deserialize)]
@@ -303,7 +273,7 @@ async fn asteroids_grabbable_element() {
 	impl Default for TestState {
 		fn default() -> Self {
 			TestState {
-				pos: [0.0; 3].into(),
+				pos: [0.0, 0.5, 0.0].into(),
 				rot: Quat::IDENTITY.into(),
 				grabbed: false,
 			}
@@ -326,23 +296,24 @@ async fn asteroids_grabbable_element() {
 			let shape = Shape::Box {
 				size: [0.1; 3].into(),
 			};
-			Spatial::default().pos([0.0, 0.5, 0.0]).build().child(
-				Grabbable::new(
-					shape.clone(),
-					self.pos,
-					self.rot,
-					|state: &mut Self, pos, rot| {
+			// one Entity owning the shared spatial+field; Grabbable is a component on it,
+			// and the visual Lines hang off the same shared spatial as a child element.
+			Entity::new(shape.clone())
+				.pos(self.pos)
+				.rot(self.rot)
+				.component(
+					Grabbable::new(self.pos, self.rot, |state: &mut Self, pos, rot| {
 						state.pos = pos;
 						state.rot = rot;
-					},
+					})
+					.grab_start(|state: &mut Self| {
+						state.grabbed = true;
+					})
+					.grab_stop(|state: &mut Self| {
+						state.grabbed = false;
+					})
+					.pointer_mode(PointerMode::Align),
 				)
-				.grab_start(|state: &mut Self| {
-					state.grabbed = true;
-				})
-				.grab_stop(|state: &mut Self| {
-					state.grabbed = false;
-				})
-				.pointer_mode(PointerMode::Align)
 				.build()
 				.child(
 					crate::elements::Lines::new(
@@ -358,8 +329,7 @@ async fn asteroids_grabbable_element() {
 							}),
 					)
 					.build(),
-				),
-			)
+				)
 		}
 	}
 

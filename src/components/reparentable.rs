@@ -1,30 +1,25 @@
-use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
+use crate::{Component, ComponentCreateInfo, Context, ValidState};
 use derive_setters::Setters;
 use stardust_xr_fusion::{
 	Error, Result,
-	fields::{Field, FieldExt, Shape},
+	fields::Field,
 	spatial::{Spatial, SpatialRef},
 };
-use std::fmt::Debug;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone, Setters)]
 #[setters(into, strip_option)]
 pub struct Reparentable {
 	enabled: bool,
-	pub shape: Shape,
 }
 impl Default for Reparentable {
 	fn default() -> Self {
-		Self {
-			enabled: true,
-			shape: Shape::Sphere { radius: 0.05 },
-		}
+		Self { enabled: true }
 	}
 }
 
 struct ActiveReparentable {
-	_field: Field,
+	// the entity owns the shared field; we just keep the molecules reparentable alive
 	_reparentable: stardust_xr_molecules::reparentable::Reparentable,
 }
 
@@ -32,54 +27,50 @@ async fn make_active(
 	context: &Context,
 	spatial: Spatial,
 	parent: &SpatialRef,
-	shape: Shape,
+	field: Field,
 ) -> Result<ActiveReparentable> {
-	let (field, _) = Field::new(&context.stardust_client, &spatial, shape).await?;
 	let reparentable = stardust_xr_molecules::reparentable::Reparentable::new(
 		&context.stardust_client,
 		spatial,
 		parent.clone(),
-		field.clone(),
+		field,
 	)
 	.await?;
 	Ok(ActiveReparentable {
-		_field: field,
 		_reparentable: reparentable,
 	})
 }
 
 pub struct ReparentableInner {
 	context: Context,
-	child_space: Spatial,
+	spatial: Spatial,
 	parent_space: SpatialRef,
+	field: Field,
 	active: Option<ActiveReparentable>,
 	pending_tx: mpsc::UnboundedSender<ActiveReparentable>,
 	pending_rx: mpsc::UnboundedReceiver<ActiveReparentable>,
 }
 
-impl<State: ValidState> CustomElement<State> for Reparentable {
+impl<State: ValidState> Component<State> for Reparentable {
 	type Inner = ReparentableInner;
 	type Error = Error;
 
-	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+	async fn create_inner(
+		&self,
+		context: &Context,
+		info: ComponentCreateInfo<'_>,
+	) -> Result<Self::Inner> {
 		let active = if self.enabled {
-			Some(
-				make_active(
-					context,
-					info.child_space.clone(),
-					&info.parent_space,
-					self.shape.clone(),
-				)
-				.await?,
-			)
+			Some(make_active(context, info.spatial.clone(), info.parent_space, info.field.clone()).await?)
 		} else {
 			None
 		};
 		let (pending_tx, pending_rx) = mpsc::unbounded_channel();
 		Ok(ReparentableInner {
 			context: context.clone(),
-			child_space: info.child_space,
+			spatial: info.spatial.clone(),
 			parent_space: info.parent_space.clone(),
+			field: info.field.clone(),
 			active,
 			pending_tx,
 			pending_rx,
@@ -102,12 +93,12 @@ impl<State: ValidState> CustomElement<State> for Reparentable {
 		if self.enabled != old_self.enabled {
 			if self.enabled {
 				let context = inner.context.clone();
-				let spatial = inner.child_space.clone();
+				let spatial = inner.spatial.clone();
 				let parent = inner.parent_space.clone();
-				let shape = self.shape.clone();
+				let field = inner.field.clone();
 				let tx = inner.pending_tx.clone();
 				tokio::spawn(async move {
-					if let Ok(active) = make_active(&context, spatial, &parent, shape).await {
+					if let Ok(active) = make_active(&context, spatial, &parent, field).await {
 						let _ = tx.send(active);
 					}
 				});
@@ -121,13 +112,13 @@ impl<State: ValidState> CustomElement<State> for Reparentable {
 #[tokio::test]
 async fn asteroids_reparentable_element() {
 	use crate::{
-		Tasker, Transformable,
+		Context, Entity, Tasker, Transformable,
 		client::{self, ClientState},
 		custom::CustomElement,
 		elements::Lines,
 	};
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::spatial::BoundingBox;
+	use stardust_xr_fusion::{fields::Shape, spatial::BoundingBox};
 	use stardust_xr_molecules::lines::{LineExt, bounding_box};
 
 	#[derive(Default, Serialize, Deserialize)]
@@ -145,18 +136,21 @@ async fn asteroids_reparentable_element() {
 			_context: &Context,
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
-			Reparentable::default().build().child(
-				Lines::new(
-					bounding_box(BoundingBox {
-						center: [0.0; 3].into(),
-						extents: [0.05; 3].into(),
-					})
-					.into_iter()
-					.map(|l| l.thickness(0.002)),
+			Entity::new(Shape::Sphere { radius: 0.05 })
+				.component(Reparentable::default())
+				.build()
+				.child(
+					Lines::new(
+						bounding_box(BoundingBox {
+							center: [0.0; 3].into(),
+							extents: [0.05; 3].into(),
+						})
+						.into_iter()
+						.map(|l| l.thickness(0.002)),
+					)
+					.pos([0.0, 0.025, 0.0])
+					.build(),
 				)
-				.pos([0.0, 0.025, 0.0])
-				.build(),
-			)
 		}
 	}
 

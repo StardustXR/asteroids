@@ -568,13 +568,10 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 						.unwrap()
 						.unwrap()
 						.clone();
-					let (child_space, child_spatial_ref) = Spatial::new(
-						&context.stardust_client,
-						&parent_space,
-						Transform::IDENTITY,
-					)
-					.await
-					.unwrap();
+					let (child_space, child_spatial_ref) =
+						Spatial::new(&context.stardust_client, &parent_space, Transform::IDENTITY)
+							.await
+							.unwrap();
 					let _ = child_space_tx.send(Some(child_spatial_ref.clone()));
 
 					let result = element
