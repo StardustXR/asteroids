@@ -5,18 +5,40 @@ use crate::{
 use derive_setters::Setters;
 use glam::Vec3;
 use stardust_xr_fusion::{
-	Error,
-	drawable::{Line, Lines},
-	fields::{Field, Shape},
-	spatial::{Spatial, SpatialRef, Transform},
-	types::{Color, rgba_linear},
+	Error, Result,
+	drawable::{Line, Lines, LinesExt},
+	fields::{CubicBezierControlPoint, Field, FieldExt, Shape, cubic_bezier_to_line},
+	spatial::{Spatial, Transform},
+	suis::InputDataType,
+	types::{Color, Vec3F, rgba_linear},
 };
 use stardust_xr_molecules::{
-	input_action::{InputQueue, InputQueueable, SingleAction},
+	input_action::{InputQueue, SingleAction},
 	lines::{LineExt, line_from_points},
 };
 
 pub type OnSlideFn<State> = FnWrapper<dyn Fn(&mut State, f32, f32) + Send + Sync>;
+
+/// A cubic Bézier spline described by its control points. Convenience wrapper
+/// around the data carried by [`Shape::CubicBezierSpline`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct CubicSplineShape {
+	pub control_points: Vec<CubicBezierControlPoint>,
+	pub cyclic: bool,
+}
+impl CubicSplineShape {
+	/// The matching field [`Shape`] for this spline.
+	fn to_shape(&self) -> Shape {
+		Shape::CubicBezierSpline {
+			points: self.control_points.clone(),
+			cyclic: self.cyclic,
+		}
+	}
+	/// Sample the spline into a polyline with `curve_segment_count` samples per segment.
+	fn to_lines(&self, curve_segment_count: usize) -> Line {
+		cubic_bezier_to_line(&self.control_points, self.cyclic, curve_segment_count)
+	}
+}
 
 #[derive_where::derive_where(Debug, PartialEq)]
 #[derive(Setters)]
@@ -58,23 +80,17 @@ impl<State: ValidState> CustomElement<State> for SplineRail<State> {
 
 	type Error = Error;
 
-	async fn create_inner(
-		&self,
-		context: &Context,
-		info: CreateInnerInfo,
-	) -> Result<Self::Inner, Self::Error> {
-		SplineRailInner::create(
-			info.parent_space,
-			*self.transform(),
-			&self.spline,
-			context.accent_color.color(),
-		)
+	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+		if self.transform != Transform::IDENTITY {
+			info.child_space.set_local_transform(self.transform)?;
+		}
+		SplineRailInner::create(context, info, &self.spline).await
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
 		self.apply_transform(old, &inner.root);
 		if self.spline != old.spline {
-			let _ = inner.field.set_shape(Shape::Spline(self.spline.clone()));
+			let _ = inner.field.set_shape(self.spline.to_shape());
 			inner.resample(&self.spline);
 		}
 	}
@@ -108,29 +124,32 @@ pub struct SplineRailInner {
 }
 
 impl SplineRailInner {
-	fn create(
-		parent: &SpatialRef,
-		transform: Transform,
+	async fn create(
+		context: &Context,
+		info: CreateInnerInfo,
 		spline: &CubicSplineShape,
-		accent_color: Color,
-	) -> Result<Self, Error> {
-		let root = Spatial::create(parent, transform)?;
-		let spline_shape = spline.clone();
-		let field = Field::create(
-			&root,
-			Transform::IDENTITY,
-			Shape::Spline(spline_shape.clone()),
-		)?;
-		let input = InputHandler::create(&root, Transform::IDENTITY, &field)?.queue()?;
+	) -> Result<Self> {
+		let root = info.child_space;
+		let (field, _field_ref) =
+			Field::new(&context.stardust_client, &root, spline.to_shape()).await?;
+		let input = InputQueue::new(
+			&context.stardust_client,
+			root.clone(),
+			field.clone(),
+			root.spatial_ref().await?,
+		)
+		.await?;
 
-		let base_line = spline_shape.to_lines(SEGMENT_COUNT).thickness(0.001);
-		let graphics = Lines::create(
+		let accent_color = context.accent_color.color();
+		let base_line = spline.to_lines(SEGMENT_COUNT).thickness(0.001);
+		let graphics = Lines::new(
+			&context.stardust_client,
 			&root,
-			Transform::IDENTITY,
-			&[base_line.clone().color(accent_color)],
-		)?;
+			vec![base_line.clone().color(accent_color)],
+		)
+		.await?;
 
-		let (sampled_points, cumulative_lengths, total_length) = sample_spline(&spline_shape);
+		let (sampled_points, cumulative_lengths, total_length) = sample_spline(spline);
 
 		Ok(Self {
 			root,
@@ -142,7 +161,7 @@ impl SplineRailInner {
 			sampled_points,
 			cumulative_lengths,
 			total_length,
-			cyclic: spline_shape.cyclic,
+			cyclic: spline.cyclic,
 			base_line,
 		})
 	}
@@ -168,10 +187,10 @@ impl SplineRailInner {
 		self.single_action.update(
 			false,
 			&self.input,
-			|data| data.distance < decl.interact_margin,
-			|data| match &data.input {
-				InputDataType::Hand(h) => h.pinch_strength() > 0.5,
-				_ => data.datamap.with_data(|d| d.idx("select").as_f32() > 0.5),
+			|data| data.distance() < decl.interact_margin,
+			|data| match data.input() {
+				InputDataType::Hand { data: h } => h.pinch_strength() > 0.5,
+				_ => data.datamap_f32("select") > 0.5,
 			},
 		);
 
@@ -182,19 +201,17 @@ impl SplineRailInner {
 		let Some(actor) = self.single_action.actor() else {
 			let _ = self
 				.graphics
-				.set_lines(&self.signifier_lines(accent_color, None));
+				.set_lines(self.signifier_lines(accent_color, None));
 			return;
 		};
 
-		let interact_point: Vec3 = match &actor.input {
-			InputDataType::Hand(h) => Vec3::from(h.predicted_pinch_position()),
-			InputDataType::Tip(t) => Vec3::from(t.origin),
-			InputDataType::Pointer(p) => {
-				let origin = Vec3::from(p.origin);
+		let interact_point: Vec3 = match actor.input() {
+			InputDataType::Hand { data: h } => Vec3::from(h.predicted_pinch_position()),
+			InputDataType::Tip { data: t } => Vec3::from(t.pose.position),
+			InputDataType::Pointer { data: p } => {
+				let origin = Vec3::from(p.pose.position);
 				let direction = Vec3::from(p.direction()).normalize();
-				let deepest = Vec3::from(p.deepest_point);
-				let dist = origin.distance(deepest);
-				origin + direction * dist
+				origin + direction * p.deepest_point
 			}
 		};
 
@@ -240,7 +257,7 @@ impl SplineRailInner {
 		// Closest point on spline for the indicator line
 		let closest_on_spline = t_to_point(&self.sampled_points, new_t);
 		let _ = self.graphics.set_lines(
-			&self.signifier_lines(accent_color, Some((interact_point, closest_on_spline))),
+			self.signifier_lines(accent_color, Some((interact_point, closest_on_spline))),
 		);
 	}
 
@@ -262,16 +279,23 @@ impl SplineRailInner {
 					.hovering()
 					.current()
 					.iter()
-					.flat_map(|i| match &i.input {
-						InputDataType::Pointer(pointer) => vec![pointer.deepest_point],
-						InputDataType::Hand(hand) => {
-							vec![
-								hand.index.tip.position,
-								hand.thumb.tip.position,
-								hand.stable_pinch_position(),
-							]
+					.flat_map(|i| -> Vec<Vec3F> {
+						match i.input() {
+							InputDataType::Pointer { data: pointer } => {
+								vec![
+									(Vec3::from(pointer.direction()) * pointer.deepest_point)
+										.into(),
+								]
+							}
+							InputDataType::Hand { data: hand } => {
+								vec![
+									hand.index.tip.pose.position,
+									hand.thumb.tip.pose.position,
+									hand.stable_pinch_position(),
+								]
+							}
+							InputDataType::Tip { data: tip } => vec![tip.pose.position],
 						}
-						InputDataType::Tip(tip) => vec![tip.origin],
 					})
 					.collect::<Vec<_>>(),
 				0.025,
@@ -506,7 +530,7 @@ async fn asteroids_spline_rail_element() {
 		elements::{SplineRail, Text},
 	};
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::fields::CubicControlPoint;
+	use stardust_xr_fusion::fields::CubicBezierControlPoint;
 
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 	struct TestState {
@@ -537,7 +561,7 @@ async fn asteroids_spline_rail_element() {
 						let ay = r * (2.0 * t).sin() / 2.0;
 						let tx = r * t.cos() * s;
 						let ty = r * (2.0 * t).cos() * s;
-						CubicControlPoint {
+						CubicBezierControlPoint {
 							handle_in: [ax - tx, ay - ty, 0.0].into(),
 							anchor: [ax, ay, 0.0].into(),
 							handle_out: [ax + tx, ay + ty, 0.0].into(),
@@ -570,7 +594,7 @@ async fn asteroids_spline_rail_element() {
 						let dz = coil_r * theta.cos() * turns * std::f32::consts::TAU
 							/ coil_segments as f32;
 						let scale = 1.0 / 3.0;
-						CubicControlPoint {
+						CubicBezierControlPoint {
 							handle_in: [ax - dx * scale, ay - dy * scale, az - dz * scale].into(),
 							anchor: [ax, ay, az].into(),
 							handle_out: [ax + dx * scale, ay + dy * scale, az + dz * scale].into(),

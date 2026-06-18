@@ -37,6 +37,6 @@ mod_expose!(reparentable);
 // mod_expose!(sky_light);
 // mod_expose!(sky_texture);
 mod_expose!(spatial);
-// mod_expose!(spline_rail);
+mod_expose!(spline_rail);
 mod_expose!(text);
 mod_expose!(turntable);
