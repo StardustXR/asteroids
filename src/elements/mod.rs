@@ -39,4 +39,4 @@ mod_expose!(reparentable);
 mod_expose!(spatial);
 // mod_expose!(spline_rail);
 mod_expose!(text);
-// mod_expose!(turntable);
+mod_expose!(turntable);

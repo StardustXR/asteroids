@@ -3,15 +3,19 @@ use crate::{
 	custom::{CustomElement, FnWrapper, Transformable, derive_setters::Setters},
 };
 use derive_where::derive_where;
-use glam::{Quat, Vec3};
+use glam::{Mat4, Quat, Vec3};
 use map_range::MapRange;
 use stardust_xr_fusion::{
-	drawable::{Line, LinePoint, Lines},
-	fields::{Field, Shape},
-	spatial::{Spatial, SpatialRef, Transform},
+	Error,
+	client::FrameInfo,
+	drawable::{Line, LinePoint, Lines, LinesExt},
+	fields::{Field, FieldExt, Shape},
+	spatial::{PartialTransform, Spatial, SpatialExt, Transform},
+	suis::InputDataType,
+	types::rgba_linear,
 };
-use stardust_xr_molecules::input_action::{InputQueue, InputQueueable, SimpleAction, SingleAction};
-use std::f32::consts::{FRAC_PI_2, TAU};
+use stardust_xr_molecules::input_action::{InputQueue, InputSnapshot, SimpleAction, SingleAction};
+use std::f32::consts::TAU;
 
 type OnRotate<State> = FnWrapper<dyn Fn(&mut State, f32) + Send + Sync>;
 #[derive(Setters)]
@@ -39,15 +43,62 @@ impl<State: ValidState> Transformable for Turntable<State> {
 }
 impl<State: ValidState> CustomElement<State> for Turntable<State> {
 	type Inner = TurntableInner;
-
-	type Error = stardust_xr_fusion::node::Error;
+	type Error = Error;
 
 	async fn create_inner(
 		&self,
-		_asteroids_context: &Context,
+		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		TurntableInner::create(info.parent_space, self.transform, self)
+		if self.transform != Transform::IDENTITY {
+			info.child_space.set_local_transform(self.transform)?;
+		}
+		let (root_spatial, root_spatial_ref) = Spatial::new(
+			&context.stardust_client,
+			&info.parent_space,
+			Transform::IDENTITY,
+		)
+		.await?;
+		let content_parent = info.child_space;
+		content_parent.set_parent(root_spatial_ref.clone())?;
+		content_parent.set_local_transform(Transform::from_translation([0.0, self.height, 0.0]))?;
+
+		let (field, _field_ref) = Field::new(
+			&context.stardust_client,
+			&root_spatial,
+			Shape::Transform {
+				shape: Box::new(Shape::Cylinder {
+					length: self.height,
+					radius: self.inner_radius + self.height,
+				}),
+				transform: Mat4::from_translation([0.0, self.height * 0.5, 0.0].into()).into(),
+			},
+		)
+		.await?;
+		let input = InputQueue::new(
+			&context.stardust_client,
+			root_spatial.clone(),
+			field.clone(),
+			root_spatial_ref,
+		)
+		.await?;
+
+		let grip = Lines::new(&context.stardust_client, &content_parent, self.grip_lines()).await?;
+
+		Ok(TurntableInner {
+			root: root_spatial,
+			content_parent,
+			grip,
+			// start "lit" so the first frame sends the proximity-colored lines,
+			// settling them to their resting (black) state right away
+			grip_lit: true,
+			field,
+			input,
+			pointer_hover_action: Default::default(),
+			touch_action: Default::default(),
+			prev_angle: None,
+			angular_momentum: 0.0,
+		})
 	}
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
@@ -64,7 +115,7 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		inner.update(info.clone(), self, state);
+		inner.update(*info, self, state);
 	}
 }
 
@@ -110,52 +161,60 @@ impl<State: ValidState> Turntable<State> {
 	}
 }
 
-fn interact_point(input: &InputData) -> Option<Vec3> {
-	match &input.input {
-		InputDataType::Hand(h) => {
-			Some(Vec3::from(h.thumb.tip.position).lerp(Vec3::from(h.index.tip.position), 0.5))
-		}
-		InputDataType::Tip(t) => Some(t.origin.into()),
+fn interact_point(input: &InputSnapshot) -> Option<Vec3> {
+	match input.input() {
+		InputDataType::Hand { data: h } => Some(
+			Vec3::from(h.thumb.tip.pose.position).lerp(Vec3::from(h.index.tip.pose.position), 0.5),
+		),
+		InputDataType::Tip { data: t } => Some(t.pose.position.into()),
 		_ => None,
 	}
 }
-fn interact_points(input: &InputData) -> Vec<Vec3> {
-	match &input.input {
-		InputDataType::Hand(h) => {
+fn interact_points(input: &InputSnapshot) -> Vec<Vec3> {
+	match input.input() {
+		InputDataType::Hand { data: h } => {
 			vec![
-				h.thumb.tip.position.into(),
-				h.index.tip.position.into(),
-				h.ring.tip.position.into(),
-				h.middle.tip.position.into(),
-				h.little.tip.position.into(),
+				h.thumb.tip.pose.position.into(),
+				h.index.tip.pose.position.into(),
+				h.ring.tip.pose.position.into(),
+				h.middle.tip.pose.position.into(),
+				h.little.tip.pose.position.into(),
 			]
 		}
-		InputDataType::Tip(t) => vec![t.origin.into()],
+		InputDataType::Tip { data: t } => vec![t.pose.position.into()],
 		_ => vec![],
 	}
 }
 fn interact_proximity(input: &InputQueue, point: Vec3) -> f32 {
 	input
 		.input()
-		.keys()
-		.flat_map(|i| match &i.input {
-			InputDataType::Hand(h) => {
-				vec![
-					h.thumb.tip.position,
-					h.index.tip.position,
-					h.ring.tip.position,
-					h.middle.tip.position,
-					h.little.tip.position,
-				]
+		.values()
+		.map(|i| match i.input() {
+			InputDataType::Hand { data: h } => [
+				h.thumb.tip.pose.position,
+				h.index.tip.pose.position,
+				h.ring.tip.pose.position,
+				h.middle.tip.pose.position,
+				h.little.tip.pose.position,
+			]
+			.into_iter()
+			.map(|p| Vec3::from(p).distance(point))
+			.reduce(f32::min)
+			.unwrap_or(f32::INFINITY),
+			InputDataType::Tip { data: t } => Vec3::from(t.pose.position).distance(point),
+			// a pointer is a ray, not a point, so use the distance from the grip
+			// point to the ray itself (clamped to in front of the pointer)
+			InputDataType::Pointer { data: p } => {
+				let origin = Vec3::from(p.pose.position);
+				let direction = Quat::from(p.pose.orientation) * Vec3::NEG_Z;
+				let t = (point - origin).dot(direction).max(0.0);
+				(origin + direction * t).distance(point)
 			}
-			InputDataType::Tip(t) => vec![t.origin],
-			_ => vec![],
 		})
-		.map(|p| Vec3::from(p).distance(point))
-		.reduce(|a, b| a.min(b))
+		.reduce(f32::min)
 		.unwrap_or(f32::INFINITY)
 }
-fn interact_angle(input: &InputData) -> Option<f32> {
+fn interact_angle(input: &InputSnapshot) -> Option<f32> {
 	let p = interact_point(input)?;
 	Some(p.z.atan2(p.x))
 }
@@ -163,8 +222,8 @@ fn interact_angle(input: &InputData) -> Option<f32> {
 pub struct TurntableInner {
 	root: Spatial,
 	content_parent: Spatial,
-	grip_lines: Vec<Line>,
 	grip: Lines,
+	grip_lit: bool,
 	field: Field,
 
 	input: InputQueue,
@@ -174,40 +233,6 @@ pub struct TurntableInner {
 	prev_angle: Option<f32>,
 }
 impl TurntableInner {
-	pub fn create<State: ValidState>(
-		parent: &impl SpatialRefAspect,
-		transform: Transform,
-		settings: &Turntable<State>,
-	) -> Result<Self, Error> {
-		let root = Spatial::create(parent, transform)?;
-		let content_parent = Spatial::create(&root, Transform::IDENTITY)?;
-		let field = Field::create(
-			&root,
-			Transform::from_translation([0.0, -settings.height * 0.5, 0.0]),
-			Shape::Cylinder(CylinderShape {
-				length: settings.height,
-				radius: settings.inner_radius + settings.height,
-			}),
-		)?;
-		let input = InputHandler::create(&root, Transform::IDENTITY, &field)?.queue()?;
-
-		let grip_lines: Vec<Line> = settings.grip_lines();
-		let grip = Lines::create(&content_parent, Transform::IDENTITY, &grip_lines)?;
-
-		Ok(Self {
-			root,
-			content_parent,
-			grip_lines,
-			grip,
-			field,
-			input,
-			pointer_hover_action: Default::default(),
-			touch_action: Default::default(),
-			prev_angle: None,
-			angular_momentum: 0.0,
-		})
-	}
-
 	pub fn root(&self) -> &Spatial {
 		&self.root
 	}
@@ -217,15 +242,15 @@ impl TurntableInner {
 
 	pub fn set_size(&self, inner_radius: f32, height: f32) {
 		let _ = self
-			.field
-			.set_local_transform(Transform::from_translation_rotation(
-				[0.0, -height * 0.5, 0.0],
-				Quat::from_rotation_x(FRAC_PI_2),
-			));
-		let _ = self.field.set_shape(Shape::Cylinder(CylinderShape {
-			length: height,
-			radius: inner_radius + height,
-		}));
+			.content_parent
+			.set_local_transform(PartialTransform::from_translation([0.0, height, 0.0]));
+		let _ = self.field.set_shape(Shape::Transform {
+			shape: Box::new(Shape::Cylinder {
+				length: height,
+				radius: inner_radius + height,
+			}),
+			transform: Mat4::from_translation([0.0, height * 0.5, 0.0].into()).into(),
+		});
 	}
 
 	#[inline]
@@ -234,15 +259,13 @@ impl TurntableInner {
 			.currently_acting()
 			.iter()
 			.map(|i| {
-				i.datamap.with_data(|d| {
-					let scroll_continuous = d.idx("scroll_continuous").as_vector();
-					let scroll_discrete = d.idx("scroll_discrete").as_vector();
+				let scroll_continuous = i.datamap_vec2("scroll_continuous");
+				let scroll_discrete = i.datamap_vec2("scroll_discrete");
 
-					scroll_continuous.idx(0).as_f32()
-						+ scroll_continuous.idx(1).as_f32()
-						+ (scroll_discrete.idx(0).as_f32() * 5.0)
-						+ (scroll_discrete.idx(1).as_f32() * 5.0)
-				})
+				scroll_continuous.x
+					+ scroll_continuous.y
+					+ (scroll_discrete.x * 5.0)
+					+ (scroll_discrete.y * 5.0)
 			})
 			.reduce(|a, b| a + b)
 			.unwrap_or_default()
@@ -257,7 +280,9 @@ impl TurntableInner {
 		rotation += angle;
 		let _ = self
 			.content_parent
-			.set_local_transform(Transform::from_rotation(Quat::from_rotation_y(rotation)));
+			.set_local_transform(PartialTransform::from_rotation(Quat::from_rotation_y(
+				rotation,
+			)));
 		(on_rotate.0)(state, rotation);
 	}
 	pub fn update<State: ValidState>(
@@ -277,8 +302,8 @@ impl TurntableInner {
 
 	fn update_pointer_hover<State: ValidState>(&mut self, _settings: &Turntable<State>) {
 		self.pointer_hover_action
-			.update(&self.input, &|input| match &input.input {
-				InputDataType::Pointer(_) => input.distance < 0.0,
+			.update(&self.input, &|input| match input.input() {
+				InputDataType::Pointer { data: _ } => input.distance() < 0.0,
 				_ => false,
 			});
 	}
@@ -299,7 +324,7 @@ impl TurntableInner {
 						(interact_point_radius - settings.inner_radius).max(0.0);
 					interact_point_height.abs() > interact_point_radius_slope
 				});
-				let distance_condition = input.distance < 0.0;
+				let distance_condition = input.distance() < 0.0;
 				slope_condition && distance_condition
 			},
 		);
@@ -362,7 +387,9 @@ impl TurntableInner {
 	}
 
 	fn update_grip_visuals<State: ValidState>(&mut self, settings: &Turntable<State>) {
-		for line in &mut self.grip_lines {
+		let mut lines = settings.grip_lines();
+		let mut any_lit = false;
+		for line in &mut lines {
 			for point in &mut line.points {
 				let lerp = interact_proximity(
 					&self.input,
@@ -370,10 +397,18 @@ impl TurntableInner {
 				)
 				.map_range(0.05..0.0, 1.0..0.0)
 				.clamp(0.0, 1.0);
+				any_lit |= lerp > 0.0;
 				point.color = rgba_linear!(lerp, lerp, lerp, 1.0);
 			}
 		}
-		self.grip.set_lines(&self.grip_lines).unwrap();
+		// Only resend the lines while an input method is close enough to light them
+		// up. `grip_lit` keeps us sending for one trailing frame after the last
+		// input leaves, so the lines settle back to black instead of getting stuck.
+		if !any_lit && !self.grip_lit {
+			return;
+		}
+		self.grip_lit = any_lit;
+		self.grip.set_lines(lines).unwrap();
 	}
 }
 
@@ -391,6 +426,7 @@ async fn asteroids_turntable_element() {
 
 	#[derive(Default, Serialize, Deserialize)]
 	struct TestState {
+		elapsed: f32,
 		#[serde(skip)]
 		rotation: f32,
 	}
@@ -407,6 +443,9 @@ async fn asteroids_turntable_element() {
 
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.turntable";
+		fn on_frame(&mut self, info: &FrameInfo) {
+			self.elapsed += info.delta;
+		}
 	}
 	impl crate::Reify for TestState {
 		fn reify(
@@ -419,14 +458,15 @@ async fn asteroids_turntable_element() {
 					.line_count(64)
 					.line_thickness(0.002)
 					.height(0.03)
-					.inner_radius(0.1)
+					// .inner_radius(0.1)
+					.inner_radius((self.elapsed.sin() * 0.01) + 0.1)
 					.scroll_multiplier(1.0_f32.to_radians())
 					.build()
 					.child(
 						Lines::new(
 							bounding_box(BoundingBox {
 								center: [0.0; 3].into(),
-								size: [0.05; 3].into(),
+								extents: [0.05; 3].into(),
 							})
 							.into_iter()
 							.map(|l| l.thickness(0.002)),
