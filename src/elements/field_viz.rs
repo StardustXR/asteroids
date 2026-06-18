@@ -2,19 +2,19 @@ use std::sync::Arc;
 
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, Transformable},
+	custom::{CustomElement, Transformable, derive_setters::Setters},
 };
-use derive_setters::Setters;
-use glam::Vec3;
+use glam::{Vec3, Vec3A};
 use mint::Vector3;
 use stardust_xr_fusion::{
-	drawable::Line,
-	fields::{Field, Shape},
-	spatial::{SpatialRef, Transform},
+	Error, Result,
+	drawable::{Line, Lines, LinesExt},
+	fields::Shape,
+	spatial::{Spatial, Transform},
 	types::{Color, rgba_linear},
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
-use tokio::{sync::mpsc, task::JoinSet};
+
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
 pub struct FieldViz {
@@ -47,7 +47,7 @@ impl Default for FieldViz {
 	fn default() -> Self {
 		Self {
 			transform: Transform::IDENTITY,
-			shape: Shape::Sphere(1.0),
+			shape: Shape::Sphere { radius: 1.0 },
 			grid_size: [5, 5, 5].into(),
 			sample_size: 0.5,
 			normal_length: 0.1,
@@ -75,172 +75,89 @@ impl FieldViz {
 		self.color_fn = Arc::new(f);
 		self
 	}
-}
 
-pub struct FieldVizInner {
-	field: Field,
-	lines: stardust_xr_fusion::drawable::Lines,
-	update_rx: mpsc::Receiver<Vec<Line>>,
-	update_tx: mpsc::Sender<Vec<Line>>,
-}
-
-impl FieldVizInner {
-	async fn update_normals(
-		field: &Field,
-		grid_size: Vector3<usize>,
-		sample_size: f32,
-		normal_length: f32,
-		line_thickness: f32,
-		_color: Color,
-		color_fn: Arc<dyn Fn(f32) -> Color + Send + Sync>,
-	) -> Vec<Line> {
+	/// Sample the shape's signed-distance field across the grid and build a
+	/// normal line at every grid point.
+	///
+	/// This runs entirely locally via [`Shape::sample`] — no server round-trip.
+	/// The sample's `gradient` is the exact outward unit normal, so there is no
+	/// finite-difference estimation, and its `distance` drives the per-line color.
+	fn compute_lines(&self) -> Vec<Line> {
 		let half_size = Vec3::new(
-			grid_size.x as f32 - 1.0,
-			grid_size.y as f32 - 1.0,
-			grid_size.z as f32 - 1.0,
-		) * sample_size
+			self.grid_size.x as f32 - 1.0,
+			self.grid_size.y as f32 - 1.0,
+			self.grid_size.z as f32 - 1.0,
+		) * self.sample_size
 			* 0.5;
 
-		let mut set = JoinSet::new();
-
-		for x in 0..grid_size.x {
-			for y in 0..grid_size.y {
-				for z in 0..grid_size.z {
+		let mut lines = Vec::new();
+		for x in 0..self.grid_size.x {
+			for y in 0..self.grid_size.y {
+				for z in 0..self.grid_size.z {
 					let pos = Vec3::new(
-						(x as f32 * sample_size) - half_size.x,
-						(y as f32 * sample_size) - half_size.y,
-						(z as f32 * sample_size) - half_size.z,
+						(x as f32 * self.sample_size) - half_size.x,
+						(y as f32 * self.sample_size) - half_size.y,
+						(z as f32 * self.sample_size) - half_size.z,
 					);
-					let field = field.clone();
-					let color_fn = color_fn.clone();
 
-					set.spawn(async move {
-						const EPSILON: f32 = 0.0001;
-						let (d, dx, dy, dz) = tokio::join!(
-							field.distance(&field, pos),
-							field.distance(&field, pos + Vec3::new(EPSILON, 0.0, 0.0)),
-							field.distance(&field, pos + Vec3::new(0.0, EPSILON, 0.0)),
-							field.distance(&field, pos + Vec3::new(0.0, 0.0, EPSILON)),
+					let sample = self.shape.sample(Vec3A::from(pos));
+					let normal = Vec3::new(sample.gradient.x, sample.gradient.y, sample.gradient.z)
+						.normalize_or_zero();
+					let end = pos + (normal * self.normal_length);
+
+					let line_color = (self.color_fn)(sample.distance);
+					if line_color.a > 0.0 {
+						lines.push(
+							line_from_points(vec![[pos.x, pos.y, pos.z], [end.x, end.y, end.z]])
+								.color(line_color)
+								.thickness(self.line_thickness),
 						);
-
-						if let (Ok(d), Ok(dx), Ok(dy), Ok(dz)) = (d, dx, dy, dz) {
-							let normal = Vec3::new(
-								(dx - d) / EPSILON,
-								(dy - d) / EPSILON,
-								(dz - d) / EPSILON,
-							)
-							.normalize();
-
-							let end = pos + (normal * normal_length);
-
-							let line_color = color_fn(d);
-
-							if line_color.a > 0.0 {
-								Some(
-									line_from_points(vec![
-										[pos.x, pos.y, pos.z],
-										[end.x, end.y, end.z],
-									])
-									.color(line_color)
-									.thickness(line_thickness),
-								)
-							} else {
-								None
-							}
-						} else {
-							None
-						}
-					});
+					}
 				}
 			}
-		}
-
-		let mut lines = Vec::new();
-		while let Some(Ok(Some(line))) = set.join_next().await {
-			lines.push(line);
 		}
 
 		lines
 	}
 }
 
+pub struct FieldVizInner {
+	content_root: Spatial,
+	lines: Lines,
+}
+
 impl<State: ValidState> CustomElement<State> for FieldViz {
 	type Inner = FieldVizInner;
-
 	type Error = Error;
 
-	async fn create_inner(
-		&self,
-		_asteroids_context: &Context,
-		info: CreateInnerInfo,
-	) -> Result<Self::Inner, Self::Error> {
-		let field = Field::create(info.parent_space, Transform::IDENTITY, self.shape.clone())?;
-		let lines =
-			stardust_xr_fusion::drawable::Lines::create(info.parent_space, self.transform, &[])?;
-		field.set_spatial_parent(&lines)?;
+	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+		let content_root = info.child_space;
+		content_root.set_local_transform(self.transform)?;
 
-		let (update_tx, update_rx) = mpsc::channel(1);
-
-		// Initial update
-
-		tokio::spawn({
-			let field_clone = field.clone();
-			let viz_config = self.clone();
-			let color_fn = self.color_fn.clone();
-			let update_tx = update_tx.clone();
-			async move {
-				let lines = FieldVizInner::update_normals(
-					&field_clone,
-					viz_config.grid_size,
-					viz_config.sample_size,
-					viz_config.normal_length,
-					viz_config.line_thickness,
-					viz_config.color,
-					color_fn,
-				)
-				.await;
-				let _ = update_tx.send(lines).await;
-			}
-		});
+		let lines = Lines::new(
+			&context.stardust_client,
+			&content_root,
+			self.compute_lines(),
+		)
+		.await?;
 
 		Ok(FieldVizInner {
-			field,
+			content_root,
 			lines,
-			update_rx,
-			update_tx,
 		})
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
-		if self.shape != old.shape {
-			let _ = inner.field.set_shape(self.shape.clone());
-
-			// Spawn new update task when shape changes
-			let field = inner.field.clone();
-			let update_tx = inner.update_tx.clone();
-			let viz_config = self.clone();
-			let color_fn = self.color_fn.clone();
-			tokio::spawn(async move {
-				let lines = FieldVizInner::update_normals(
-					&field,
-					viz_config.grid_size,
-					viz_config.sample_size,
-					viz_config.normal_length,
-					viz_config.line_thickness,
-					viz_config.color,
-					color_fn,
-				)
-				.await;
-				let _ = update_tx.send(lines).await;
-			});
+	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
+		if self.shape != old.shape
+			|| self.grid_size != old.grid_size
+			|| self.sample_size != old.sample_size
+			|| self.normal_length != old.normal_length
+			|| self.line_thickness != old.line_thickness
+		{
+			let _ = inner.lines.set_lines(self.compute_lines());
 		}
 
-		// Handle any pending updates
-		while let Ok(lines) = inner.update_rx.try_recv() {
-			let _ = inner.lines.set_lines(&lines);
-		}
-
-		self.apply_transform(old, &inner.lines);
+		self.apply_transform(old, &inner.content_root);
 	}
 }
 
@@ -258,13 +175,11 @@ async fn asteroids_field_viz_element() {
 	use crate::{
 		Tasker,
 		client::{self, ClientState},
+		custom::CustomElement,
 		elements::FieldViz,
 	};
 	use serde::{Deserialize, Serialize};
-	use stardust_xr_fusion::{
-		fields::{Shape, TorusShape},
-		root::FrameInfo,
-	};
+	use stardust_xr_fusion::{client::FrameInfo, fields::Shape};
 
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 	struct TestState(f32);
@@ -275,7 +190,7 @@ async fn asteroids_field_viz_element() {
 		const APP_ID: &'static str = "org.asteroids.field_viz";
 
 		fn on_frame(&mut self, info: &FrameInfo) {
-			self.0 = info.elapsed;
+			self.0 += info.delta;
 		}
 	}
 	impl crate::Reify for TestState {
@@ -285,10 +200,10 @@ async fn asteroids_field_viz_element() {
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
 			FieldViz::default()
-				.shape(Shape::Torus(TorusShape {
-					radius_a: 0.1,
-					radius_b: 0.01,
-				}))
+				.shape(Shape::Torus {
+					major_radius: 0.1 + (self.0.sin() * 0.01),
+					minor_radius: 0.01,
+				})
 				.grid_size([11, 11, 11])
 				.sample_size(0.025)
 				.normal_length(0.01)

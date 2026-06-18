@@ -21,7 +21,7 @@ mod_expose!(axes);
 mod_expose!(button);
 mod_expose!(derezzable);
 mod_expose!(dial);
-// mod_expose!(field_viz);
+mod_expose!(field_viz);
 mod_expose!(file_watcher);
 mod_expose!(grab_ring);
 mod_expose!(grabbable);
