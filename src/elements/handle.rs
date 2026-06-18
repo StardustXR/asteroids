@@ -9,15 +9,15 @@ use glam::{Mat4, Vec3, vec3};
 use map_range::MapRange;
 use mint::Vector3;
 use stardust_xr_fusion::{
-	drawable::{Line, Lines},
-	error::ServerError,
-};
-use stardust_xr_fusion::{
-	fields::{Field, Shape},
-	spatial::{Spatial, SpatialRef, Transform},
+	Error, Result,
+	drawable::{Line, Lines, LinesExt},
+	fields::{Field, FieldExt, Shape},
+	spatial::{Spatial, Transform},
+	suis::InputDataType,
+	types::rgba_linear,
 };
 use stardust_xr_molecules::{
-	input_action::{InputQueue, InputQueueable, SingleAction},
+	input_action::{InputQueue, InputSnapshot, SingleAction},
 	lines::{LineExt, circle, line_from_points},
 };
 
@@ -46,14 +46,46 @@ impl<State: ValidState> Handle<State> {
 }
 impl<State: ValidState> CustomElement<State> for Handle<State> {
 	type Inner = HandleInner;
-	type Error = ServerError;
+	type Error = Error;
 
-	async fn create_inner(
-		&self,
-		_asteroids_context: &Context,
-		info: CreateInnerInfo,
-	) -> Result<Self::Inner, Self::Error> {
-		HandleInner::new(info.parent_space, self.pos)
+	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+		let content_root = info.child_space;
+		content_root.set_local_transform(Transform::from_translation(self.pos))?;
+
+		let (field, _field_ref) = Field::new(
+			&context.stardust_client,
+			&content_root,
+			Shape::Sphere { radius: RADIUS },
+		)
+		.await?;
+		let input = InputQueue::new(
+			&context.stardust_client,
+			content_root.clone(),
+			field.clone(),
+			// input data is reported relative to the *stationary* parent space so the
+			// interact point doesn't jitter as `content_root` follows the drag
+			info.parent_space.clone(),
+		)
+		.await?;
+
+		let diamond = circle(4, 0.0, RADIUS).thickness(LINE_THICKNESS);
+		let octahedron = [
+			diamond.clone().transform(Mat4::from_rotation_x(FRAC_PI_2)),
+			diamond.clone().transform(Mat4::from_rotation_z(FRAC_PI_2)),
+			diamond,
+		];
+		let lines =
+			Lines::new(&context.stardust_client, &content_root, octahedron.to_vec()).await?;
+
+		Ok(HandleInner {
+			_field: field,
+			input,
+			grab_action: SingleAction::default(),
+			pointer_distance: 0.0,
+			content_root,
+			octahedron,
+			lines,
+		})
 	}
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
@@ -79,54 +111,30 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 }
 
 pub struct HandleInner {
+	content_root: Spatial,
 	_field: Field,
 	input: InputQueue,
 	grab_action: SingleAction,
 	pointer_distance: f32,
-	content_root: Spatial,
 	octahedron: [Line; 3],
 	lines: Lines,
 }
 impl HandleInner {
-	pub fn new(parent_space: &SpatialRef, pos: Vector3<f32>) -> NodeResult<Self> {
-		let field = Field::create(parent_space, Transform::IDENTITY, Shape::Sphere(RADIUS))?;
-		let input = InputHandler::create(parent_space, Transform::IDENTITY, &field)?.queue()?;
-		let content_root = Spatial::create(input.handler(), Transform::from_translation(pos))?;
-		field.set_spatial_parent(&content_root)?;
-
-		let diamond = circle(4, 0.0, RADIUS).thickness(LINE_THICKNESS);
-		let octahedron = [
-			diamond.clone().transform(Mat4::from_rotation_x(FRAC_PI_2)),
-			diamond.clone().transform(Mat4::from_rotation_z(FRAC_PI_2)),
-			diamond,
-		];
-		let lines = Lines::create(input.handler(), Transform::IDENTITY, &octahedron)?;
-
-		Ok(HandleInner {
-			_field: field,
-			input,
-			grab_action: SingleAction::default(),
-			pointer_distance: 0.0,
-			content_root,
-			octahedron,
-			lines,
-		})
-	}
-
-	fn interact_point(&self, input: &InputData) -> Vec3 {
-		match &input.input {
-			InputDataType::Hand(h) => {
+	fn interact_point(&self, input: &InputSnapshot) -> Vec3 {
+		match input.input() {
+			InputDataType::Hand { data: hand } => {
 				// For hands, use midpoint between thumb and index finger (pinch position)
-				Vec3::from(h.thumb.tip.position).lerp(Vec3::from(h.index.tip.position), 0.5)
+				Vec3::from(hand.thumb.tip.pose.position)
+					.lerp(Vec3::from(hand.index.tip.pose.position), 0.5)
 			}
-			InputDataType::Tip(t) => {
+			InputDataType::Tip { data: tip } => {
 				// For tips, use the origin point
-				Vec3::from(t.origin)
+				Vec3::from(tip.pose.position)
 			}
-			InputDataType::Pointer(p) => {
+			InputDataType::Pointer { data: pointer } => {
 				// Calculate position at current distance along pointer ray
-				let origin = Vec3::from(p.origin);
-				let direction = Vec3::from(p.direction()).normalize();
+				let origin = Vec3::from(pointer.pose.position);
+				let direction = Vec3::from(pointer.direction()).normalize();
 				origin + (direction * self.pointer_distance)
 			}
 		}
@@ -139,28 +147,25 @@ impl HandleInner {
 		self.grab_action.update(
 			false,
 			&self.input,
-			|i| i.distance < 0.05,
-			|i| {
-				i.datamap.with_data(|d| match &i.input {
-					InputDataType::Hand(_) => d.idx("pinch_strength").as_f32() > 0.5,
-					_ => d.idx("grab").as_f32() > 0.5,
-				})
+			|i| i.distance() < 0.05,
+			|i| match i.input() {
+				InputDataType::Hand { .. } => i.datamap_f32("pinch_strength") > 0.5,
+				_ => i.datamap_f32("grab") > 0.5,
 			},
 		);
 
 		// Initialize pointer distance when grab starts with a pointer
+		let start_grab = self.grab_action.actor_started();
 		if let Some(input) = self.grab_action.actor() {
-			if let InputDataType::Pointer(p) = &input.input {
-				if self.grab_action.actor_started() {
-					// Set initial pointer distance based on deepest point
-					self.pointer_distance =
-						Vec3::from(p.origin).distance(Vec3::from(p.deepest_point));
+			if let InputDataType::Pointer { data: pointer } = input.input() {
+				if start_grab {
+					// deepest_point is a distance along the ray in the new API
+					self.pointer_distance = pointer.deepest_point;
 				}
 				// Adjust pointer_distance based on scroll input
-				self.pointer_distance += input.datamap.with_data(|d| {
-					(-d.idx("scroll_continuous").as_vector().idx(1).as_f32() * 0.01)
-						+ (-d.idx("scroll_discrete").as_vector().idx(1).as_f32() * 0.1)
-				});
+				let scroll_continuous = input.datamap_vec2("scroll_continuous").y;
+				let scroll_discrete = input.datamap_vec2("scroll_discrete").y;
+				self.pointer_distance += (scroll_continuous * 0.01) + (scroll_discrete * 0.1);
 			}
 		}
 
@@ -177,6 +182,7 @@ impl HandleInner {
 	}
 
 	fn update_signifiers(&mut self, pos: Vec3) {
+		// proximity coloring is keyed off each vertex's *resting* world position (point + pos)
 		for line in &mut self.octahedron {
 			for point in &mut line.points {
 				let lerp = Self::interact_proximity(&self.input, Vec3::from(point.point) + pos)
@@ -186,42 +192,45 @@ impl HandleInner {
 			}
 		}
 
-		let interact_point = self.grab_action.actor().map(|a| self.interact_point(a));
-		let handle_line = interact_point
-			.map(|i| line_from_points(vec![pos - i, vec3(0.0, 0.0, 0.0)]).thickness(0.001));
-		if let Some(interact_point) = interact_point {
-			let _ = self
-				.lines
-				.set_local_transform(Transform::from_translation(interact_point));
-		}
-		if self.grab_action.actor_stopped() {
-			let _ = self
-				.lines
-				.set_local_transform(Transform::from_translation(pos));
-		}
-		let lines = &self
-			.octahedron
-			.iter()
-			.cloned()
-			.chain(handle_line)
-			.collect::<Vec<_>>();
+		// The lines are parented to `content_root` (at `pos`), so everything here is in
+		// content_root-local space. While grabbed we bake the interact-point offset into
+		// the geometry rather than moving a spatial — that keeps `content_root` purely the
+		// logical position `diff` owns, so the two don't fight (which caused the snapping).
+		let offset = self
+			.grab_action
+			.actor()
+			.map(|a| self.interact_point(a) - pos);
+		let octahedron = self.octahedron.iter().cloned().map(|mut line| {
+			if let Some(offset) = offset {
+				for point in &mut line.points {
+					point.point = (Vec3::from(point.point) + offset).into();
+				}
+			}
+			line
+		});
+		// a tether from the resting position (local origin) to the interact point
+		let handle_line = offset
+			.map(|offset| line_from_points(vec![vec3(0.0, 0.0, 0.0), offset]).thickness(0.001));
+		let lines = octahedron.chain(handle_line).collect::<Vec<_>>();
 		let _ = self.lines.set_lines(lines.as_slice());
 	}
 
 	fn interact_proximity(input: &InputQueue, point: Vec3) -> f32 {
 		input
 			.input()
-			.keys()
-			.map(|i| match &i.input {
-				InputDataType::Hand(h) => vec![h.thumb.tip.position, h.index.tip.position]
-					.into_iter()
-					.map(|p| Vec3::from(p).distance(point))
-					.reduce(|a, b| a.min(b))
-					.unwrap_or(f32::INFINITY),
-				InputDataType::Tip(t) => Vec3::from(t.origin).distance(point),
-				InputDataType::Pointer(p) => {
+			.values()
+			.map(|i| match i.input() {
+				InputDataType::Hand { data: h } => {
+					[h.thumb.tip.pose.position, h.index.tip.pose.position]
+						.into_iter()
+						.map(|p| Vec3::from(p).distance(point))
+						.reduce(f32::min)
+						.unwrap_or(f32::INFINITY)
+				}
+				InputDataType::Tip { data: t } => Vec3::from(t.pose.position).distance(point),
+				InputDataType::Pointer { data: p } => {
 					// Convert pointer origin to Vec3 for calculations
-					let origin = Vec3::from(p.origin);
+					let origin = Vec3::from(p.pose.position);
 					// Get normalized direction vector of pointer
 					let direction = Vec3::from(p.direction()).normalize();
 					// Vector from origin to point we're checking
@@ -240,7 +249,7 @@ impl HandleInner {
 					}
 				}
 			})
-			.reduce(|a, b| a.min(b))
+			.reduce(f32::min)
 			.unwrap_or(f32::INFINITY)
 	}
 }
