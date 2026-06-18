@@ -4,7 +4,7 @@ use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable, derive_setters::Setters},
 };
-use glam::{Mat4, Vec3, Vec3A};
+use glam::{Vec3, Vec3A};
 use mint::Vector3;
 use stardust_xr_fusion::{
 	Error, Result,
@@ -204,7 +204,8 @@ async fn asteroids_field_viz_element() {
 						major_radius: 0.1,
 						minor_radius: 0.01,
 					}),
-					transform: Mat4::from_translation([0.0, self.0.sin() * 0.1, 0.0].into()).into(),
+					transform: glam::Mat4::from_translation([0.0, self.0.sin() * 0.1, 0.0].into())
+						.into(),
 				})
 				.grid_size([11, 11, 11])
 				.sample_size(0.025)
