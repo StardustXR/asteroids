@@ -4,7 +4,7 @@ use crate::{
 	Context, CreateInnerInfo, ValidState,
 	custom::{CustomElement, Transformable, derive_setters::Setters},
 };
-use glam::{Vec3, Vec3A};
+use glam::{Mat4, Vec3, Vec3A};
 use mint::Vector3;
 use stardust_xr_fusion::{
 	Error, Result,
@@ -101,8 +101,7 @@ impl FieldViz {
 					);
 
 					let sample = self.shape.sample(Vec3A::from(pos));
-					let normal = Vec3::new(sample.gradient.x, sample.gradient.y, sample.gradient.z)
-						.normalize_or_zero();
+					let normal = Vec3::from(sample.gradient).normalize_or_zero();
 					let end = pos + (normal * self.normal_length);
 
 					let line_color = (self.color_fn)(sample.distance);
@@ -200,9 +199,12 @@ async fn asteroids_field_viz_element() {
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
 			FieldViz::default()
-				.shape(Shape::Torus {
-					major_radius: 0.1 + (self.0.sin() * 0.01),
-					minor_radius: 0.01,
+				.shape(Shape::Transform {
+					shape: Box::new(Shape::Torus {
+						major_radius: 0.1,
+						minor_radius: 0.01,
+					}),
+					transform: Mat4::from_translation([0.0, self.0.sin() * 0.1, 0.0].into()).into(),
 				})
 				.grid_size([11, 11, 11])
 				.sample_size(0.025)
