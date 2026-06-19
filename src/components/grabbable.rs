@@ -1,7 +1,8 @@
 use crate::{
-	Component, ComponentCreateInfo, Context, ValidState,
-	custom::{FnWrapper, derive_setters::Setters},
+	CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState,
+	custom::derive_setters::Setters,
 };
+use std::sync::Arc;
 use derive_where::derive_where;
 use glam::{Affine3A, Quat, Vec3, vec3};
 use mint::{Quaternion, Vector3};
@@ -20,11 +21,11 @@ pub enum PointerMode {
 
 /// Called every frame the pose changes while grabbed, with the new pose.
 type OnChangePose<State> =
-	FnWrapper<dyn Fn(&mut State, Vector3<f32>, Quaternion<f32>) + Send + Sync>;
-type GrabStart<State> = FnWrapper<dyn Fn(&mut State) + Send + Sync>;
-type GrabStop<State> = FnWrapper<dyn Fn(&mut State) + Send + Sync>;
+	CloneFnWrapper<dyn Fn(&mut State, Vector3<f32>, Quaternion<f32>) + Send + Sync>;
+type GrabStart<State> = CloneFnWrapper<dyn Fn(&mut State) + Send + Sync>;
+type GrabStop<State> = CloneFnWrapper<dyn Fn(&mut State) + Send + Sync>;
 
-#[derive_where(Debug)]
+#[derive_where(Debug, Clone)]
 #[derive(Setters)]
 #[setters(into)]
 pub struct Grabbable<State: ValidState> {
@@ -52,20 +53,20 @@ impl<State: ValidState> Grabbable<State> {
 		Grabbable {
 			pos: pos.into(),
 			rot: rot.into(),
-			on_change_pose: FnWrapper(Box::new(on_change)),
-			grab_start: FnWrapper(Box::new(|_| ())),
-			grab_stop: FnWrapper(Box::new(|_| ())),
+			on_change_pose: CloneFnWrapper(Arc::new(on_change)),
+			grab_start: CloneFnWrapper(Arc::new(|_| ())),
+			grab_stop: CloneFnWrapper(Arc::new(|_| ())),
 			max_distance: 0.05,
 			pointer_mode: PointerMode::Parent,
 		}
 	}
 
 	pub fn grab_start<F: Fn(&mut State) + Send + Sync + 'static>(mut self, f: F) -> Self {
-		self.grab_start = FnWrapper(Box::new(f));
+		self.grab_start = CloneFnWrapper(Arc::new(f));
 		self
 	}
 	pub fn grab_stop<F: Fn(&mut State) + Send + Sync + 'static>(mut self, f: F) -> Self {
-		self.grab_stop = FnWrapper(Box::new(f));
+		self.grab_stop = CloneFnWrapper(Arc::new(f));
 		self
 	}
 }
@@ -100,7 +101,13 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 		})
 	}
 
-	fn diff(&self, _old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
+	fn diff(
+		&self,
+		_old_self: &Self,
+		_context: &Context,
+		_info: ComponentCreateInfo<'_>,
+		inner: &mut Self::Inner,
+	) {
 		// the entity applies the state-owned pose onto the shared spatial; we only sync knobs.
 		inner.max_distance = self.max_distance;
 		inner.pointer_mode = self.pointer_mode;

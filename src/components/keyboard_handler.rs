@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::{
-	CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState, custom::FnWrapper,
-};
+use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
 use gluon::{Handler, Object};
 use stardust_xr_fusion::{Error, query::QueryableInterfaceGuard, types::Timestamp};
 use stardust_xr_molecules::keyboard_handler::protocol::{
@@ -10,10 +8,10 @@ use stardust_xr_molecules::keyboard_handler::protocol::{
 };
 use tokio::sync::{RwLock, mpsc};
 
-#[derive_where::derive_where(Debug, PartialEq, Default)]
+#[derive_where::derive_where(Debug, PartialEq, Default, Clone)]
 pub struct KeyboardHandler<State: ValidState> {
 	#[allow(clippy::type_complexity)]
-	on_key: Option<FnWrapper<dyn Fn(&mut State, KeyEvent, Option<Timestamp>) + Send + Sync>>,
+	on_key: Option<CloneFnWrapper<dyn Fn(&mut State, KeyEvent, Option<Timestamp>) + Send + Sync>>,
 	on_key_async: Option<OnKeyAsync>,
 }
 type OnKeyAsync = CloneFnWrapper<dyn Fn(KeyEvent, Option<Timestamp>) + Send + Sync>;
@@ -26,7 +24,7 @@ impl<State: ValidState> KeyboardHandler<State> {
 		mut self,
 		on_key: impl Fn(&mut State, KeyEvent, Option<Timestamp>) + Send + Sync + 'static,
 	) -> Self {
-		self.on_key = Some(FnWrapper(Box::new(on_key)));
+		self.on_key = Some(CloneFnWrapper(Arc::new(on_key)));
 		self
 	}
 	pub fn on_key_async(
@@ -92,7 +90,13 @@ impl<State: ValidState> Component<State> for KeyboardHandler<State> {
 		})
 	}
 
-	fn diff(&self, _old: &Self, _context: &Context, inner: &mut Self::Inner) {
+	fn diff(
+		&self,
+		_old: &Self,
+		_context: &Context,
+		_info: ComponentCreateInfo<'_>,
+		inner: &mut Self::Inner,
+	) {
 		let on_key_async = self.on_key_async.clone();
 		let rwlock = inner.kb_handler.on_key_asnyc.clone();
 		// maybe theres a better way to do this?

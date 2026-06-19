@@ -1,14 +1,15 @@
-use crate::{Component, ComponentCreateInfo, Context, ValidState, custom::FnWrapper};
+use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
 use stardust_xr_fusion::{Error, client::FrameInfo};
+use std::sync::Arc;
 
-#[derive_where::derive_where(Debug)]
+#[derive_where::derive_where(Debug, Clone)]
 pub struct Derezzable<State: ValidState> {
-	on_derez: FnWrapper<dyn Fn(&mut State) + Send + Sync + 'static>,
+	on_derez: CloneFnWrapper<dyn Fn(&mut State) + Send + Sync + 'static>,
 }
 impl<State: ValidState> Derezzable<State> {
 	pub fn new(on_derez: impl Fn(&mut State) + Send + Sync + 'static) -> Self {
 		Self {
-			on_derez: FnWrapper(Box::new(on_derez)),
+			on_derez: CloneFnWrapper(Arc::new(on_derez)),
 		}
 	}
 }
@@ -31,7 +32,14 @@ impl<State: ValidState> Component<State> for Derezzable<State> {
 		Ok(derez)
 	}
 
-	fn diff(&self, _old_self: &Self, _context: &Context, _inner: &mut Self::Inner) {}
+	fn diff(
+		&self,
+		_old_self: &Self,
+		_context: &Context,
+		_info: ComponentCreateInfo<'_>,
+		_inner: &mut Self::Inner,
+	) {
+	}
 
 	fn frame(
 		&self,

@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::{
-	CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState, custom::FnWrapper,
-};
+use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
 use gluon::{Handler, Object};
 use mint::Vector2;
 use stardust_xr_fusion::{
@@ -16,18 +14,19 @@ use stardust_xr_molecules::mouse_handler::{
 };
 use tokio::sync::{RwLock, mpsc};
 
-#[derive_where::derive_where(Debug, PartialEq)]
+#[derive_where::derive_where(Debug, PartialEq, Clone)]
 pub struct MouseHandler<State: ValidState> {
 	#[allow(clippy::type_complexity)]
-	on_button:
-		Option<FnWrapper<dyn Fn(&mut State, u32, bool, Option<Timestamp>) + Send + Sync + 'static>>,
+	on_button: Option<
+		CloneFnWrapper<dyn Fn(&mut State, u32, bool, Option<Timestamp>) + Send + Sync + 'static>,
+	>,
 	#[allow(clippy::type_complexity)]
 	on_motion: Option<
-		FnWrapper<dyn Fn(&mut State, Vector2<f32>, Option<Timestamp>) + Send + Sync + 'static>,
+		CloneFnWrapper<dyn Fn(&mut State, Vector2<f32>, Option<Timestamp>) + Send + Sync + 'static>,
 	>,
 	#[allow(clippy::type_complexity)]
 	on_scroll_discrete: Option<
-		FnWrapper<
+		CloneFnWrapper<
 			dyn Fn(&mut State, Vector2<f32>, ScrollSource, Option<Timestamp>)
 				+ Send
 				+ Sync
@@ -36,7 +35,7 @@ pub struct MouseHandler<State: ValidState> {
 	>,
 	#[allow(clippy::type_complexity)]
 	on_scroll_continuous: Option<
-		FnWrapper<
+		CloneFnWrapper<
 			dyn Fn(&mut State, Vector2<f32>, ScrollSource, Option<Timestamp>)
 				+ Send
 				+ Sync
@@ -86,14 +85,14 @@ impl<State: ValidState> MouseHandler<State> {
 		mut self,
 		on_button: impl Fn(&mut State, u32, bool, Option<Timestamp>) + Send + Sync + 'static,
 	) -> Self {
-		self.on_button = Some(FnWrapper(Box::new(on_button)));
+		self.on_button = Some(CloneFnWrapper(Arc::new(on_button)));
 		self
 	}
 	pub fn on_motion(
 		mut self,
 		on_motion: impl Fn(&mut State, Vector2<f32>, Option<Timestamp>) + Send + Sync + 'static,
 	) -> Self {
-		self.on_motion = Some(FnWrapper(Box::new(on_motion)));
+		self.on_motion = Some(CloneFnWrapper(Arc::new(on_motion)));
 		self
 	}
 	pub fn on_scroll_discrete(
@@ -103,7 +102,7 @@ impl<State: ValidState> MouseHandler<State> {
 		+ Sync
 		+ 'static,
 	) -> Self {
-		self.on_scroll_discrete = Some(FnWrapper(Box::new(on_scroll_discrete)));
+		self.on_scroll_discrete = Some(CloneFnWrapper(Arc::new(on_scroll_discrete)));
 		self
 	}
 	pub fn on_scroll_continuous(
@@ -113,7 +112,7 @@ impl<State: ValidState> MouseHandler<State> {
 		+ Sync
 		+ 'static,
 	) -> Self {
-		self.on_scroll_continuous = Some(FnWrapper(Box::new(on_scroll_continuous)));
+		self.on_scroll_continuous = Some(CloneFnWrapper(Arc::new(on_scroll_continuous)));
 		self
 	}
 
@@ -266,7 +265,13 @@ impl<State: ValidState> Component<State> for MouseHandler<State> {
 		})
 	}
 
-	fn diff(&self, _old: &Self, _context: &Context, inner: &mut Self::Inner) {
+	fn diff(
+		&self,
+		_old: &Self,
+		_context: &Context,
+		_info: ComponentCreateInfo<'_>,
+		inner: &mut Self::Inner,
+	) {
 		let callbacks = self.async_callbacks.clone();
 		let rwlock = inner.mouse_handler.callbacks.clone();
 		// maybe theres a better way to do this?

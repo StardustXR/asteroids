@@ -14,7 +14,9 @@ use stardust_xr_fusion::{
 };
 
 use crate::{Context, CreateInnerInfo, CustomElement, Transformable, ValidState};
+use futures::FutureExt;
 use std::{any::Any, convert::Infallible, error::Error, fmt::Debug, marker::PhantomData};
+use tokio::task::JoinHandle;
 
 /// Unifies the heterogeneous component/field/queryable errors into one concrete `Error` type
 /// (`Box<dyn Error>` itself doesn't implement `std::error::Error`, so we can't use it directly
@@ -65,7 +67,17 @@ pub trait Component<State: ValidState>: Any + Debug + Send + Sync + Sized + 'sta
 	) -> impl Future<Output = Result<Self::Inner, Self::Error>> + Send + Sync;
 	/// Update the inner imperative struct with the new state of the node.
 	/// You will need to check for changes between `self` and `old_self` and update accordingly.
-	fn diff(&self, old_self: &Self, context: &Context, inner: &mut Self::Inner);
+	///
+	/// `info` carries the entity's shared spatial/field/queryable so a component can
+	/// (re)create itself live — notably [`Option<C>`] uses it to spawn a component that was
+	/// just toggled on (`None` -> `Some`).
+	fn diff(
+		&self,
+		old_self: &Self,
+		context: &Context,
+		info: ComponentCreateInfo<'_>,
+		inner: &mut Self::Inner,
+	);
 	/// Every frame on the server
 	fn frame(
 		&self,
@@ -91,7 +103,167 @@ impl<State: ValidState> Component<State> for () {
 		Ok(())
 	}
 
-	fn diff(&self, _old_self: &Self, _context: &Context, _inner: &mut Self::Inner) {}
+	fn diff(
+		&self,
+		_old_self: &Self,
+		_context: &Context,
+		_info: ComponentCreateInfo<'_>,
+		_inner: &mut Self::Inner,
+	) {
+	}
+}
+
+/// Inner state for an [`Option<C>`] component.
+///
+/// Component creation is async (server round-trips) but [`Component::diff`] is synchronous, so a
+/// `None` -> `Some` toggle can't build the inner inline. Instead it spawns the creation and parks
+/// the [`JoinHandle`] in `Creating`, which either [`Component::frame`] or [`Component::diff`]
+/// finalizes into `Present` once the task completes — mirroring the element-level
+/// `ElementInner::Creating` pattern.
+/// An in-flight component creation: yields the (cloned) config it was created from alongside the
+/// creation result, so finalization can diff from the creation-time config to the current one.
+#[allow(type_alias_bounds)]
+type ComponentCreation<State: ValidState, C: Component<State>> =
+	JoinHandle<(C, Result<C::Inner, C::Error>)>;
+
+pub enum OptionComponentInner<State: ValidState, C: Component<State>> {
+	Absent,
+	/// Async creation in flight. Returns the config it was created from alongside the result, so
+	/// finalization can diff from the *creation-time* config to the current one (config may have
+	/// changed during the async window).
+	Creating(ComponentCreation<State, C>),
+	Present {
+		inner: C::Inner,
+		/// The config this inner was created from, if not yet reconciled against the current
+		/// declarative config. Set when `frame` finalizes a creation (it has no
+		/// `ComponentCreateInfo` to diff with); cleared by the next `diff`.
+		created_from: Option<C>,
+	},
+}
+
+impl<State: ValidState, C: Component<State> + Clone> Component<State> for Option<C> {
+	type Inner = OptionComponentInner<State, C>;
+	type Error = C::Error;
+
+	async fn create_inner(
+		&self,
+		context: &Context,
+		info: ComponentCreateInfo<'_>,
+	) -> Result<Self::Inner, Self::Error> {
+		match self {
+			Some(component) => Ok(OptionComponentInner::Present {
+				inner: component.create_inner(context, info).await?,
+				// created from the current config, nothing to reconcile
+				created_from: None,
+			}),
+			None => Ok(OptionComponentInner::Absent),
+		}
+	}
+
+	fn diff(
+		&self,
+		old_self: &Self,
+		context: &Context,
+		info: ComponentCreateInfo<'_>,
+		inner: &mut Self::Inner,
+	) {
+		match (self, inner) {
+			// still present: forward the diff to the live component, reconciling from the
+			// creation-time config if `frame` finalized it before us
+			(Some(new_component), OptionComponentInner::Present { inner, created_from }) => {
+				if let Some(decl) = created_from.take() {
+					new_component.diff(&decl, context, info, inner);
+				} else if let Some(old_component) = old_self {
+					new_component.diff(old_component, context, info, inner);
+				}
+			}
+			// creation in flight: if it just finished, finalize it now (we have `info`, so we can
+			// reconcile to the current config straight away); otherwise leave it for next time
+			(Some(new_component), inner @ OptionComponentInner::Creating(_)) => {
+				if matches!(inner, OptionComponentInner::Creating(handle) if handle.is_finished())
+					&& let OptionComponentInner::Creating(handle) =
+						std::mem::replace(inner, OptionComponentInner::Absent)
+					&& let Some(Ok((decl, Ok(mut component_inner)))) = handle.now_or_never()
+				{
+					new_component.diff(&decl, context, info, &mut component_inner);
+					*inner = OptionComponentInner::Present {
+						inner: component_inner,
+						created_from: None,
+					};
+				}
+			}
+			// None -> Some: spawn the async creation and park the handle
+			(Some(new_component), inner @ OptionComponentInner::Absent) => {
+				*inner = OptionComponentInner::Creating(spawn_create_component(
+					new_component.clone(),
+					context,
+					info,
+				));
+			}
+			// Some -> None (or staying None): tear down, aborting an in-flight creation
+			(None, inner) => {
+				if let OptionComponentInner::Creating(handle) = inner {
+					handle.abort();
+				}
+				*inner = OptionComponentInner::Absent;
+			}
+		}
+	}
+
+	fn frame(
+		&self,
+		context: &Context,
+		info: &FrameInfo,
+		state: &mut State,
+		inner: &mut Self::Inner,
+	) {
+		// finalize a finished creation so it can run *this* frame (no `ComponentCreateInfo` here,
+		// so we stash the creation-time config in `created_from` for the next `diff` to reconcile)
+		if matches!(inner, OptionComponentInner::Creating(handle) if handle.is_finished()) {
+			if let OptionComponentInner::Creating(handle) =
+				std::mem::replace(inner, OptionComponentInner::Absent)
+			{
+				// the task is finished, so `now_or_never` resolves immediately. On creation error
+				// or a panicked/aborted task we just stay `Absent`.
+				if let Some(Ok((decl, Ok(component_inner)))) = handle.now_or_never() {
+					*inner = OptionComponentInner::Present {
+						inner: component_inner,
+						created_from: Some(decl),
+					};
+				}
+			}
+		}
+
+		if let (Some(component), OptionComponentInner::Present { inner, .. }) = (self, inner) {
+			component.frame(context, info, state, inner);
+		}
+	}
+}
+
+/// Spawn a component's async creation, owning everything it borrows so the future is `'static`.
+/// Returns the (cloned) config alongside the result so finalization can diff from it to the
+/// current config.
+fn spawn_create_component<State: ValidState, C: Component<State> + Clone>(
+	component: C,
+	context: &Context,
+	info: ComponentCreateInfo<'_>,
+) -> ComponentCreation<State, C> {
+	let context = context.clone();
+	let parent_space = info.parent_space.clone();
+	let spatial = info.spatial.clone();
+	let field = info.field.clone();
+	let queryable = info.queryable.clone();
+	tokio::spawn(async move {
+		let info = ComponentCreateInfo {
+			parent_space: &parent_space,
+			spatial: &spatial,
+			field: &field,
+			queryable: &queryable,
+		};
+		// `create_inner` only borrows `component`, so we can hand it back for reconciliation
+		let result = component.create_inner(&context, info).await;
+		(component, result)
+	})
 }
 
 impl<State: ValidState, A: Component<State>, B: Component<State>> Component<State> for (A, B) {
@@ -116,9 +288,15 @@ impl<State: ValidState, A: Component<State>, B: Component<State>> Component<Stat
 		Ok((a, b))
 	}
 
-	fn diff(&self, old_self: &Self, context: &Context, inner: &mut Self::Inner) {
-		self.0.diff(&old_self.0, context, &mut inner.0);
-		self.1.diff(&old_self.1, context, &mut inner.1);
+	fn diff(
+		&self,
+		old_self: &Self,
+		context: &Context,
+		info: ComponentCreateInfo<'_>,
+		inner: &mut Self::Inner,
+	) {
+		self.0.diff(&old_self.0, context, info, &mut inner.0);
+		self.1.diff(&old_self.1, context, info, &mut inner.1);
 	}
 
 	fn frame(
@@ -220,6 +398,7 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 			.map_err(BoxError::new)?;
 
 		Ok(EntityInner {
+			parent_space: info.parent_space,
 			spatial,
 			field,
 			_queryable: queryable,
@@ -234,8 +413,19 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 		if self.field_shape != old_self.field_shape {
 			let _ = inner.field.set_shape(self.field_shape.clone());
 		}
-		self.components
-			.diff(&old_self.components, context, &mut inner.component_inners);
+		// rebuild the shared creation info so components can recreate themselves live
+		let info = ComponentCreateInfo {
+			parent_space: &inner.parent_space,
+			spatial: &inner.spatial,
+			field: &inner.field,
+			queryable: &inner._queryable,
+		};
+		self.components.diff(
+			&old_self.components,
+			context,
+			info,
+			&mut inner.component_inners,
+		);
 	}
 
 	fn frame(
@@ -251,6 +441,8 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 }
 
 pub struct EntityInner<State: ValidState, C: Component<State>> {
+	// the entity's stationary parent space, kept so toggled-on components can be (re)created
+	parent_space: SpatialRef,
 	spatial: Spatial,
 	field: Field,
 	// keeps the shared queryable alive for the entity's lifetime; the per-interface guards
