@@ -9,6 +9,7 @@ pub use stardust_xr_molecules::{DebugSettings, button::ButtonVisualSettings};
 use crate::mod_expose;
 
 mod_expose!(axes);
+mod_expose!(bounds_transformer);
 mod_expose!(button);
 mod_expose!(dial);
 mod_expose!(field_viz);
@@ -19,7 +20,6 @@ mod_expose!(lines);
 mod_expose!(model);
 // mod_expose!(playspace);
 mod_expose!(pen);
-// mod_expose!(size_constrainer);
 // mod_expose!(sky_light);
 // mod_expose!(sky_texture);
 mod_expose!(spatial);
