@@ -572,7 +572,6 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 						Spatial::new(&context.stardust_client, &parent_space, Transform::IDENTITY)
 							.await
 							.unwrap();
-					let _ = child_space_tx.send(Some(child_spatial_ref.clone()));
 
 					let result = element
 						.create_inner(
@@ -584,6 +583,10 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 							},
 						)
 						.await;
+					// publish the ref only after create_inner has finalized this node's parent
+					// and transform — otherwise children can attach mid-reparent (e.g. elements
+					// that `set_parent` in create_inner) and end up offset by the parent transform
+					let _ = child_space_tx.send(Some(child_spatial_ref.clone()));
 					(element, result, child_spatial_ref)
 				}
 			});
