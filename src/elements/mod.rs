@@ -18,7 +18,7 @@ mod_expose!(handle);
 mod_expose!(lines);
 mod_expose!(model);
 // mod_expose!(playspace);
-// mod_expose!(pen);
+mod_expose!(pen);
 // mod_expose!(size_constrainer);
 // mod_expose!(sky_light);
 // mod_expose!(sky_texture);

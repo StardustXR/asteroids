@@ -7,16 +7,14 @@ use glam::{Quat, Vec3};
 use map_range::MapRange as _;
 use mint::{Quaternion, Vector3};
 use stardust_xr_fusion::{
-	Error,
-	drawable::{Line, LinePoint, Lines},
-	fields::{Field, Shape},
-	input::{InputDataType, InputHandler},
-	spatial::{Spatial, SpatialRef, Transform},
+	Error, Result,
+	drawable::{Line, LinePoint, Lines, LinesExt},
+	fields::{Field, FieldExt, Shape},
+	spatial::{Spatial, SpatialExt, Transform},
+	suis::InputDataType,
 	types::color::{AlphaColor, Rgb, color_space::LinearRgb, rgba_linear},
 };
-use stardust_xr_molecules::input_action::{
-	InputQueue, InputQueueable as _, SimpleAction, SingleAction,
-};
+use stardust_xr_molecules::input_action::{InputQueue, SimpleAction, SingleAction};
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -30,8 +28,10 @@ pub enum PenState {
 }
 
 pub struct PenInner {
-	child_root: Spatial,
-	pen_visuals_root: Lines,
+	content_root: Spatial,
+	pen_visuals: Lines,
+	// the field straddles the shaft, so it lives on a spatial offset to the shaft's midpoint
+	field_root: Spatial,
 	field: Field,
 	pointer_distance: f32,
 	input: InputQueue,
@@ -104,60 +104,75 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 
 	type Error = Error;
 
-	async fn create_inner(
-		&self,
-		_asteroids_context: &Context,
-		info: CreateInnerInfo,
-	) -> Result<Self::Inner, Self::Error> {
-		let pen_visuals_root = Lines::create(
-			info.parent_space,
-			Transform::from_translation_rotation(self.pos, self.rot),
-			&[self.get_lines()],
-		)?;
-		let field = Field::create(
-			&pen_visuals_root,
+	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+		let content_root = info.child_space;
+		content_root
+			.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot))?;
+
+		let pen_visuals = Lines::new(
+			&context.stardust_client,
+			&content_root,
+			vec![self.get_lines()],
+		)
+		.await?;
+
+		// the cylinder field is centered on its spatial, so offset it up to the shaft midpoint
+		let content_root_ref = content_root.spatial_ref().await?;
+		let (field_root, _field_root_ref) = Spatial::new(
+			&context.stardust_client,
+			&content_root_ref,
 			Transform::from_translation([0.0, self.length * 0.5, 0.0]),
-			Shape::Cylinder(CylinderShape {
+		)
+		.await?;
+		let (field, _field_ref) = Field::new(
+			&context.stardust_client,
+			&field_root,
+			Shape::Cylinder {
 				length: self.length,
 				radius: self.thickness,
-			}),
-		)?;
-		let queue =
-			InputHandler::create(info.parent_space, Transform::IDENTITY, &field)?.queue()?;
+			},
+		)
+		.await?;
 
-		let child_root = Spatial::create(
-			&pen_visuals_root,
-			Transform::from_translation(Vec3::new(0., self.length, 0.)),
-		)?;
-
-		pen_visuals_root.set_spatial_parent(queue.handler())?;
+		let input = InputQueue::new(
+			&context.stardust_client,
+			field_root.clone(),
+			field.clone(),
+			// input is reported relative to the *stationary* parent space, not the moving
+			// content_root, so the grab pose doesn't fight itself as the pen follows
+			info.parent_space.clone(),
+		)
+		.await?;
 
 		Ok(PenInner {
+			content_root,
+			pen_visuals,
+			field_root,
 			field,
-			pen_visuals_root,
-			input: queue,
+			input,
 			pointer_distance: 0.0,
 			grab_action: Default::default(),
 			draw_action: Default::default(),
-			child_root,
 			drawing: false,
 		})
 	}
 
-	fn diff(&self, old: &Self, inner: &mut Self::Inner) {
+	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.pos != old.pos || self.rot != old.rot {
-			let transform = Transform::from_translation_rotation(self.pos, self.rot);
 			let _ = inner
-				.pen_visuals_root
-				.set_relative_transform(inner.input.handler(), transform);
+				.content_root
+				.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot));
 		}
 
 		if self.thickness != old.thickness || self.length != old.length || self.color != old.color {
-			_ = inner.pen_visuals_root.set_lines(&[self.get_lines()]);
-			_ = inner.field.set_shape(Shape::Cylinder(CylinderShape {
+			let _ = inner.pen_visuals.set_lines(vec![self.get_lines()]);
+			let _ = inner.field.set_shape(Shape::Cylinder {
 				length: self.length,
 				radius: self.thickness,
-			}));
+			});
+			let _ = inner
+				.field_root
+				.set_local_transform(Transform::from_translation([0.0, self.length * 0.5, 0.0]));
 		}
 	}
 
@@ -175,60 +190,55 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 		inner.grab_action.update(
 			false,
 			&inner.input,
-			|data| data.distance < self.grab_distance,
-			|data| match &data.input {
-				InputDataType::Hand(h) => {
+			|i| i.distance() < self.grab_distance,
+			|i| match i.input() {
+				InputDataType::Hand { data: h } => {
 					(h.finger_curl(&h.ring) + h.finger_curl(&h.little)) / 2.0 > 0.75
 				}
-				_ => data
-					.datamap
-					.with_data(|datamap| datamap.idx("grab").as_f32() > 0.90),
+				_ => i.datamap_f32("grab") > 0.90,
 			},
 		);
 
 		inner
 			.draw_action
-			.update(&inner.input, &|data| match &data.input {
-				InputDataType::Hand(h) => h.pinch_strength() > self.hand_draw_threshold,
-				_ => data
-					.datamap
-					.with_data(|datamap| datamap.idx("select").as_f32() > self.tip_draw_threshold),
+			.update(&inner.input, &|i| match i.input() {
+				InputDataType::Hand { data: h } => h.pinch_strength() > self.hand_draw_threshold,
+				_ => i.datamap_f32("select") > self.tip_draw_threshold,
 			});
 
-		let Some(actor) = inner.grab_action.actor() else {
+		let Some(actor) = inner.grab_action.actor().cloned() else {
 			if inner.grab_action.actor_stopped() {
 				(self.update.0)(state, PenState::Floating, self.pos, self.rot);
 			}
 			return;
 		};
 
-		if let InputDataType::Pointer(p) = &actor.input {
+		if let InputDataType::Pointer { data: p } = actor.input() {
 			if inner.grab_action.actor_started() {
-				inner.pointer_distance = Vec3::from(p.origin).distance(p.deepest_point.into());
+				// deepest_point is now a distance along the ray
+				inner.pointer_distance = p.deepest_point;
 			} else {
-				inner.pointer_distance += actor.datamap.with_data(|d| {
-					(-d.idx("scroll_continuous").as_vector().idx(1).as_f32() * 0.01) + // continuous +Y -> 1cm farther away
-					(-d.idx("scroll_discrete").as_vector().idx(1).as_f32() * 0.1) // discrete +Y -> 10cm farther away
-				});
+				inner.pointer_distance += (actor.datamap_vec2("scroll_continuous").y * 0.01) + // continuous +Y -> 1cm farther away
+					(actor.datamap_vec2("scroll_discrete").y * 0.1); // discrete +Y -> 10cm farther away
 			}
 		}
 
-		let (pos, rot) = match &actor.input {
-			InputDataType::Hand(h) => (
-				h.predicted_pinch_position().into(),
-				Quat::from(h.palm.rotation),
+		let (pos, rot) = match actor.input() {
+			InputDataType::Hand { data: h } => (
+				Vec3::from(h.predicted_pinch_position()),
+				Quat::from(h.palm.pose.orientation),
 			),
-			InputDataType::Tip(t) => (
-				t.origin.into(),
-				Quat::from(t.orientation) * Quat::from_rotation_x(FRAC_PI_2),
+			InputDataType::Tip { data: t } => (
+				Vec3::from(t.pose.position),
+				Quat::from(t.pose.orientation) * Quat::from_rotation_x(FRAC_PI_2),
 			),
-			InputDataType::Pointer(p) => {
+			InputDataType::Pointer { data: p } => {
 				// Calculate position at current distance along pointer ray
-				let origin = Vec3::from(p.origin);
-				let orientation = Quat::from(p.orientation);
+				let origin = Vec3::from(p.pose.position);
+				let orientation = Quat::from(p.pose.orientation);
 				let direction = Vec3::from(p.direction()).normalize();
 				(
-					(origin + (direction * inner.pointer_distance)),
+					origin + (direction * inner.pointer_distance),
 					orientation * Quat::from_rotation_z(-FRAC_PI_4),
 				)
 			}
@@ -237,15 +247,14 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 		let pen_state = if !inner.grab_action.actor_acting() {
 			PenState::Floating
 		} else if !inner.draw_action.currently_acting().is_empty() {
-			let pressure = actor.datamap.with_data(|datamap| match &actor.input {
-				InputDataType::Hand(h) => h
+			let pressure = match actor.input() {
+				InputDataType::Hand { data: h } => h
 					.pinch_strength()
 					.map_range(self.hand_draw_threshold..1.0, 0.0..1.0),
-				_ => datamap
-					.idx("select")
-					.as_f32()
+				_ => actor
+					.datamap_f32("select")
 					.map_range(self.tip_draw_threshold..1.0, 0.0..1.0),
-			});
+			};
 			if !inner.drawing {
 				inner.drawing = true;
 				PenState::StartedDrawing(pressure)
@@ -347,5 +356,5 @@ async fn asteroids_pen_test() {
 		}
 	}
 
-	client::run::<TestState>(&[]).await;
+	client::run::<TestState>(&[]).await.unwrap();
 }
