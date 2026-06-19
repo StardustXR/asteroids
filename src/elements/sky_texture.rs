@@ -1,37 +1,47 @@
-use stardust_xr_fusion::{
-	drawable::set_sky_tex,
-	node::{Error, NodeType},
-	spatial::SpatialRef,
-	types::Resource,
-};
-
 use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
+use stardust_xr_fusion::{Error, drawable::SkyGuard, types::Resource};
+use tokio::sync::watch;
 
-#[derive(Debug)]
-pub struct SkyTexture(pub Resource);
-impl<State: ValidState> CustomElement<State> for SkyTexture {
-	type Inner = SkyTexInner;
-
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkyTex {
+	pub resource: Resource,
+	pub opaque: bool,
+}
+impl<State: ValidState> CustomElement<State> for SkyTex {
+	type Inner = (
+		watch::Sender<Option<SkyGuard>>,
+		watch::Receiver<Option<SkyGuard>>,
+	);
 	type Error = Error;
 
 	async fn create_inner(
 		&self,
-		_context: &Context,
-		info: CreateInnerInfo,
+		context: &Context,
+		_info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		set_sky_tex(info.parent_space.client(), Some(&self.0))?;
-		Ok(SkyTexInner(info.parent_space.clone()))
+		let (tx, rx) = watch::channel(
+			context
+				.stardust_client
+				.sky_interface()
+				.set_sky_tex(self.resource.clone(), self.opaque)
+				.await?,
+		);
+		Ok((tx, rx))
 	}
 
-	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		if self.0 != old_self.0 {
-			_ = set_sky_tex(inner.0.client(), Some(&self.0));
+	fn diff(&self, old_self: &Self, context: &Context, inner: &mut Self::Inner) {
+		if self != old_self {
+			let _ = inner.0.send(None);
+			let tex = self.clone();
+			let watch = inner.0.clone();
+			let sky_interface = context.stardust_client.sky_interface().clone();
+			tokio::spawn(async move {
+				let Ok(sky_guard) = sky_interface.set_sky_tex(tex.resource, tex.opaque).await
+				else {
+					return;
+				};
+				_ = watch.send(sky_guard);
+			});
 		}
-	}
-}
-pub struct SkyTexInner(SpatialRef);
-impl Drop for SkyTexInner {
-	fn drop(&mut self) {
-		_ = set_sky_tex(self.0.client(), None);
 	}
 }

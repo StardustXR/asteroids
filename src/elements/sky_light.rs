@@ -5,7 +5,10 @@ use tokio::sync::watch;
 #[derive(Debug)]
 pub struct SkyLight(pub Resource);
 impl<State: ValidState> CustomElement<State> for SkyLight {
-	type Inner = watch::Receiver<Option<SkyGuard>>;
+	type Inner = (
+		watch::Sender<Option<SkyGuard>>,
+		watch::Receiver<Option<SkyGuard>>,
+	);
 	type Error = Error;
 
 	async fn create_inner(
@@ -13,29 +16,28 @@ impl<State: ValidState> CustomElement<State> for SkyLight {
 		context: &Context,
 		_info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let (_, rx) = watch::channel(
+		let (tx, rx) = watch::channel(
 			context
 				.stardust_client
 				.sky_interface()
 				.set_sky_light(self.0.clone())
 				.await?,
 		);
-		Ok(rx)
+		Ok((tx, rx))
 	}
 
 	fn diff(&self, old_self: &Self, context: &Context, inner: &mut Self::Inner) {
 		if self.0 != old_self.0 {
-			_ = context
-				.stardust_client
-				.sky_interface()
-				.set_sky_light(context.stardust_client, Some(&self.0));
+			let _ = inner.0.send(None);
+			let resource = self.0.clone();
+			let watch = inner.0.clone();
+			let sky_interface = context.stardust_client.sky_interface().clone();
+			tokio::spawn(async move {
+				let Ok(sky_guard) = sky_interface.set_sky_light(resource).await else {
+					return;
+				};
+				_ = watch.send(sky_guard);
+			});
 		}
 	}
 }
-// pub struct SkyLightInner(SpatialRef);
-// fix this later
-// impl Drop for SkyLightInner {
-// 	fn drop(&mut self) {
-// 		_ = set_sky_light(, None);
-// 	}
-// }
