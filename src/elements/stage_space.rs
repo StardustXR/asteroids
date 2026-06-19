@@ -1,35 +1,26 @@
 use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 use stardust_xr_fusion::{
-	node::{Error, NodeType},
-	spatial::{Spatial, SpatialRef, Transform},
+	Error,
+	tracked::{Tracked, TrackedExt},
 };
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PlaySpace;
-impl<State: ValidState> CustomElement<State> for PlaySpace {
-	type Inner = Spatial;
-
+pub struct StageSpace;
+impl<State: ValidState> CustomElement<State> for StageSpace {
+	type Inner = ();
 	type Error = Error;
 
 	async fn create_inner(
 		&self,
-		_context: &Context,
+		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let client = info.parent_space.client().clone();
-		let spatial = Spatial::create(info.parent_space, Transform::IDENTITY)?;
-		tokio::spawn({
-			let spatial = spatial.clone();
-			async move {
-				if let Some(play_space) = stardust_xr_fusion::objects::play_space(&client).await {
-					spatial.set_spatial_parent(&play_space.spatial).unwrap();
-				}
-			}
-		});
-		Ok(spatial)
+		let stage_spatial = Tracked::stage_spatial(&context.stardust_client).await?;
+		info.child_space.set_parent(stage_spatial)?;
+		Ok(())
 	}
-	fn diff(&self, _old_self: &Self, _inner: &mut Self::Inner) {}
+	fn diff(&self, _old_self: &Self, _context: &Context, _inner: &mut Self::Inner) {}
 }
 
 #[tokio::test]
@@ -37,7 +28,7 @@ async fn asteroids_playspace_element() {
 	use crate::{
 		Tasker,
 		client::{self, ClientState},
-		elements::PlaySpace,
+		elements::StageSpace,
 	};
 	use serde::{Deserialize, Serialize};
 
@@ -57,7 +48,7 @@ async fn asteroids_playspace_element() {
 			_context: &Context,
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
-			PlaySpace
+			StageSpace
 				.build()
 				.child(crate::elements::Lines::new([crate::elements::circle(4, 0.0, 0.1)]).build())
 		}
