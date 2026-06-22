@@ -93,7 +93,9 @@ impl<State: ValidState> CustomElement<State> for Model {
 	type Error = Error;
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
-        info.child_space.set_local_transform(self.transform)?;
+		if self.transform != Transform::IDENTITY {
+			info.child_space.set_local_transform(self.transform)?;
+		}
 		ModelInner::create(context, info.child_space, self).await
 	}
 	fn frame(
