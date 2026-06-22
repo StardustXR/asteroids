@@ -102,7 +102,7 @@ pub(crate) trait ElementDiffer<State: ValidState>:
 		inner_key: u64,
 		old: &Self,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	);
@@ -138,7 +138,7 @@ impl<State: ValidState> ElementDiffer<State> for () {
 		_inner_key: u64,
 		_old: &Self,
 		_context: &Context,
-		_parent_space: &SpatialRef,
+		_parent_space: watch::Receiver<Option<SpatialRef>>,
 		_element_path: &Path,
 		_inner_map: &mut ElementInnerMap,
 	) {
@@ -187,7 +187,7 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 		inner_key: u64,
 		old: &Self,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
@@ -197,7 +197,7 @@ impl<State: ValidState, A: ElementDiffer<State>, B: ElementDiffer<State>> Elemen
 			child_key_0,
 			&old.0,
 			context,
-			parent_space,
+			parent_space.clone(),
 			element_path,
 			inner_map,
 		);
@@ -256,7 +256,7 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 		inner_key: u64,
 		old: &Self,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
@@ -271,7 +271,7 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 						gen_inner_key::<E>(inner_key, i),
 						old,
 						context,
-						parent_space,
+						parent_space.clone(),
 						element_path,
 						inner_map,
 					);
@@ -280,7 +280,7 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Vec<E> {
 					new.create_inner_recursive(
 						gen_inner_key::<E>(inner_key, i),
 						context,
-						watch::channel(Some(parent_space.clone())).1,
+						parent_space.clone(),
 						element_path,
 						inner_map,
 					);
@@ -340,7 +340,7 @@ impl<State: ValidState, K: Hash + Eq + Clone + Send + Sync + 'static, E: Element
 		inner_key: u64,
 		old: &Self,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
@@ -355,7 +355,7 @@ impl<State: ValidState, K: Hash + Eq + Clone + Send + Sync + 'static, E: Element
 						child_key,
 						old_elem,
 						context,
-						parent_space,
+						parent_space.clone(),
 						element_path,
 						inner_map,
 					);
@@ -365,7 +365,7 @@ impl<State: ValidState, K: Hash + Eq + Clone + Send + Sync + 'static, E: Element
 					new_elem.create_inner_recursive(
 						child_key,
 						context,
-						watch::channel(Some(parent_space.clone())).1,
+						parent_space.clone(),
 						element_path,
 						inner_map,
 					);
@@ -425,7 +425,7 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 		inner_key: u64,
 		old: &Self,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
@@ -446,7 +446,7 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 				new.create_inner_recursive(
 					inner_key,
 					context,
-					watch::channel(Some(parent_space.clone())).1,
+					parent_space.clone(),
 					element_path,
 					inner_map,
 				);
@@ -590,7 +590,13 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 					(element, result, child_spatial_ref)
 				}
 			});
-			inner_map.insert::<State, E>(inner_key, task);
+			inner_map.insert::<State, E>(
+				inner_key,
+				crate::inner::CreatingInner {
+					handle: task,
+					pending_spatial: child_space_rx.clone(),
+				},
+			);
 		}
 
 		// Create children
@@ -634,7 +640,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		inner_key: u64,
 		old: &Self,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
@@ -654,10 +660,10 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 				ElementInner::Creating(result) => {
 					// if the creation of async stuff is done, rip it out of the creating,
 					// block on it (should return immediately), then slap it in the done pile
-					if result.as_mut().is_some_and(|r| r.is_finished()) {
+					if result.as_mut().is_some_and(|r| r.handle.is_finished()) {
 						let Some(result) = result.take() else { return };
 						// TODO: don't depend on a whole crate just for this 1 function
-						match result.now_or_never() {
+						match result.handle.now_or_never() {
 							Some(Ok((decl, result, child_spatial))) => {
 								*inner_mut = match result {
 									Ok(mut element) => {
@@ -681,12 +687,13 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		}
 
 		// Get spatial ref for children
-		let child_parent_space = if let Some(ElementInner::Done(_, spatial_ref)) =
-			inner_map.get::<State, E>(inner_key)
-		{
-			spatial_ref.clone()
-		} else {
-			parent_space.clone()
+		let child_parent_space = match inner_map.get::<State, E>(inner_key) {
+			Some(ElementInner::Done(_, spatial_ref)) => watch::channel(Some(spatial_ref.clone())).1,
+			Some(ElementInner::Creating(Some(v))) => v.pending_spatial.clone(),
+			_ => {
+				tracing::warn!("failed to get valid inner, using parent space");
+				parent_space
+			}
 		};
 
 		// Diff children
@@ -694,7 +701,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 			inner_key,
 			&old.children,
 			context,
-			&child_parent_space,
+			child_parent_space,
 			&element_path,
 			inner_map,
 		);

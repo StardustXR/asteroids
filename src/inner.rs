@@ -2,11 +2,14 @@ use crate::{ValidState, custom::CustomElement};
 use rustc_hash::FxHashMap;
 use stardust_xr_fusion::spatial::SpatialRef;
 use std::any::Any;
-use tokio::task::JoinHandle;
+use tokio::{sync::watch, task::JoinHandle};
 
 #[allow(type_alias_bounds)]
-pub(crate) type CreatingInner<State: ValidState, E: CustomElement<State>> =
-	JoinHandle<(E, Result<E::Inner, E::Error>, SpatialRef)>;
+pub(crate) struct CreatingInner<State: ValidState, E: CustomElement<State>> {
+	#[allow(clippy::type_complexity)]
+	pub(crate) handle: JoinHandle<(E, Result<E::Inner, E::Error>, SpatialRef)>,
+	pub(crate) pending_spatial: watch::Receiver<Option<SpatialRef>>,
+}
 
 pub(crate) enum ElementInner<State: ValidState, E: CustomElement<State>> {
 	Creating(Option<CreatingInner<State, E>>),

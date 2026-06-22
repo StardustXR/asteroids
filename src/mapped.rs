@@ -74,7 +74,7 @@ impl<
 		inner_key: u64,
 		old: &Self,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &std::path::Path,
 		inner_map: &mut ElementInnerMap,
 	) {

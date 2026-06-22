@@ -31,7 +31,7 @@ pub(crate) trait DynamicDiffer<State: ValidState>: Send + Sync + std::any::Any {
 		inner_key: u64,
 		old: &dyn DynamicDiffer<State>,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	);
@@ -78,7 +78,7 @@ where
 		inner_key: u64,
 		old: &dyn DynamicDiffer<State>,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
@@ -97,13 +97,7 @@ where
 		} else {
 			// Different types - destroy old and create new
 			old.dynamic_destroy_inner_recursive(inner_map);
-			self.create_inner_recursive(
-				inner_key,
-				context,
-				watch::channel(Some(parent_space.clone())).1,
-				element_path,
-				inner_map,
-			);
+			self.create_inner_recursive(inner_key, context, parent_space, element_path, inner_map);
 		}
 	}
 
@@ -152,7 +146,7 @@ impl<State: ValidState> ElementDiffer<State> for DynamicElement<State> {
 		inner_key: u64,
 		old: &Self,
 		context: &Context,
-		parent_space: &SpatialRef,
+		parent_space: watch::Receiver<Option<SpatialRef>>,
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {

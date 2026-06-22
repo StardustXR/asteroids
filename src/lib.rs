@@ -114,7 +114,7 @@ impl<State: Reify> Projector<State> {
 				0,
 				fields.old.as_ref(),
 				context,
-				fields.root,
+				watch::channel(Some(fields.root.clone())).1,
 				fields.root_element_path,
 				fields.inner_map,
 			);
