@@ -8,7 +8,11 @@ use stardust_xr_fusion::{Result, client::FrameInfo};
 use stardust_xr_molecules::accent_color::AccentColor;
 use std::{
 	fs::read_to_string,
-	sync::{Arc, mpsc},
+	sync::{
+		Arc,
+		atomic::{AtomicBool, Ordering},
+		mpsc,
+	},
 };
 use tokio::signal::unix::{SignalKind, signal};
 use zbus::Connection;
@@ -109,6 +113,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 		stardust_client: Arc::new(stardust_client),
 		dbus_connection,
 		accent_color: Arc::new(accent_color),
+		stop: Arc::new(AtomicBool::new(false)),
 	};
 
 	let mut state: State = initial_state();
@@ -168,6 +173,9 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 			projector.frame(&context, frame, &mut state);
 		}
 		projector.update(&context, &mut state);
+		if context.stop.load(Ordering::Acquire) {
+			break;
+		}
 	}
 
 	save_dev_state(&state);
