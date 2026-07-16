@@ -25,6 +25,7 @@ const RADIUS: f32 = 0.01;
 const LINE_THICKNESS: f32 = 0.001;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
+type OnRelease<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 #[derive(Setters)]
 #[derive_where(Debug)]
 pub struct Handle<State: ValidState> {
@@ -32,6 +33,8 @@ pub struct Handle<State: ValidState> {
 	pos: Vector3<f32>,
 	#[setters(skip)]
 	on_grab: OnGrab<State>,
+	#[setters(skip)]
+	on_release: OnRelease<State>,
 }
 impl<State: ValidState> Handle<State> {
 	pub fn new<F: Fn(&mut State, Vector3<f32>) + Send + Sync + 'static>(
@@ -41,7 +44,15 @@ impl<State: ValidState> Handle<State> {
 		Handle {
 			pos: pos.into(),
 			on_grab: FnWrapper(Box::new(on_grab)),
+			on_release: FnWrapper(Box::new(|_, _| ())),
 		}
+	}
+	pub fn on_release<F: Fn(&mut State, Vector3<f32>) + Send + Sync + 'static>(
+		mut self,
+		f: F,
+	) -> Self {
+		self.on_release = FnWrapper(Box::new(f));
+		self
 	}
 }
 impl<State: ValidState> CustomElement<State> for Handle<State> {
@@ -82,6 +93,7 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 			input,
 			grab_action: SingleAction::default(),
 			pointer_distance: 0.0,
+			last_grab_pos: self.pos,
 			content_root,
 			octahedron,
 			lines,
@@ -104,10 +116,21 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		if let Some(pos) = inner.handle_events(self.pos) {
-			(self.on_grab.0)(state, pos);
+		if let Some(update) = inner.handle_events(self.pos) {
+			(self.on_grab.0)(state, update.pos);
+			if update.released {
+				(self.on_release.0)(state, update.pos);
+			}
 		}
 	}
+}
+
+/// A grab interaction this frame, reported back so the element can edit `State`.
+pub struct HandleUpdate {
+	/// The interact point while grabbed, or the last grabbed point on release.
+	pub pos: Vector3<f32>,
+	/// The grab was let go this frame.
+	pub released: bool,
 }
 
 pub struct HandleInner {
@@ -116,6 +139,7 @@ pub struct HandleInner {
 	input: InputQueue,
 	grab_action: SingleAction,
 	pointer_distance: f32,
+	last_grab_pos: Vector3<f32>,
 	octahedron: [Line; 3],
 	lines: Lines,
 }
@@ -172,13 +196,25 @@ impl HandleInner {
 		true
 	}
 
-	pub fn handle_events(&mut self, pos: Vector3<f32>) -> Option<Vector3<f32>> {
+	pub fn handle_events(&mut self, pos: Vector3<f32>) -> Option<HandleUpdate> {
 		if !self.update_input() {
 			return None;
 		}
 		self.update_signifiers(pos.into());
-		let input = self.grab_action.actor()?;
-		Some(self.interact_point(input).into())
+		if let Some(input) = self.grab_action.actor() {
+			self.last_grab_pos = self.interact_point(input).into();
+			Some(HandleUpdate {
+				pos: self.last_grab_pos,
+				released: false,
+			})
+		} else if self.grab_action.actor_stopped() {
+			Some(HandleUpdate {
+				pos: self.last_grab_pos,
+				released: true,
+			})
+		} else {
+			None
+		}
 	}
 
 	fn update_signifiers(&mut self, pos: Vec3) {
