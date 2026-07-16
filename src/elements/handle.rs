@@ -69,7 +69,10 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
 			&content_root,
-			Shape::Sphere { radius: RADIUS },
+			Shape::Transform {
+				shape: Box::new(Shape::Sphere { radius: RADIUS }),
+				transform: Mat4::from_translation(self.head_offset.into()).into(),
+			},
 		)
 		.await?;
 		let input = InputQueue::new(
@@ -91,7 +94,7 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 		let lines =
 			Lines::new(&context.stardust_client, &content_root, octahedron.to_vec()).await?;
 		let mut inner = HandleInner {
-			_field: field,
+			field,
 			input,
 			grab_action: SingleAction::default(),
 			pointer_distance: 0.0,
@@ -116,6 +119,10 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 
 		if self.head_offset != old_self.head_offset {
 			inner.update_signifiers(self.root_pos.into(), self.head_offset.into());
+			_ = inner.field.set_shape(Shape::Transform {
+				shape: Box::new(Shape::Sphere { radius: RADIUS }),
+				transform: Mat4::from_translation(self.head_offset.into()).into(),
+			});
 		}
 	}
 
@@ -145,7 +152,7 @@ pub struct HandleUpdate {
 
 pub struct HandleInner {
 	content_root: Spatial,
-	_field: Field,
+	field: Field,
 	input: InputQueue,
 	grab_action: SingleAction,
 	pointer_distance: f32,
