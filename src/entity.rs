@@ -170,7 +170,13 @@ impl<State: ValidState, C: Component<State> + Clone> Component<State> for Option
 		match (self, inner) {
 			// still present: forward the diff to the live component, reconciling from the
 			// creation-time config if `frame` finalized it before us
-			(Some(new_component), OptionComponentInner::Present { inner, created_from }) => {
+			(
+				Some(new_component),
+				OptionComponentInner::Present {
+					inner,
+					created_from,
+				},
+			) => {
 				if let Some(decl) = created_from.take() {
 					new_component.diff(&decl, context, info, inner);
 				} else if let Some(old_component) = old_self {
