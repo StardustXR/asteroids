@@ -28,9 +28,11 @@ type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 type OnRelease<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 #[derive(Setters)]
 #[derive_where(Debug)]
+#[setters(into)]
 pub struct Handle<State: ValidState> {
 	#[setters(skip)]
-	pos: Vector3<f32>,
+	root_pos: Vector3<f32>,
+	head_offset: Vector3<f32>,
 	#[setters(skip)]
 	on_grab: OnGrab<State>,
 	#[setters(skip)]
@@ -38,11 +40,12 @@ pub struct Handle<State: ValidState> {
 }
 impl<State: ValidState> Handle<State> {
 	pub fn new<F: Fn(&mut State, Vector3<f32>) + Send + Sync + 'static>(
-		pos: impl Into<Vector3<f32>>,
+		root_pos: impl Into<Vector3<f32>>,
 		on_grab: F,
 	) -> Self {
 		Handle {
-			pos: pos.into(),
+			root_pos: root_pos.into(),
+			head_offset: [0.0; 3].into(),
 			on_grab: FnWrapper(Box::new(on_grab)),
 			on_release: FnWrapper(Box::new(|_, _| ())),
 		}
@@ -61,7 +64,7 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		let content_root = info.child_space;
-		content_root.set_local_transform(Transform::from_translation(self.pos))?;
+		content_root.set_local_transform(Transform::from_translation(self.root_pos))?;
 
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
@@ -87,25 +90,32 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 		];
 		let lines =
 			Lines::new(&context.stardust_client, &content_root, octahedron.to_vec()).await?;
-
-		Ok(HandleInner {
+		let mut inner = HandleInner {
 			_field: field,
 			input,
 			grab_action: SingleAction::default(),
 			pointer_distance: 0.0,
-			last_grab_pos: self.pos,
+			last_grab_pos: self.root_pos,
 			content_root,
 			octahedron,
 			lines,
-		})
+		};
+		if self.head_offset != [0.0; 3].into() {
+			inner.update_signifiers(self.root_pos.into(), self.head_offset.into());
+		}
+		Ok(inner)
 	}
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		if self.pos != old_self.pos {
+		if self.root_pos != old_self.root_pos {
 			// Update the position of the handle
 			let _ = inner
 				.content_root
-				.set_local_transform(Transform::from_translation(self.pos));
+				.set_local_transform(Transform::from_translation(self.root_pos));
+		}
+
+		if self.head_offset != old_self.head_offset {
+			inner.update_signifiers(self.root_pos.into(), self.head_offset.into());
 		}
 	}
 
@@ -116,7 +126,7 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		if let Some(update) = inner.handle_events(self.pos) {
+		if let Some(update) = inner.handle_events(self.root_pos, self.head_offset) {
 			(self.on_grab.0)(state, update.pos);
 			if update.released {
 				(self.on_release.0)(state, update.pos);
@@ -196,11 +206,15 @@ impl HandleInner {
 		true
 	}
 
-	pub fn handle_events(&mut self, pos: Vector3<f32>) -> Option<HandleUpdate> {
+	pub fn handle_events(
+		&mut self,
+		root_pos: Vector3<f32>,
+		head_offset: Vector3<f32>,
+	) -> Option<HandleUpdate> {
 		if !self.update_input() {
 			return None;
 		}
-		self.update_signifiers(pos.into());
+		self.update_signifiers(root_pos.into(), head_offset.into());
 		if let Some(input) = self.grab_action.actor() {
 			self.last_grab_pos = self.interact_point(input).into();
 			Some(HandleUpdate {
@@ -217,13 +231,14 @@ impl HandleInner {
 		}
 	}
 
-	fn update_signifiers(&mut self, pos: Vec3) {
+	fn update_signifiers(&mut self, root_pos: Vec3, head_offset: Vec3) {
 		// proximity coloring is keyed off each vertex's *resting* world position (point + pos)
 		for line in &mut self.octahedron {
 			for point in &mut line.points {
-				let lerp = Self::interact_proximity(&self.input, Vec3::from(point.point) + pos)
-					.map_range(0.05..0.0, 0.0..1.0)
-					.clamp(0.5, 1.0);
+				let lerp =
+					Self::interact_proximity(&self.input, Vec3::from(point.point) + root_pos)
+						.map_range(0.05..0.0, 0.0..1.0)
+						.clamp(0.5, 1.0);
 				point.color = rgba_linear!(lerp, lerp, lerp, 1.0);
 			}
 		}
@@ -235,19 +250,19 @@ impl HandleInner {
 		let offset = self
 			.grab_action
 			.actor()
-			.map(|a| self.interact_point(a) - pos);
+			.map(|a| self.interact_point(a) - root_pos)
+			.unwrap_or(head_offset);
 		let octahedron = self.octahedron.iter().cloned().map(|mut line| {
-			if let Some(offset) = offset {
-				for point in &mut line.points {
-					point.point = (Vec3::from(point.point) + offset).into();
-				}
+			for point in &mut line.points {
+				point.point = (Vec3::from(point.point) + offset).into();
 			}
 			line
 		});
 		// a tether from the resting position (local origin) to the interact point
-		let handle_line = offset
-			.map(|offset| line_from_points(vec![vec3(0.0, 0.0, 0.0), offset]).thickness(0.001));
-		let lines = octahedron.chain(handle_line).collect::<Vec<_>>();
+		let handle_line = line_from_points(vec![vec3(0.0, 0.0, 0.0), offset]).thickness(0.001);
+		let lines = octahedron
+			.chain(std::iter::once(handle_line))
+			.collect::<Vec<_>>();
 		let _ = self.lines.set_lines(lines.as_slice());
 	}
 
@@ -341,6 +356,7 @@ async fn asteroids_handle_element() {
 				Handle::new([slide_point, 0.0, 0.0], move |state: &mut Self, pos| {
 					state.slider_value = pos.x.map_range(start_x..end_x, 0.0..1.0).clamp(0.0, 1.0);
 				})
+				.head_offset([0.0, 0.01, 0.0])
 				.build(),
 			)
 		}
