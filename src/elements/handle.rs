@@ -190,7 +190,7 @@ impl HandleInner {
 			&self.input,
 			|i| i.distance() < 0.05,
 			|i| match i.input() {
-				InputDataType::Hand { .. } => i.datamap_f32("pinch_strength") > 0.5,
+				InputDataType::Hand { .. } => i.datamap_f32("pinch_strength") > 0.8,
 				_ => i.datamap_f32("grab") > 0.5,
 			},
 		);
