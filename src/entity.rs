@@ -189,7 +189,12 @@ impl<State: ValidState, C: Component<State> + Clone> Component<State> for Option
 				if matches!(inner, OptionComponentInner::Creating(handle) if handle.is_finished())
 					&& let OptionComponentInner::Creating(handle) =
 						std::mem::replace(inner, OptionComponentInner::Absent)
-					&& let Some(Ok((decl, Ok(mut component_inner)))) = handle.now_or_never()
+					// `unconstrained` exempts this poll from tokio's cooperative scheduling
+					// budget — see the comment on the analogous `now_or_never()` call in
+					// element.rs for why `is_finished()` alone isn't enough to guarantee this
+					// poll returns `Ready`.
+					&& let Some(Ok((decl, Ok(mut component_inner)))) =
+						tokio::task::unconstrained(handle).now_or_never()
 				{
 					new_component.diff(&decl, context, info, &mut component_inner);
 					*inner = OptionComponentInner::Present {
@@ -230,8 +235,12 @@ impl<State: ValidState, C: Component<State> + Clone> Component<State> for Option
 				std::mem::replace(inner, OptionComponentInner::Absent)
 			{
 				// the task is finished, so `now_or_never` resolves immediately. On creation error
-				// or a panicked/aborted task we just stay `Absent`.
-				if let Some(Ok((decl, Ok(component_inner)))) = handle.now_or_never() {
+				// or a panicked/aborted task we just stay `Absent`. `unconstrained` exempts this
+				// poll from tokio's cooperative scheduling budget — see element.rs for why
+				// `is_finished()` alone doesn't guarantee this poll returns `Ready`.
+				if let Some(Ok((decl, Ok(component_inner)))) =
+					tokio::task::unconstrained(handle).now_or_never()
+				{
 					*inner = OptionComponentInner::Present {
 						inner: component_inner,
 						created_from: Some(decl),

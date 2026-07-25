@@ -662,8 +662,15 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 					// block on it (should return immediately), then slap it in the done pile
 					if result.as_mut().is_some_and(|r| r.handle.is_finished()) {
 						let Some(result) = result.take() else { return };
+						// `is_finished()` doesn't touch tokio's cooperative scheduling budget, but
+						// `JoinHandle::poll()` does — and this runs inside a single synchronous sweep
+						// over every element in the tree without ever yielding, so on a large tree the
+						// enclosing task's poll budget can run out partway through. Once that happens,
+						// every subsequent poll here spuriously returns `Pending` regardless of whether
+						// the task is actually done, even though `is_finished()` just confirmed it.
+						// `unconstrained` exempts this poll from budget accounting.
 						// TODO: don't depend on a whole crate just for this 1 function
-						match result.handle.now_or_never() {
+						match tokio::task::unconstrained(result.handle).now_or_never() {
 							Some(Ok((decl, result, child_spatial))) => {
 								*inner_mut = match result {
 									Ok(mut element) => {
@@ -675,7 +682,23 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 									Err(err) => ElementInner::Error(err),
 								};
 							}
-							_ => return,
+							Some(Err(join_error)) => {
+								tracing::error!(
+									inner_key,
+									element_type = std::any::type_name::<E>(),
+									?join_error,
+									"Creating task's JoinHandle was finished but now_or_never() yielded a JoinError; element permanently stuck as Creating(None)"
+								);
+								return;
+							}
+							None => {
+								tracing::error!(
+									inner_key,
+									element_type = std::any::type_name::<E>(),
+									"is_finished() reported true but now_or_never() returned Pending; element permanently stuck as Creating(None)"
+								);
+								return;
+							}
 						};
 					}
 				}
