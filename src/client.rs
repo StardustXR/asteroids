@@ -3,7 +3,7 @@ use crate::{
 	task::RootTasker,
 	util::{Migrate, RonFile},
 };
-use gluon::ToObjectOrRef;
+use gluon::Liveness;
 use serde::{Serialize, de::DeserializeOwned};
 use stardust_xr_fusion::{Result, client::FrameInfo};
 use stardust_xr_molecules::accent_color::AccentColor;
@@ -133,16 +133,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 	let mut frame_awaiter = context.stardust_client.frame_receiver();
 	let mut sigterm = signal(SignalKind::terminate()).unwrap();
 
-	let server = match context.stardust_client.server().to_binder_object_or_ref() {
-		gluon::ObjectOrRef::Object(_) => {
-			panic!("how the heccity is the server owned?")
-		}
-		gluon::ObjectOrRef::WeakObject(_) => {
-			panic!("how the heccity is the server owned?")
-		}
-		gluon::ObjectOrRef::Ref(binder_ref) => binder_ref.downgrade(),
-		gluon::ObjectOrRef::WeakRef(weak_binder_ref) => weak_binder_ref,
-	};
+	let server = context.stardust_client.server();
 	loop {
 		let first_frame = tokio::select! {
 			result = frame_awaiter.recv() => match result {
