@@ -25,7 +25,6 @@ async fn main() {
 	);
 	let log_layer = tracing_subscriber::fmt::Layer::new()
 		.with_thread_names(true)
-		.with_ansi(false)
 		.with_line_number(true)
 		.with_filter(EnvFilter::from_default_env());
 	registry.with(log_layer).init();

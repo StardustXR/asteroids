@@ -107,8 +107,10 @@ fn save_dev_state<State: ClientState>(state: &State) {
 pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<()> {
 	let (stardust_client, root) =
 		stardust_xr_fusion::client::Client::auto_connect(resources).await?;
+	tracing::debug!("connected to stardust server");
 
 	let dbus_connection = Connection::session().await.unwrap();
+	tracing::debug!("connected to dbus");
 	let accent_color = AccentColor::new(dbus_connection.clone());
 	let context = Context {
 		stardust_client: Arc::new(stardust_client),
@@ -134,19 +136,35 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 	let mut sigterm = signal(SignalKind::terminate()).unwrap();
 
 	let server = context.stardust_client.server();
+	tracing::debug!("entering frame select loop");
 	loop {
 		let first_frame = tokio::select! {
 			result = frame_awaiter.recv() => match result {
-				Ok(info) => info,
+				Ok(info) => {
+					tracing::debug!("select: got frame");
+					info
+				}
 				Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
 					tracing::warn!("Skipped {n} frames waiting for receiver");
 					continue;
 				}
-				Err(_) => break,
+				Err(_) => {
+					tracing::debug!("select: frame channel closed");
+					break;
+				}
 			},
-			_ = server.death_notification() => break,
-			_ = tokio::signal::ctrl_c() => break,
-			_ = sigterm.recv() => break,
+			_ = server.death_notification() => {
+				tracing::debug!("select: server death notification");
+				break;
+			}
+			_ = tokio::signal::ctrl_c() => {
+				tracing::debug!("select: ctrl_c");
+				break;
+			}
+			_ = sigterm.recv() => {
+				tracing::debug!("select: sigterm");
+				break;
+			}
 		};
 
 		let mut frames = vec![first_frame];
@@ -166,6 +184,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 		}
 
 		for frame in &frames {
+			tracing::debug!("run frame events");
 			#[cfg(feature = "tracy")]
 			{
 				use tracing::info;
@@ -175,6 +194,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 			state.on_frame(frame);
 			projector.frame(&context, frame, &mut state);
 		}
+		tracing::debug!("diff the tree");
 		projector.update(&context, &mut state);
 		if context.stop.load(Ordering::Acquire) {
 			break;
