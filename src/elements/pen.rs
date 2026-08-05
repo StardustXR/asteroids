@@ -107,7 +107,7 @@ impl<State: ValidState> CustomElement<State> for Pen<State> {
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		let content_root = info.child_space;
 		content_root
-			.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot))?;
+			.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot)).await?;
 
 		let pen_visuals = Lines::new(
 			&context.stardust_client,

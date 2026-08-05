@@ -17,7 +17,7 @@ impl<State: ValidState> CustomElement<State> for StageSpace {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		let stage_spatial = Tracked::stage_spatial(&context.stardust_client).await?;
-		info.child_space.set_parent(stage_spatial)?;
+		info.child_space.set_parent(stage_spatial).await?;
 		Ok(())
 	}
 	fn diff(&self, _old_self: &Self, _context: &Context, _inner: &mut Self::Inner) {}

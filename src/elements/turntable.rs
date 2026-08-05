@@ -51,7 +51,7 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform)?;
+			info.child_space.set_local_transform(self.transform).await?;
 		}
 		let (root_spatial, root_spatial_ref) = Spatial::new(
 			&context.stardust_client,
@@ -60,8 +60,8 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 		)
 		.await?;
 		let content_parent = info.child_space;
-		content_parent.set_parent(root_spatial_ref.clone())?;
-		content_parent.set_local_transform(Transform::from_translation([0.0, self.height, 0.0]))?;
+		content_parent.set_parent(root_spatial_ref.clone()).await?;
+		content_parent.set_local_transform(Transform::from_translation([0.0, self.height, 0.0])).await?;
 
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
@@ -408,7 +408,7 @@ impl TurntableInner {
 			return;
 		}
 		self.grip_lit = any_lit;
-		self.grip.set_lines(lines).unwrap();
+		self.grip.set_lines_event(lines).unwrap();
 	}
 }
 

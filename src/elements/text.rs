@@ -48,7 +48,7 @@ impl<State: ValidState> CustomElement<State> for Text {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform)?;
+			info.child_space.set_local_transform(self.transform).await?;
 		}
 		let text = stardust_xr_fusion::drawable::Text::new(
 			&context.stardust_client,
