@@ -72,7 +72,7 @@ impl<State: ValidState> CustomElement<State> for Dial<State> {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform).await?;
+			info.child_space.set_local_transform(self.transform)?;
 		}
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,

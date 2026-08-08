@@ -156,11 +156,6 @@ pub struct GrabbableInner {
 	relative_transform: Affine3A,
 	prev_pose: Affine3A,
 }
-impl Drop for GrabbableInner {
-    fn drop(&mut self) {
-        tracing::error!("Dropping GrabbableInner");
-    }
-}
 impl GrabbableInner {
 	fn handle_events(&mut self, current: Affine3A) -> GrabUpdate {
 		if !self.input.handle_events() {

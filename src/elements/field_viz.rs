@@ -131,7 +131,7 @@ impl<State: ValidState> CustomElement<State> for FieldViz {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		let content_root = info.child_space;
-		content_root.set_local_transform(self.transform).await?;
+		content_root.set_local_transform(self.transform)?;
 
 		let lines = Lines::new(
 			&context.stardust_client,

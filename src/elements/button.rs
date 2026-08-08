@@ -80,7 +80,7 @@ impl<State: ValidState> CustomElement<State> for Button<State> {
 		.await?;
 		button.set_debug(self.debug);
 		info.child_space
-			.set_parent(button.touch_plane().root().spatial_ref().await?).await?;
+			.set_parent(button.touch_plane().root().spatial_ref().await?)?;
 		Ok((info.child_space, button))
 	}
 

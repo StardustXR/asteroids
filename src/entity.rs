@@ -382,7 +382,6 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 		let spatial = info.child_space;
 		spatial
 			.set_local_transform(self.transform)
-			.await
 			.map_err(BoxError::new)?;
 
 		let (field, _field_ref) =

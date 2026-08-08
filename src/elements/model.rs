@@ -94,7 +94,7 @@ impl<State: ValidState> CustomElement<State> for Model {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform).await?;
+			info.child_space.set_local_transform(self.transform)?;
 		}
 		ModelInner::create(context, info.child_space, self).await
 	}

@@ -18,7 +18,7 @@ impl<State: ValidState> CustomElement<State> for Spatial {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		if self.0 != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.0).await?;
+			info.child_space.set_local_transform(self.0)?;
 		}
 		Ok(info.child_space)
 	}
