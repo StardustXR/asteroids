@@ -1,7 +1,5 @@
-use std::sync::Arc;
-
 use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
-use gluon::{Handler, Object};
+use gluon::{Handler, Interface, Node, RefExt};
 use mint::Vector2;
 use stardust_xr_fusion::{
 	Error,
@@ -10,8 +8,9 @@ use stardust_xr_fusion::{
 };
 use stardust_xr_molecules::mouse_handler::{
 	ScrollSource,
-	protocol::{EXTERNAL_PROTOCOL, MouseHandlerHandler},
+	protocol::{MouseHandler as MouseHandlerProxy, MouseHandlerHandler},
 };
+use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 
 #[derive_where::derive_where(Debug, PartialEq, Clone)]
@@ -222,7 +221,7 @@ pub struct MouseElementInner {
 	motion_rx: mpsc::UnboundedReceiver<(Vector2<f32>, Option<Timestamp>)>,
 	scroll_discrete_rx: mpsc::UnboundedReceiver<(Vector2<f32>, ScrollSource, Option<Timestamp>)>,
 	scroll_continuous_rx: mpsc::UnboundedReceiver<(Vector2<f32>, ScrollSource, Option<Timestamp>)>,
-	mouse_handler: Object<MouseHandlerQueryable>,
+	mouse_handler: Node<MouseHandlerQueryable>,
 	// the entity owns the shared queryable; we just hold our interface guard on it
 	_queryable_interface_guard: QueryableInterfaceGuard,
 }
@@ -233,27 +232,23 @@ impl<State: ValidState> Component<State> for MouseHandler<State> {
 
 	async fn create_inner(
 		&self,
-		context: &Context,
+		_context: &Context,
 		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
 		let (button_tx, button_rx) = mpsc::unbounded_channel();
 		let (motion_tx, motion_rx) = mpsc::unbounded_channel();
 		let (scroll_discrete_tx, scroll_discrete_rx) = mpsc::unbounded_channel();
 		let (scroll_continuous_tx, scroll_continuous_rx) = mpsc::unbounded_channel();
-		let mouse_handler =
-			context
-				.stardust_client
-				.pion_device()
-				.register_object(MouseHandlerQueryable {
-					button_tx,
-					motion_tx,
-					scroll_discrete_tx,
-					scroll_continuous_tx,
-					callbacks: Arc::new(RwLock::new(self.async_callbacks.clone())),
-				});
+		let (mouse_handler, mouse_ref) = MouseHandlerProxy::new_node(MouseHandlerQueryable {
+			button_tx,
+			motion_tx,
+			scroll_discrete_tx,
+			scroll_continuous_tx,
+			callbacks: Arc::new(RwLock::new(self.async_callbacks.clone())),
+		})?;
 		let queryable_interface_guard = info
 			.queryable
-			.add_interface(&mouse_handler, EXTERNAL_PROTOCOL.protocol_name)
+			.add_interface(&mouse_ref, MouseHandlerProxy::ID)
 			.await?;
 		Ok(MouseElementInner {
 			button_rx,

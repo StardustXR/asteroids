@@ -13,10 +13,10 @@ impl<State: ValidState> CustomElement<State> for StageSpace {
 
 	async fn create_inner(
 		&self,
-		context: &Context,
+		_context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		let stage_spatial = Tracked::stage_spatial(&context.stardust_client).await?;
+		let stage_spatial = Tracked::stage_spatial().await?;
 		info.child_space.set_parent(stage_spatial)?;
 		Ok(())
 	}

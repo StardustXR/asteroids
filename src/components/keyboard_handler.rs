@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
-use gluon::{Handler, Object};
+use gluon::{Handler, Interface, Node, RefExt};
 use stardust_xr_fusion::{Error, query::QueryableInterfaceGuard, types::Timestamp};
 use stardust_xr_molecules::keyboard_handler::protocol::{
-	EXTERNAL_PROTOCOL, KeyEvent, KeyboardHandlerHandler,
+	KeyEvent, KeyboardHandler as KeyboardHandlerProxy, KeyboardHandlerHandler,
 };
 use tokio::sync::{RwLock, mpsc};
 
@@ -56,7 +56,7 @@ impl KeyboardHandlerHandler for KbHandler {
 #[derive(Debug)]
 pub struct KeyboardHandlerInner {
 	key_rx: mpsc::UnboundedReceiver<(KeyEvent, Option<Timestamp>)>,
-	kb_handler: Object<KbHandler>,
+	kb_handler: Node<KbHandler>,
 	// the entity owns the shared queryable; we just hold our interface guard on it
 	_queryable_interface_guard: QueryableInterfaceGuard,
 }
@@ -67,20 +67,17 @@ impl<State: ValidState> Component<State> for KeyboardHandler<State> {
 
 	async fn create_inner(
 		&self,
-		context: &Context,
+		_context: &Context,
 		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
 		let (key_tx, key_rx) = mpsc::unbounded_channel();
-		let kb_handler = context
-			.stardust_client
-			.pion_device()
-			.register_object(KbHandler {
-				key_tx,
-				on_key_asnyc: Arc::new(RwLock::new(self.on_key_async.clone())),
-			});
+		let (kb_handler, kb_ref) = KeyboardHandlerProxy::new_node(KbHandler {
+			key_tx,
+			on_key_asnyc: Arc::new(RwLock::new(self.on_key_async.clone())),
+		})?;
 		let queryable_interface_guard = info
 			.queryable
-			.add_interface(&kb_handler, EXTERNAL_PROTOCOL.protocol_name)
+			.add_interface(&kb_ref, KeyboardHandlerProxy::ID)
 			.await?;
 
 		Ok(KeyboardHandlerInner {

@@ -105,8 +105,7 @@ fn save_dev_state<State: ClientState>(state: &State) {
 }
 
 pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<()> {
-	let (stardust_client, root) =
-		stardust_xr_fusion::client::Client::auto_connect(resources).await?;
+	let (stardust_client, root) = stardust_xr_fusion::client::Client::connect(resources).await?;
 	tracing::debug!("connected to stardust server");
 
 	let dbus_connection = Connection::session().await.unwrap();
