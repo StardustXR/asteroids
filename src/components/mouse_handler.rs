@@ -3,7 +3,7 @@ use gluon::{Handler, Interface, Node, RefExt};
 use mint::Vector2;
 use stardust_xr_fusion::{
 	Error,
-	query::QueryableInterfaceGuard,
+	query::QueryableInterface,
 	types::{Timestamp, proxies::Vec2F},
 };
 use stardust_xr_molecules::mouse_handler::{
@@ -223,7 +223,7 @@ pub struct MouseElementInner {
 	scroll_continuous_rx: mpsc::UnboundedReceiver<(Vector2<f32>, ScrollSource, Option<Timestamp>)>,
 	mouse_handler: Node<MouseHandlerQueryable>,
 	// the entity owns the shared queryable; we just hold our interface guard on it
-	_queryable_interface_guard: QueryableInterfaceGuard,
+	_queryable_interface: QueryableInterface,
 }
 impl<State: ValidState> Component<State> for MouseHandler<State> {
 	type Inner = MouseElementInner;
@@ -246,17 +246,17 @@ impl<State: ValidState> Component<State> for MouseHandler<State> {
 			scroll_continuous_tx,
 			callbacks: Arc::new(RwLock::new(self.async_callbacks.clone())),
 		})?;
-		let queryable_interface_guard = info
+		let queryable_interface = info
 			.queryable
 			.add_interface(&mouse_ref, MouseHandlerProxy::ID)
-			.await?;
+			.await??;
 		Ok(MouseElementInner {
 			button_rx,
 			motion_rx,
 			scroll_discrete_rx,
 			scroll_continuous_rx,
 			mouse_handler,
-			_queryable_interface_guard: queryable_interface_guard,
+			_queryable_interface: queryable_interface,
 		})
 	}
 

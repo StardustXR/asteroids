@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
 use gluon::{Handler, Interface, Node, RefExt};
-use stardust_xr_fusion::{Error, query::QueryableInterfaceGuard, types::Timestamp};
+use stardust_xr_fusion::{Error, query::QueryableInterface, types::Timestamp};
 use stardust_xr_molecules::keyboard_handler::protocol::{
 	KeyEvent, KeyboardHandler as KeyboardHandlerProxy, KeyboardHandlerHandler,
 };
@@ -58,7 +58,7 @@ pub struct KeyboardHandlerInner {
 	key_rx: mpsc::UnboundedReceiver<(KeyEvent, Option<Timestamp>)>,
 	kb_handler: Node<KbHandler>,
 	// the entity owns the shared queryable; we just hold our interface guard on it
-	_queryable_interface_guard: QueryableInterfaceGuard,
+	_queryable_interface: QueryableInterface,
 }
 
 impl<State: ValidState> Component<State> for KeyboardHandler<State> {
@@ -75,15 +75,15 @@ impl<State: ValidState> Component<State> for KeyboardHandler<State> {
 			key_tx,
 			on_key_asnyc: Arc::new(RwLock::new(self.on_key_async.clone())),
 		})?;
-		let queryable_interface_guard = info
+		let queryable_interface = info
 			.queryable
 			.add_interface(&kb_ref, KeyboardHandlerProxy::ID)
-			.await?;
+			.await??;
 
 		Ok(KeyboardHandlerInner {
 			key_rx,
 			kb_handler,
-			_queryable_interface_guard: queryable_interface_guard,
+			_queryable_interface: queryable_interface,
 		})
 	}
 
