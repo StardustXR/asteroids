@@ -3,7 +3,7 @@ use crate::{
 	custom::{CustomElement, FnWrapper, Transformable, derive_setters::Setters},
 };
 use derive_where::derive_where;
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec3, Vec4};
 use map_range::MapRange;
 use stardust_xr_fusion::{
 	Error,
@@ -50,29 +50,23 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform)?;
-		}
-		let (root_spatial, root_spatial_ref) = Spatial::new(
-			&context.stardust_client,
-			&info.parent_space,
-			Transform::IDENTITY,
-		)
-		.await?;
+		// the root is the center of the turntable's *top* surface: it carries the
+		// element transform directly, and everything else (field, grip lines) is
+		// offset down into -Y from it. that keeps the input handler, the field and
+		// the lines all in one space, so no height fudging is needed anywhere else.
+		let (root_spatial, root_spatial_ref) =
+			Spatial::new(&context.stardust_client, &info.parent_space, self.transform).await?;
+		// the content parent only ever spins, so children ride on the platter
 		let content_parent = info.child_space;
 		content_parent.set_parent(root_spatial_ref.clone())?;
-		content_parent.set_local_transform(Transform::from_translation([0.0, self.height, 0.0]))?;
+		content_parent.set_local_transform(PartialTransform::from_rotation(
+			Quat::from_rotation_y(self.rotation),
+		))?;
 
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
 			&root_spatial,
-			Shape::Transform {
-				shape: Box::new(Shape::Cylinder {
-					length: self.height,
-					radius: self.inner_radius + self.height,
-				}),
-				transform: Mat4::from_translation([0.0, self.height * 0.5, 0.0].into()).into(),
-			},
+			field_shape(self.inner_radius, self.height),
 		)
 		.await?;
 		let input = InputQueue::new(
@@ -103,8 +97,18 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		self.apply_transform(old_self, &inner.root);
-		if self.inner_radius != old_self.inner_radius || self.height != old_self.height {
+		let size_changed =
+			self.inner_radius != old_self.inner_radius || self.height != old_self.height;
+		if size_changed {
 			inner.set_size(self.inner_radius, self.height);
+		}
+		if size_changed
+			|| self.line_count != old_self.line_count
+			|| self.line_thickness != old_self.line_thickness
+		{
+			// the grip lines are only resent while something is lighting them up, so
+			// mark them dirty to guarantee the new geometry goes out next frame
+			inner.grip_lit = true;
 		}
 	}
 
@@ -158,6 +162,111 @@ impl<State: ValidState> Turntable<State> {
 				}
 			})
 			.collect()
+	}
+}
+
+/// The turntable body hangs below its root, tapering to match the grip lines:
+/// `inner_radius` at the top (y = 0) opening out to `inner_radius + height` at
+/// the bottom (y = -height).
+///
+/// A truncated cone isn't reachable by an affine map of a cylinder, so this is a
+/// *projective* transform — the matrix has a non-zero bottom row, making w vary
+/// with local Y so the perspective divide does the tapering. Field sampling
+/// divides through by w, giving `radius = inner_radius + |y|` exactly.
+fn field_shape(inner_radius: f32, height: f32) -> Shape {
+	let cylinder = |radius| Shape::Cylinder {
+		length: 2.0,
+		radius,
+	};
+	let (r0, r1) = (inner_radius, inner_radius + height);
+	// a zero top radius is a true cone tip, which this parametrization can't
+	// express (it degenerates to zero radius everywhere) — fall back to a
+	// straight cylinder rather than emitting a broken field
+	if r0 <= 1e-6 || height <= 1e-6 {
+		return Shape::Transform {
+			shape: Box::new(cylinder(r1)),
+			transform: Mat4::from_translation([0.0, height * -0.5, 0.0].into())
+				.mul_mat4(&Mat4::from_scale([1.0, height * 0.5, 1.0].into()))
+				.into(),
+		};
+	}
+	// maps the canonical cylinder (radius 1, y in -1..1) onto the cone
+	let k = (r1 - r0) / (r1 + r0);
+	let a = r0 * (1.0 + k);
+	let b = height * (1.0 - k) * 0.5;
+	Shape::Transform {
+		shape: Box::new(cylinder(1.0)),
+		transform: Mat4::from_cols(
+			Vec4::new(a, 0.0, 0.0, 0.0),
+			// the w component here is what makes w = 1 + k*y
+			Vec4::new(0.0, b, 0.0, k),
+			Vec4::new(0.0, 0.0, a, 0.0),
+			Vec4::new(0.0, -b, 0.0, 1.0),
+		)
+		.into(),
+	}
+}
+
+#[test]
+fn turntable_field_tapers_to_match_grip_lines() {
+	use glam::Vec3A;
+	let (inner_radius, height) = (0.1_f32, 0.03_f32);
+	let Shape::Transform { transform, shape } = field_shape(inner_radius, height) else {
+		panic!("expected a transformed shape");
+	};
+	let Shape::Cylinder { length, radius } = *shape else {
+		panic!("expected a cylinder");
+	};
+	let m = Mat4::from(transform);
+
+	// The grip lines run from (inner_radius, 0) to (inner_radius + height,
+	// -height), i.e. the wall is straight with `radius = inner_radius + |y|`.
+	// The perspective divide means local Y is *not* linear in world Y, so check
+	// the invariant that actually matters at whatever height each point lands.
+	let mut prev_y = f32::INFINITY;
+	for f in [0.0_f32, 0.25, 0.5, 0.75, 1.0] {
+		// canonical cylinder rim, top (y=+1) to bottom (y=-1)
+		let local = Vec3A::new(radius, length * 0.5 - length * f, 0.0);
+		let world = m.project_point3a(local);
+		assert!(
+			(world.x - (inner_radius + world.y.abs())).abs() < 1e-5,
+			"wall not straight at f={f}: radius {} at y {}",
+			world.x,
+			world.y
+		);
+		assert!(
+			world.y <= 0.0 && world.y >= -height,
+			"y out of range: {}",
+			world.y
+		);
+		assert!(world.y < prev_y, "rim must descend monotonically");
+		prev_y = world.y;
+	}
+
+	// ...and the ends land exactly on the line endpoints.
+	let top = m.project_point3a(Vec3A::new(radius, length * 0.5, 0.0));
+	let bottom = m.project_point3a(Vec3A::new(radius, -length * 0.5, 0.0));
+	assert!(
+		(top.y).abs() < 1e-6 && (top.x - inner_radius).abs() < 1e-6,
+		"top rim: {top:?}"
+	);
+	assert!(
+		(bottom.y + height).abs() < 1e-6 && (bottom.x - (inner_radius + height)).abs() < 1e-6,
+		"bottom rim: {bottom:?}"
+	);
+}
+
+#[test]
+fn turntable_field_degenerate_sizes_stay_finite() {
+	for (inner_radius, height) in [(0.0_f32, 0.03_f32), (0.1, 0.0), (0.0, 0.0)] {
+		let Shape::Transform { transform, .. } = field_shape(inner_radius, height) else {
+			panic!("expected a transformed shape");
+		};
+		let m = Mat4::from(transform);
+		assert!(
+			m.to_cols_array().iter().all(|v| v.is_finite()),
+			"non-finite matrix for inner_radius={inner_radius} height={height}"
+		);
 	}
 }
 
@@ -241,16 +350,7 @@ impl TurntableInner {
 	}
 
 	pub fn set_size(&self, inner_radius: f32, height: f32) {
-		let _ = self
-			.content_parent
-			.set_local_transform(PartialTransform::from_translation([0.0, height, 0.0]));
-		let _ = self.field.set_shape(Shape::Transform {
-			shape: Box::new(Shape::Cylinder {
-				length: height,
-				radius: inner_radius + height,
-			}),
-			transform: Mat4::from_translation([0.0, height * 0.5, 0.0].into()).into(),
-		});
+		let _ = self.field.set_shape(field_shape(inner_radius, height));
 	}
 
 	#[inline]
@@ -315,7 +415,8 @@ impl TurntableInner {
 			|_| true,
 			|input| {
 				let slope_condition = interact_points(input).into_iter().any(|p| {
-					// p.y is always negative since input handler is center top of turntable, so this gets it relative to bottom
+					// the input handler sits at the center of the top surface, so p.y
+					// is negative inside the body and its magnitude is the depth
 					let interact_point_height = p.y;
 					// distance on XZ plane from center
 					let interact_point_radius = p.x.hypot(p.z);
@@ -457,27 +558,27 @@ async fn asteroids_turntable_element() {
 				.component(crate::components::Reparentable::default())
 				.build()
 				.child(
-				Turntable::new(self.rotation, Self::handle_rotation)
-					.line_count(64)
-					.line_thickness(0.002)
-					.height(0.03)
-					// .inner_radius(0.1)
-					.inner_radius((self.elapsed.sin() * 0.01) + 0.1)
-					.scroll_multiplier(1.0_f32.to_radians())
-					.build()
-					.child(
-						Lines::new(
-							bounding_box(BoundingBox {
-								center: [0.0; 3].into(),
-								extents: [0.05; 3].into(),
-							})
-							.into_iter()
-							.map(|l| l.thickness(0.002)),
-						)
-						.pos([0.0, 0.025, 0.0])
-						.build(),
-					),
-			)
+					Turntable::new(self.rotation, Self::handle_rotation)
+						.line_count(64)
+						.line_thickness(0.002)
+						.height(0.03)
+						// .inner_radius(0.1)
+						.inner_radius((self.elapsed.sin() * 0.01) + 0.1)
+						.scroll_multiplier(1.0_f32.to_radians())
+						.build()
+						.child(
+							Lines::new(
+								bounding_box(BoundingBox {
+									center: [0.0; 3].into(),
+									extents: [0.05; 3].into(),
+								})
+								.into_iter()
+								.map(|l| l.thickness(0.002)),
+							)
+							.pos([0.0, 0.025, 0.0])
+							.build(),
+						),
+				)
 		}
 	}
 
