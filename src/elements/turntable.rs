@@ -3,7 +3,7 @@ use crate::{
 	custom::{CustomElement, FnWrapper, Transformable, derive_setters::Setters},
 };
 use derive_where::derive_where;
-use glam::{Mat4, Quat, Vec3, Vec4};
+use glam::{Mat4, Quat, Vec3};
 use map_range::MapRange;
 use stardust_xr_fusion::{
 	Error,
@@ -165,108 +165,16 @@ impl<State: ValidState> Turntable<State> {
 	}
 }
 
-/// The turntable body hangs below its root, tapering to match the grip lines:
-/// `inner_radius` at the top (y = 0) opening out to `inner_radius + height` at
-/// the bottom (y = -height).
-///
-/// A truncated cone isn't reachable by an affine map of a cylinder, so this is a
-/// *projective* transform — the matrix has a non-zero bottom row, making w vary
-/// with local Y so the perspective divide does the tapering. Field sampling
-/// divides through by w, giving `radius = inner_radius + |y|` exactly.
+/// The turntable body hangs below its root: a plain cylinder spanning
+/// `y = -height..0`, wide enough to contain the flare of the grip lines
+/// (`inner_radius + height`).
 fn field_shape(inner_radius: f32, height: f32) -> Shape {
-	let cylinder = |radius| Shape::Cylinder {
-		length: 2.0,
-		radius,
-	};
-	let (r0, r1) = (inner_radius, inner_radius + height);
-	// a zero top radius is a true cone tip, which this parametrization can't
-	// express (it degenerates to zero radius everywhere) — fall back to a
-	// straight cylinder rather than emitting a broken field
-	if r0 <= 1e-6 || height <= 1e-6 {
-		return Shape::Transform {
-			shape: Box::new(cylinder(r1)),
-			transform: Mat4::from_translation([0.0, height * -0.5, 0.0].into())
-				.mul_mat4(&Mat4::from_scale([1.0, height * 0.5, 1.0].into()))
-				.into(),
-		};
-	}
-	// maps the canonical cylinder (radius 1, y in -1..1) onto the cone
-	let k = (r1 - r0) / (r1 + r0);
-	let a = r0 * (1.0 + k);
-	let b = height * (1.0 - k) * 0.5;
 	Shape::Transform {
-		shape: Box::new(cylinder(1.0)),
-		transform: Mat4::from_cols(
-			Vec4::new(a, 0.0, 0.0, 0.0),
-			// the w component here is what makes w = 1 + k*y
-			Vec4::new(0.0, b, 0.0, k),
-			Vec4::new(0.0, 0.0, a, 0.0),
-			Vec4::new(0.0, -b, 0.0, 1.0),
-		)
-		.into(),
-	}
-}
-
-#[test]
-fn turntable_field_tapers_to_match_grip_lines() {
-	use glam::Vec3A;
-	let (inner_radius, height) = (0.1_f32, 0.03_f32);
-	let Shape::Transform { transform, shape } = field_shape(inner_radius, height) else {
-		panic!("expected a transformed shape");
-	};
-	let Shape::Cylinder { length, radius } = *shape else {
-		panic!("expected a cylinder");
-	};
-	let m = Mat4::from(transform);
-
-	// The grip lines run from (inner_radius, 0) to (inner_radius + height,
-	// -height), i.e. the wall is straight with `radius = inner_radius + |y|`.
-	// The perspective divide means local Y is *not* linear in world Y, so check
-	// the invariant that actually matters at whatever height each point lands.
-	let mut prev_y = f32::INFINITY;
-	for f in [0.0_f32, 0.25, 0.5, 0.75, 1.0] {
-		// canonical cylinder rim, top (y=+1) to bottom (y=-1)
-		let local = Vec3A::new(radius, length * 0.5 - length * f, 0.0);
-		let world = m.project_point3a(local);
-		assert!(
-			(world.x - (inner_radius + world.y.abs())).abs() < 1e-5,
-			"wall not straight at f={f}: radius {} at y {}",
-			world.x,
-			world.y
-		);
-		assert!(
-			world.y <= 0.0 && world.y >= -height,
-			"y out of range: {}",
-			world.y
-		);
-		assert!(world.y < prev_y, "rim must descend monotonically");
-		prev_y = world.y;
-	}
-
-	// ...and the ends land exactly on the line endpoints.
-	let top = m.project_point3a(Vec3A::new(radius, length * 0.5, 0.0));
-	let bottom = m.project_point3a(Vec3A::new(radius, -length * 0.5, 0.0));
-	assert!(
-		(top.y).abs() < 1e-6 && (top.x - inner_radius).abs() < 1e-6,
-		"top rim: {top:?}"
-	);
-	assert!(
-		(bottom.y + height).abs() < 1e-6 && (bottom.x - (inner_radius + height)).abs() < 1e-6,
-		"bottom rim: {bottom:?}"
-	);
-}
-
-#[test]
-fn turntable_field_degenerate_sizes_stay_finite() {
-	for (inner_radius, height) in [(0.0_f32, 0.03_f32), (0.1, 0.0), (0.0, 0.0)] {
-		let Shape::Transform { transform, .. } = field_shape(inner_radius, height) else {
-			panic!("expected a transformed shape");
-		};
-		let m = Mat4::from(transform);
-		assert!(
-			m.to_cols_array().iter().all(|v| v.is_finite()),
-			"non-finite matrix for inner_radius={inner_radius} height={height}"
-		);
+		shape: Box::new(Shape::Cylinder {
+			length: height,
+			radius: inner_radius + height,
+		}),
+		transform: Mat4::from_translation([0.0, height * -0.5, 0.0].into()).into(),
 	}
 }
 
