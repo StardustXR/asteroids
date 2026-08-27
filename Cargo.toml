@@ -11,6 +11,7 @@ homepage = "https://stardustxr.org"
 
 [features]
 tracy = ["dep:tracy-client"]
+subsecond = ["dep:dioxus-devtools"]
 
 [dependencies]
 tokio = { version = "1.45.0", features = ["macros", "time", "sync"] }
@@ -27,7 +28,7 @@ map-range = "0.1.2"
 inotify = "0.11.0"
 futures-util = "0.3.31"
 tracing = "0.1.41"
-dioxus-devtools = "0.7.0-alpha.1"
+dioxus-devtools = { version = "0.7.0-alpha.1", optional = true }
 tracy-client = { version = "0.18.4", optional = true }
 bumpalo = { version = "3.17.0", features = ["collections", "boxed"] }
 ouroboros = "0.18.5"
