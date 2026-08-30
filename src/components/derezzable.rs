@@ -12,6 +12,12 @@ impl<State: ValidState> Derezzable<State> {
 			on_derez: CloneFnWrapper(Arc::new(on_derez)),
 		}
 	}
+	pub fn program_stopper(context: &Context) -> Self {
+		let context = context.clone();
+		Self {
+			on_derez: CloneFnWrapper(Arc::new(move |_| context.stop())),
+		}
+	}
 }
 impl<State: ValidState> Component<State> for Derezzable<State> {
 	// the entity owns the shared spatial/field; we just attach a molecules Derezzable to them
@@ -86,7 +92,9 @@ async fn asteroids_derezzable_element() {
 				size: [0.1; 3].into(),
 			};
 			Entity::new(shape.clone())
-				.component(crate::components::Derezzable::new(|_| std::process::exit(0)))
+				.component(crate::components::Derezzable::new(|_| {
+					std::process::exit(0)
+				}))
 				.build()
 				.child(
 					crate::elements::Lines::new(
