@@ -1,5 +1,5 @@
 use crate::{
-	CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState,
+	CloneFnWrapper, Component, ComponentCreateInfo, Context, Inners, ValidState,
 	custom::derive_setters::Setters,
 };
 use std::sync::Arc;
@@ -106,8 +106,9 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 		_old_self: &Self,
 		_context: &Context,
 		_info: ComponentCreateInfo<'_>,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		// the entity applies the state-owned pose onto the shared spatial; we only sync knobs.
 		inner.max_distance = self.max_distance;
 		inner.pointer_mode = self.pointer_mode;
@@ -118,8 +119,9 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 		_context: &Context,
 		_info: &FrameInfo,
 		state: &mut State,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		let current =
 			Affine3A::from_rotation_translation(Quat::from(self.rot), Vec3::from(self.pos));
 		let update = inner.handle_events(current);

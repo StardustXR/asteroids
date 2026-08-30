@@ -1,4 +1,4 @@
-use crate::{Component, ComponentCreateInfo, Context, ValidState};
+use crate::{Component, ComponentCreateInfo, Context, Inners, ValidState};
 use derive_setters::Setters;
 use stardust_xr_fusion::{
 	Error, Result,
@@ -82,8 +82,9 @@ impl<State: ValidState> Component<State> for Reparentable {
 		_context: &Context,
 		_info: &stardust_xr_fusion::client::FrameInfo,
 		_state: &mut State,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		while let Ok(active) = inner.pending_rx.try_recv() {
 			inner.active = Some(active);
 		}
@@ -94,8 +95,9 @@ impl<State: ValidState> Component<State> for Reparentable {
 		old_self: &Self,
 		_context: &Context,
 		_info: ComponentCreateInfo<'_>,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		if self.enabled != old_self.enabled {
 			if self.enabled {
 				let context = inner.context.clone();

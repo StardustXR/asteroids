@@ -15,8 +15,80 @@ use stardust_xr_fusion::{
 
 use crate::{Context, CreateInnerInfo, CustomElement, Transformable, ValidState};
 use futures::FutureExt;
-use std::{any::Any, convert::Infallible, error::Error, fmt::Debug, marker::PhantomData};
+use std::{
+	any::{Any, TypeId},
+	convert::Infallible,
+	error::Error,
+	fmt::Debug,
+	marker::PhantomData,
+};
 use tokio::task::JoinHandle;
+
+/// the one place the root component type gets erased, so Inners doesn't have to be generic over it
+mod shadow {
+	/// unnameable outside the crate, so nobody out there can override find_inner and lie about
+	/// which component they are
+	pub struct Shadow;
+}
+use shadow::Shadow;
+
+pub(crate) trait Stack<State: ValidState>: Send + Sync {
+	fn find(&self, ty: TypeId) -> Option<&(dyn Any + Send + Sync)>;
+	fn find_mut(&mut self, ty: TypeId) -> Option<&mut (dyn Any + Send + Sync)>;
+}
+pub(crate) struct Root<'a, State: ValidState, C: Component<State>>(
+	&'a mut C::Inner,
+	PhantomData<fn() -> State>,
+);
+impl<'a, State: ValidState, C: Component<State>> Root<'a, State, C> {
+	pub(crate) fn new(inner: &'a mut C::Inner) -> Self {
+		Root(inner, PhantomData)
+	}
+}
+impl<State: ValidState, C: Component<State>> Stack<State> for Root<'_, State, C> {
+	fn find(&self, ty: TypeId) -> Option<&(dyn Any + Send + Sync)> {
+		C::find_inner(self.0, ty, Shadow)
+	}
+	fn find_mut(&mut self, ty: TypeId) -> Option<&mut (dyn Any + Send + Sync)> {
+		C::find_inner_mut(self.0, ty, Shadow)
+	}
+}
+
+/// every component inner on the entity, from Own's point of view
+///
+/// accessors borrow self, so you can't hold two at once — read what you need off a sibling, then
+/// take your own
+pub struct Inners<'a, State: ValidState, Own: ?Sized> {
+	stack: &'a mut dyn Stack<State>,
+	own: PhantomData<fn() -> Box<Own>>,
+}
+impl<'a, State: ValidState, Own: Component<State>> Inners<'a, State, Own> {
+	pub(crate) fn new(stack: &'a mut dyn Stack<State>) -> Self {
+		Inners {
+			stack,
+			own: PhantomData,
+		}
+	}
+	/// infallible — the entity has already placed every inner by the time diff or frame runs
+	pub fn self_inner(&mut self) -> &mut Own::Inner {
+		self.stack
+			.find_mut(TypeId::of::<Own>())
+			.and_then(|inner| inner.downcast_mut())
+			.expect("component inner missing from its own entity")
+	}
+	pub fn get<C: Component<State>>(&self) -> Option<&C::Inner> {
+		self.stack.find(TypeId::of::<C>())?.downcast_ref()
+	}
+	pub fn get_mut<C: Component<State>>(&mut self) -> Option<&mut C::Inner> {
+		self.stack.find_mut(TypeId::of::<C>())?.downcast_mut()
+	}
+	fn retype<C: Component<State>>(&mut self) -> Inners<'_, State, C> {
+		Inners {
+			stack: self.stack,
+			own: PhantomData,
+		}
+	}
+}
 
 /// Unifies the heterogeneous component/field/queryable errors into one concrete `Error` type
 /// (`Box<dyn Error>` itself doesn't implement `std::error::Error`, so we can't use it directly
@@ -76,7 +148,7 @@ pub trait Component<State: ValidState>: Any + Debug + Send + Sync + Sized + 'sta
 		old_self: &Self,
 		context: &Context,
 		info: ComponentCreateInfo<'_>,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	);
 	/// Every frame on the server
 	fn frame(
@@ -84,8 +156,22 @@ pub trait Component<State: ValidState>: Any + Debug + Send + Sync + Sized + 'sta
 		_context: &Context,
 		_info: &FrameInfo,
 		_state: &mut State,
-		_inner: &mut Self::Inner,
+		_inners: &mut Inners<'_, State, Self>,
 	) {
+	}
+
+	/// how a component answers a sibling lookup, sealed so only the scaffolding in here overrides it
+	#[doc(hidden)]
+	fn find_inner(inner: &Self::Inner, ty: TypeId, _: Shadow) -> Option<&(dyn Any + Send + Sync)> {
+		(TypeId::of::<Self>() == ty).then_some(inner as &(dyn Any + Send + Sync))
+	}
+	#[doc(hidden)]
+	fn find_inner_mut(
+		inner: &mut Self::Inner,
+		ty: TypeId,
+		_: Shadow,
+	) -> Option<&mut (dyn Any + Send + Sync)> {
+		(TypeId::of::<Self>() == ty).then_some(inner as &mut (dyn Any + Send + Sync))
 	}
 }
 
@@ -108,7 +194,7 @@ impl<State: ValidState> Component<State> for () {
 		_old_self: &Self,
 		_context: &Context,
 		_info: ComponentCreateInfo<'_>,
-		_inner: &mut Self::Inner,
+		_inners: &mut Inners<'_, State, Self>,
 	) {
 	}
 }
@@ -165,59 +251,39 @@ impl<State: ValidState, C: Component<State> + Clone> Component<State> for Option
 		old_self: &Self,
 		context: &Context,
 		info: ComponentCreateInfo<'_>,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
-		match (self, inner) {
-			// still present: forward the diff to the live component, reconciling from the
-			// creation-time config if `frame` finalized it before us
-			(
-				Some(new_component),
-				OptionComponentInner::Present {
-					inner,
-					created_from,
-				},
-			) => {
-				if let Some(decl) = created_from.take() {
-					new_component.diff(&decl, context, info, inner);
-				} else if let Some(old_component) = old_self {
-					new_component.diff(old_component, context, info, inner);
+		finalize_option::<State, C>(inners);
+		// decide while we hold our own inner, then drop that borrow so the forwarded diff can
+		// reach the whole stack
+		let reconcile_from = {
+			match (self, inners.self_inner()) {
+				(Some(_), OptionComponentInner::Present { created_from, .. }) => {
+					created_from.take().or_else(|| old_self.clone())
+				}
+				// still in flight, nothing to reconcile against yet
+				(Some(_), OptionComponentInner::Creating(_)) => None,
+				// None -> Some: spawn the async creation and park the handle
+				(Some(new_component), state @ OptionComponentInner::Absent) => {
+					*state = OptionComponentInner::Creating(spawn_create_component(
+						new_component.clone(),
+						context,
+						info,
+					));
+					None
+				}
+				// Some -> None (or staying None): tear down, aborting an in-flight creation
+				(None, state) => {
+					if let OptionComponentInner::Creating(handle) = state {
+						handle.abort();
+					}
+					*state = OptionComponentInner::Absent;
+					None
 				}
 			}
-			// creation in flight: if it just finished, finalize it now (we have `info`, so we can
-			// reconcile to the current config straight away); otherwise leave it for next time
-			(Some(new_component), inner @ OptionComponentInner::Creating(_)) => {
-				if matches!(inner, OptionComponentInner::Creating(handle) if handle.is_finished())
-					&& let OptionComponentInner::Creating(handle) =
-						std::mem::replace(inner, OptionComponentInner::Absent)
-					// `unconstrained` exempts this poll from tokio's cooperative scheduling
-					// budget — see the comment on the analogous `now_or_never()` call in
-					// element.rs for why `is_finished()` alone isn't enough to guarantee this
-					// poll returns `Ready`.
-					&& let Some(Ok((decl, Ok(mut component_inner)))) =
-						tokio::task::unconstrained(handle).now_or_never()
-				{
-					new_component.diff(&decl, context, info, &mut component_inner);
-					*inner = OptionComponentInner::Present {
-						inner: component_inner,
-						created_from: None,
-					};
-				}
-			}
-			// None -> Some: spawn the async creation and park the handle
-			(Some(new_component), inner @ OptionComponentInner::Absent) => {
-				*inner = OptionComponentInner::Creating(spawn_create_component(
-					new_component.clone(),
-					context,
-					info,
-				));
-			}
-			// Some -> None (or staying None): tear down, aborting an in-flight creation
-			(None, inner) => {
-				if let OptionComponentInner::Creating(handle) = inner {
-					handle.abort();
-				}
-				*inner = OptionComponentInner::Absent;
-			}
+		};
+		if let (Some(new_component), Some(from)) = (self, reconcile_from) {
+			new_component.diff(&from, context, info, &mut inners.retype());
 		}
 	}
 
@@ -226,32 +292,63 @@ impl<State: ValidState, C: Component<State> + Clone> Component<State> for Option
 		context: &Context,
 		info: &FrameInfo,
 		state: &mut State,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
-		// finalize a finished creation so it can run *this* frame (no `ComponentCreateInfo` here,
-		// so we stash the creation-time config in `created_from` for the next `diff` to reconcile)
-		if matches!(inner, OptionComponentInner::Creating(handle) if handle.is_finished()) {
-			if let OptionComponentInner::Creating(handle) =
-				std::mem::replace(inner, OptionComponentInner::Absent)
-			{
-				// the task is finished, so `now_or_never` resolves immediately. On creation error
-				// or a panicked/aborted task we just stay `Absent`. `unconstrained` exempts this
-				// poll from tokio's cooperative scheduling budget — see element.rs for why
-				// `is_finished()` alone doesn't guarantee this poll returns `Ready`.
-				if let Some(Ok((decl, Ok(component_inner)))) =
-					tokio::task::unconstrained(handle).now_or_never()
-				{
-					*inner = OptionComponentInner::Present {
-						inner: component_inner,
-						created_from: Some(decl),
-					};
-				}
-			}
+		finalize_option::<State, C>(inners);
+		let present = matches!(inners.self_inner(), OptionComponentInner::Present { .. });
+		if let (Some(component), true) = (self, present) {
+			component.frame(context, info, state, &mut inners.retype());
 		}
+	}
 
-		if let (Some(component), OptionComponentInner::Present { inner, .. }) = (self, inner) {
-			component.frame(context, info, state, inner);
+	/// answers to Option<C> with the state machine and to C with the live inner, so a sibling names
+	/// an optional component the same way it names a required one
+	fn find_inner(inner: &Self::Inner, ty: TypeId, _: Shadow) -> Option<&(dyn Any + Send + Sync)> {
+		if TypeId::of::<Self>() == ty {
+			return Some(inner);
 		}
+		match inner {
+			OptionComponentInner::Present { inner, .. } => C::find_inner(inner, ty, Shadow),
+			_ => None,
+		}
+	}
+	fn find_inner_mut(
+		inner: &mut Self::Inner,
+		ty: TypeId,
+		_: Shadow,
+	) -> Option<&mut (dyn Any + Send + Sync)> {
+		if TypeId::of::<Self>() == ty {
+			return Some(inner);
+		}
+		match inner {
+			OptionComponentInner::Present { inner, .. } => C::find_inner_mut(inner, ty, Shadow),
+			_ => None,
+		}
+	}
+}
+
+/// runs from both diff and frame so a component that lands between them still gets to run this
+/// frame
+fn finalize_option<State: ValidState, C: Component<State> + Clone>(
+	inners: &mut Inners<'_, State, Option<C>>,
+) {
+	let state = inners.self_inner();
+	if !matches!(state, OptionComponentInner::Creating(handle) if handle.is_finished()) {
+		return;
+	}
+	let OptionComponentInner::Creating(handle) =
+		std::mem::replace(state, OptionComponentInner::Absent)
+	else {
+		return;
+	};
+	// the task is finished, so `now_or_never` resolves immediately. On creation error or a
+	// panicked/aborted task we just stay `Absent`. `unconstrained` exempts this poll from tokio's
+	// cooperative scheduling budget — see element.rs for why `is_finished()` alone isn't enough.
+	if let Some(Ok((decl, Ok(inner)))) = tokio::task::unconstrained(handle).now_or_never() {
+		*state = OptionComponentInner::Present {
+			inner,
+			created_from: Some(decl),
+		};
 	}
 }
 
@@ -308,10 +405,12 @@ impl<State: ValidState, A: Component<State>, B: Component<State>> Component<Stat
 		old_self: &Self,
 		context: &Context,
 		info: ComponentCreateInfo<'_>,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
-		self.0.diff(&old_self.0, context, info, &mut inner.0);
-		self.1.diff(&old_self.1, context, info, &mut inner.1);
+		self.0
+			.diff(&old_self.0, context, info, &mut inners.retype());
+		self.1
+			.diff(&old_self.1, context, info, &mut inners.retype());
 	}
 
 	fn frame(
@@ -319,10 +418,25 @@ impl<State: ValidState, A: Component<State>, B: Component<State>> Component<Stat
 		context: &Context,
 		info: &FrameInfo,
 		state: &mut State,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
-		self.0.frame(context, info, state, &mut inner.0);
-		self.1.frame(context, info, state, &mut inner.1);
+		self.0.frame(context, info, state, &mut inners.retype());
+		self.1.frame(context, info, state, &mut inners.retype());
+	}
+
+	/// the walk recurses here, newest component first
+	fn find_inner(inner: &Self::Inner, ty: TypeId, _: Shadow) -> Option<&(dyn Any + Send + Sync)> {
+		B::find_inner(&inner.1, ty, Shadow).or_else(|| A::find_inner(&inner.0, ty, Shadow))
+	}
+	fn find_inner_mut(
+		inner: &mut Self::Inner,
+		ty: TypeId,
+		_: Shadow,
+	) -> Option<&mut (dyn Any + Send + Sync)> {
+		if let Some(found) = B::find_inner_mut(&mut inner.1, ty, Shadow) {
+			return Some(found);
+		}
+		A::find_inner_mut(&mut inner.0, ty, Shadow)
 	}
 }
 
@@ -439,7 +553,7 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 			&old_self.components,
 			context,
 			info,
-			&mut inner.component_inners,
+			&mut Inners::new(&mut Root::<State, C>::new(&mut inner.component_inners)),
 		);
 	}
 
@@ -450,8 +564,12 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 		state: &mut State,
 		inner: &mut Self::Inner,
 	) {
-		self.components
-			.frame(context, info, state, &mut inner.component_inners);
+		self.components.frame(
+			context,
+			info,
+			state,
+			&mut Inners::new(&mut Root::<State, C>::new(&mut inner.component_inners)),
+		);
 	}
 }
 
@@ -463,7 +581,7 @@ pub struct EntityInner<State: ValidState, C: Component<State>> {
 	// keeps the shared queryable alive for the entity's lifetime; the per-interface guards
 	// live inside each component's own inner.
 	_queryable: QueryableObject,
-	// this matches the components perfectly so no dynamic dispatch
+	// still the exact component tuple — Inners only walks it, nothing gets boxed
 	component_inners: <C as Component<State>>::Inner,
 }
 
@@ -478,3 +596,90 @@ pub struct EntityInner<State: ValidState, C: Component<State>> {
 // right now those all overlap a TON but duplicated code means
 // spatial nesting which isn't quite right... it's all the same object
 // but sometimes you wanna vary it so optional components would be super nice
+
+#[cfg(test)]
+mod inner_stack_tests {
+	use super::*;
+
+	#[derive(Debug, Clone, PartialEq)]
+	struct Alpha;
+	#[derive(Debug, Clone, PartialEq)]
+	struct Beta;
+
+	/// deliberately the same inner type for both, to prove lookups key on the component
+	#[derive(Debug, PartialEq)]
+	struct Shared(u32);
+
+	macro_rules! stub {
+		($component:ty) => {
+			impl<State: ValidState> Component<State> for $component {
+				type Inner = Shared;
+				type Error = Infallible;
+
+				async fn create_inner(
+					&self,
+					_context: &Context,
+					_info: ComponentCreateInfo<'_>,
+				) -> Result<Self::Inner, Self::Error> {
+					unreachable!("the walk is what's under test, not creation")
+				}
+				fn diff(
+					&self,
+					_old_self: &Self,
+					_context: &Context,
+					_info: ComponentCreateInfo<'_>,
+					_inners: &mut Inners<'_, State, Self>,
+				) {
+				}
+			}
+		};
+	}
+	stub!(Alpha);
+	stub!(Beta);
+
+	type Pair = (((), Alpha), Beta);
+
+	fn stack() -> <Pair as Component<()>>::Inner {
+		(((), Shared(1)), Shared(2))
+	}
+
+	#[test]
+	fn finds_each_component_despite_a_shared_inner_type() {
+		let mut s = stack();
+		let mut root = Root::<(), Pair>::new(&mut s);
+		let inners = Inners::<'_, (), Alpha>::new(&mut root);
+		assert_eq!(inners.get::<Alpha>(), Some(&Shared(1)));
+		assert_eq!(inners.get::<Beta>(), Some(&Shared(2)));
+	}
+
+	#[test]
+	fn self_inner_needs_no_turbofish() {
+		let mut s = stack();
+		let mut root = Root::<(), Pair>::new(&mut s);
+		let mut inners = Inners::<'_, (), Beta>::new(&mut root);
+		assert_eq!(inners.self_inner(), &mut Shared(2));
+	}
+
+	#[test]
+	fn option_is_transparent() {
+		type Opt = (((), Alpha), Option<Beta>);
+
+		let mut present = (
+			((), Shared(1)),
+			OptionComponentInner::<(), Beta>::Present {
+				inner: Shared(2),
+				created_from: None,
+			},
+		);
+		let mut root = Root::<(), Opt>::new(&mut present);
+		let inners = Inners::<'_, (), Alpha>::new(&mut root);
+		// named as Beta, not Option<Beta>, exactly like a required component
+		assert_eq!(inners.get::<Beta>(), Some(&Shared(2)));
+
+		let mut absent = (((), Shared(1)), OptionComponentInner::<(), Beta>::Absent);
+		let mut root = Root::<(), Opt>::new(&mut absent);
+		let inners = Inners::<'_, (), Alpha>::new(&mut root);
+		assert_eq!(inners.get::<Beta>(), None);
+		assert_eq!(inners.get::<Alpha>(), Some(&Shared(1)));
+	}
+}

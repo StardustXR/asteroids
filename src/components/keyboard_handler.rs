@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
+use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, Inners, ValidState};
 use gluon::{Handler, Interface, Node, RefExt};
 use stardust_xr_fusion::{Error, query::QueryableInterface, types::Timestamp};
 use stardust_xr_molecules::keyboard_handler::protocol::{
@@ -92,8 +92,9 @@ impl<State: ValidState> Component<State> for KeyboardHandler<State> {
 		_old: &Self,
 		_context: &Context,
 		_info: ComponentCreateInfo<'_>,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		let on_key_async = self.on_key_async.clone();
 		let rwlock = inner.kb_handler.on_key_asnyc.clone();
 		// maybe theres a better way to do this?
@@ -107,8 +108,9 @@ impl<State: ValidState> Component<State> for KeyboardHandler<State> {
 		_context: &Context,
 		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		while let Ok((key_event, timestamp)) = inner.key_rx.try_recv() {
 			if let Some(on_key) = self.on_key.as_ref() {
 				(on_key.0)(state, key_event, timestamp);

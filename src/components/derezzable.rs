@@ -1,4 +1,4 @@
-use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
+use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, Inners, ValidState};
 use stardust_xr_fusion::{Error, client::FrameInfo};
 use std::sync::Arc;
 
@@ -37,7 +37,7 @@ impl<State: ValidState> Component<State> for Derezzable<State> {
 		_old_self: &Self,
 		_context: &Context,
 		_info: ComponentCreateInfo<'_>,
-		_inner: &mut Self::Inner,
+		_inners: &mut Inners<'_, State, Self>,
 	) {
 	}
 
@@ -46,8 +46,9 @@ impl<State: ValidState> Component<State> for Derezzable<State> {
 		_context: &Context,
 		_info: &FrameInfo,
 		state: &mut State,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		if inner.receiver.try_recv().is_ok() {
 			(self.on_derez.0)(state);
 		}

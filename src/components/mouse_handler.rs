@@ -1,4 +1,4 @@
-use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, ValidState};
+use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, Inners, ValidState};
 use gluon::{Handler, Interface, Node, RefExt};
 use mint::Vector2;
 use stardust_xr_fusion::{
@@ -265,8 +265,9 @@ impl<State: ValidState> Component<State> for MouseHandler<State> {
 		_old: &Self,
 		_context: &Context,
 		_info: ComponentCreateInfo<'_>,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		let callbacks = self.async_callbacks.clone();
 		let rwlock = inner.mouse_handler.callbacks.clone();
 		// maybe theres a better way to do this?
@@ -280,8 +281,9 @@ impl<State: ValidState> Component<State> for MouseHandler<State> {
 		_context: &Context,
 		_info: &stardust_xr_fusion::client::FrameInfo,
 		state: &mut State,
-		inner: &mut Self::Inner,
+		inners: &mut Inners<'_, State, Self>,
 	) {
+		let inner = inners.self_inner();
 		while let Ok((button, pressed, timestamp)) = inner.button_rx.try_recv() {
 			if let Some(on_button) = self.on_button.as_ref() {
 				(on_button.0)(state, button, pressed, timestamp);
