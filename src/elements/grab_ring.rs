@@ -9,15 +9,13 @@ use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
-	spatial::{Spatial, SpatialRef, Transform},
+	spatial::{Spatial, Transform},
 	suis::InputDataType,
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputSnapshot, SingleAction},
 	lines::{LineExt, circle},
-	reparentable::Reparentable,
 };
-use tokio::sync::mpsc;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 #[derive(Setters)]
@@ -25,7 +23,6 @@ type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 pub struct GrabRing<State: ValidState> {
 	radius: f32,
 	thickness: f32,
-	reparentable: bool,
 
 	#[setters(skip)]
 	pos: Vector3<f32>,
@@ -41,7 +38,6 @@ impl<State: ValidState> GrabRing<State> {
 			pos: pos.into(),
 			on_grab: FnWrapper(Box::new(on_grab)),
 
-			reparentable: true,
 			radius: 0.05,
 			thickness: 0.004,
 		}
@@ -65,15 +61,6 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 			},
 		)
 		.await?;
-		let (reparent_field, _reparent_field_ref) = Field::new(
-			&context.stardust_client,
-			&content_root,
-			Shape::Cylinder {
-				length: self.thickness * 2.0,
-				radius: self.radius + self.thickness,
-			},
-		)
-		.await?;
 		let input = InputQueue::new(
 			&context.stardust_client,
 			content_root.clone(),
@@ -92,17 +79,8 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 		)
 		.await?;
 
-		let (pending_tx, pending_rx) = mpsc::unbounded_channel();
-		let mut ring = GrabRingInner {
-			context: context.clone(),
-			parent_space: info.parent_space.clone(),
-			is_reparentable: self.reparentable,
-			active_reparentable: None,
-			pending: false,
-			pending_tx,
-			pending_rx,
+		Ok(GrabRingInner {
 			field,
-			reparent_field,
 			input,
 			grab_action: SingleAction::default(),
 			pointer_distance: 0.0,
@@ -110,21 +88,12 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 			content_root,
 			ring_visual,
 			ring_line,
-		};
-		ring.make_reparentable();
-		Ok(ring)
+		})
 	}
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.radius != old_self.radius || self.thickness != old_self.thickness {
 			inner.resize(self.radius, self.thickness);
-		}
-		if self.reparentable != old_self.reparentable {
-			inner.is_reparentable = self.reparentable;
-			if !self.reparentable {
-				inner.active_reparentable.take();
-				inner.pending = false;
-			}
 		}
 	}
 
@@ -142,15 +111,7 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 }
 
 pub struct GrabRingInner {
-	context: Context,
-	parent_space: SpatialRef,
-	is_reparentable: bool,
-	active_reparentable: Option<Reparentable>,
-	pending: bool,
-	pending_tx: mpsc::UnboundedSender<Reparentable>,
-	pending_rx: mpsc::UnboundedReceiver<Reparentable>,
 	field: Field,
-	reparent_field: Field,
 	input: InputQueue,
 	grab_action: SingleAction,
 	old_interact_point: Vec3,
@@ -160,34 +121,6 @@ pub struct GrabRingInner {
 	ring_line: Line,
 }
 impl GrabRingInner {
-	fn make_reparentable(&mut self) {
-		if !self.is_reparentable || self.active_reparentable.is_some() || self.pending {
-			return;
-		}
-		self.pending = true;
-		let context = self.context.clone();
-		let spatial = self.content_root.clone();
-		let parent = self.parent_space.clone();
-		let field = self.reparent_field.clone();
-		let tx = self.pending_tx.clone();
-		tokio::spawn(async move {
-			if let Ok(reparentable) =
-				Reparentable::new(&context.stardust_client, spatial, parent, field).await
-			{
-				let _ = tx.send(reparentable);
-			}
-		});
-	}
-
-	fn drain_pending(&mut self) {
-		while let Ok(reparentable) = self.pending_rx.try_recv() {
-			self.pending = false;
-			if self.is_reparentable {
-				self.active_reparentable = Some(reparentable);
-			}
-		}
-	}
-
 	fn interact_point(&self, input: &InputSnapshot) -> Vec3 {
 		match input.input() {
 			InputDataType::Hand { data: hand } => {
@@ -253,19 +186,15 @@ impl GrabRingInner {
 	}
 
 	pub fn handle_events(&mut self, pos: Vector3<f32>) -> Option<Vector3<f32>> {
-		self.drain_pending();
 		if !self.update_input() {
 			return None;
 		}
 
 		let new_pos = self.handle_grab(pos.into());
 		if let Some(new_pos) = new_pos.as_ref() {
-			self.active_reparentable.take();
 			let _ = self
 				.content_root
 				.set_local_transform(Transform::from_translation(*new_pos));
-		} else {
-			self.make_reparentable();
 		}
 
 		new_pos.map(Into::into)
@@ -327,10 +256,6 @@ impl GrabRingInner {
 		let _ = self.field.set_shape(Shape::Torus {
 			major_radius: radius,
 			minor_radius: thickness,
-		});
-		let _ = self.reparent_field.set_shape(Shape::Cylinder {
-			length: thickness * 2.0,
-			radius: radius + thickness,
 		});
 		self.ring_line = circle(64, 0.0, radius).thickness(thickness);
 		let _ = self.ring_visual.set_lines(vec![self.ring_line.clone()]);
