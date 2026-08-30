@@ -784,7 +784,7 @@ dependencies = [
 [[package]]
 name = "gluon"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon.git?branch=refactor%2Fstrongipc#96dbeed55a456d140dde11c57b16e0625bd350ba"
+source = "git+https://github.com/technobaboo/gluon.git?branch=refactor%2Fstrongipc#b950c3bcf7b92d70c36647752d678018d0e6ef3d"
 dependencies = [
  "bitflags",
  "gluon-derive",
@@ -797,7 +797,7 @@ dependencies = [
 [[package]]
 name = "gluon-codegen"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon.git?branch=refactor%2Fstrongipc#96dbeed55a456d140dde11c57b16e0625bd350ba"
+source = "git+https://github.com/technobaboo/gluon.git?branch=refactor%2Fstrongipc#b950c3bcf7b92d70c36647752d678018d0e6ef3d"
 dependencies = [
  "convert_case",
  "gluon",
@@ -811,7 +811,7 @@ dependencies = [
 [[package]]
 name = "gluon-derive"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon.git?branch=refactor%2Fstrongipc#96dbeed55a456d140dde11c57b16e0625bd350ba"
+source = "git+https://github.com/technobaboo/gluon.git?branch=refactor%2Fstrongipc#b950c3bcf7b92d70c36647752d678018d0e6ef3d"
 dependencies = [
  "quote",
  "syn",
@@ -820,7 +820,7 @@ dependencies = [
 [[package]]
 name = "gluon-parser"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/gluon.git?branch=refactor%2Fstrongipc#96dbeed55a456d140dde11c57b16e0625bd350ba"
+source = "git+https://github.com/technobaboo/gluon.git?branch=refactor%2Fstrongipc#b950c3bcf7b92d70c36647752d678018d0e6ef3d"
 dependencies = [
  "ansi_term",
  "chumsky",
@@ -1658,7 +1658,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=refactor%2Fstrongipc#68ea50297537707e8367c7d23ac7524355bd82a5"
+source = "git+https://github.com/StardustXR/core.git?branch=refactor%2Fstrongipc#9dd6f716ff1b89e7c9a6d2f14cd20dcd493d33d7"
 dependencies = [
  "glam 0.30.7",
  "gluon",
@@ -1674,7 +1674,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.51.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#a4f1b8d46142130c555c662c12c7556da7862ee1"
+source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#5f8e7b539de3a89f0f8e2d6fa6d1171169fe599d"
 dependencies = [
  "futures",
  "glam 0.29.3",
@@ -1695,7 +1695,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules-protocols"
 version = "0.1.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#a4f1b8d46142130c555c662c12c7556da7862ee1"
+source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#5f8e7b539de3a89f0f8e2d6fa6d1171169fe599d"
 dependencies = [
  "gluon",
  "gluon-codegen",
@@ -1706,7 +1706,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=refactor%2Fstrongipc#68ea50297537707e8367c7d23ac7524355bd82a5"
+source = "git+https://github.com/StardustXR/core.git?branch=refactor%2Fstrongipc#9dd6f716ff1b89e7c9a6d2f14cd20dcd493d33d7"
 dependencies = [
  "fnv",
  "glam 0.29.3",
@@ -1733,7 +1733,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "strong-ipc"
 version = "0.1.0"
-source = "git+https://github.com/technobaboo/strong-ipc#4dddd5ede29f02352bc101645c55708862b1d9f4"
+source = "git+https://github.com/technobaboo/strong-ipc#42af1b22dc3944c64721b98d8afbd1f0ba3abb69"
 dependencies = [
  "dashmap",
  "rustix",

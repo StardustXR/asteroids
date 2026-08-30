@@ -9,4 +9,4 @@ mod_expose!(derezzable);
 mod_expose!(grabbable);
 mod_expose!(keyboard_handler);
 mod_expose!(mouse_handler);
-mod_expose!(reparentable);
+mod_expose!(container);

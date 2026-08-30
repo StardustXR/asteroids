@@ -426,6 +426,7 @@ async fn asteroids_turntable_element() {
 	use crate::{
 		Tasker,
 		client::{self, ClientState},
+		components::Derezzable,
 		custom::CustomElement,
 		elements::{Lines, Turntable},
 	};
@@ -457,13 +458,9 @@ async fn asteroids_turntable_element() {
 		}
 	}
 	impl crate::Reify for TestState {
-		fn reify(
-			&self,
-			_context: &Context,
-			_tasks: impl Tasker<Self>,
-		) -> impl crate::Element<Self> {
+		fn reify(&self, context: &Context, _tasks: impl Tasker<Self>) -> impl crate::Element<Self> {
 			crate::Entity::new(stardust_xr_fusion::fields::Shape::Sphere { radius: 0.05 })
-				.component(crate::components::Reparentable::default())
+				.component(Derezzable::program_stopper(context))
 				.build()
 				.child(
 					Turntable::new(self.rotation, Self::handle_rotation)
