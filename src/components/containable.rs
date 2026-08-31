@@ -23,7 +23,7 @@ pub struct Containable {
 impl Containable {
 	pub fn new() -> Self {
 		Containable {
-			evaluator: CloneFnWrapper(Arc::new(innermost)),
+			evaluator: CloneFnWrapper(Arc::new(innermost_container)),
 		}
 	}
 
@@ -107,7 +107,8 @@ pub struct ContainableInner {
 	grabbed: bool,
 }
 
-fn innermost(containers: &Containers) -> Option<SpatialRef> {
+/// the tightest container the point is actually inside of, the default pick for a [`Containable`]
+pub fn innermost_container(containers: &Containers) -> Option<SpatialRef> {
 	containers
 		.values()
 		.filter(|(sample, _)| sample.distance < 0.0)

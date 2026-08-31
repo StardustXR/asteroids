@@ -1,5 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
+	components::innermost_container,
 	custom::{CustomElement, FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
@@ -9,13 +10,15 @@ use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialExt, Transform},
 	suis::InputDataType,
 };
 use stardust_xr_molecules::{
+	container::Containable,
 	input_action::{InputQueue, InputSnapshot, SingleAction},
 	lines::{LineExt, circle},
 };
+use std::sync::Arc;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 #[derive(Setters)]
@@ -49,7 +52,16 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 	type Error = Error;
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
+		// a container swallows the anchor, never the content root, so pos keeps meaning the same
+		// thing on both sides of a containment
+		let (anchor, anchor_space) = Spatial::new(
+			&context.stardust_client,
+			&info.parent_space,
+			Transform::IDENTITY,
+		)
+		.await?;
 		let content_root = info.child_space;
+		content_root.set_parent(anchor_space.clone())?;
 		content_root.set_local_transform(Transform::from_translation(self.pos))?;
 
 		let (field, _field_ref) = Field::new(
@@ -65,11 +77,22 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 			&context.stardust_client,
 			content_root.clone(),
 			field.clone(),
-			// input data is reported relative to the *stationary* parent space, not the
-			// moving content_root — otherwise dragging fights itself (jitter + half movement)
-			info.parent_space.clone(),
+			// input data is reported relative to the anchor, not the moving content_root,
+			// otherwise dragging fights itself (jitter + half movement)
+			anchor_space.clone(),
 		)
 		.await?;
+
+		let containable = Containable::new(
+			&context.stardust_client,
+			anchor,
+			info.parent_space.clone(),
+			content_root.spatial_ref().await?,
+			innermost_container,
+		)
+		.await?;
+		// it only settles into a container once you let go, never mid-drag
+		containable.set_auto_reparent(false);
 
 		let ring_line = circle(64, 0.0, self.radius).thickness(self.thickness);
 		let ring_visual = Lines::new(
@@ -82,6 +105,7 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 		Ok(GrabRingInner {
 			field,
 			input,
+			containable: Arc::new(containable),
 			grab_action: SingleAction::default(),
 			pointer_distance: 0.0,
 			old_interact_point: Vec3::ZERO,
@@ -113,6 +137,7 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 pub struct GrabRingInner {
 	field: Field,
 	input: InputQueue,
+	containable: Arc<Containable>,
 	grab_action: SingleAction,
 	old_interact_point: Vec3,
 	pointer_distance: f32,
@@ -154,6 +179,11 @@ impl GrabRingInner {
 				_ => i.datamap_f32("grab") > 0.8,
 			},
 		);
+
+		if self.grab_action.actor_stopped() {
+			let containable = self.containable.clone();
+			tokio::spawn(async move { containable.reparent().await });
+		}
 
 		let start_grab = self.grab_action.actor_started();
 		if let Some(input) = self.grab_action.actor() {
@@ -265,12 +295,15 @@ impl GrabRingInner {
 #[tokio::test]
 async fn asteroids_grab_ring_element() {
 	use crate::{
-		Tasker,
+		Entity, Tasker, Transformable,
 		client::{self, ClientState},
+		components::Container,
+		custom::CustomElement,
 		elements::GrabRing,
 	};
 	use mint::Vector3;
 	use serde::{Deserialize, Serialize};
+	use stardust_xr_fusion::{fields::Shape, types::rgba_linear};
 
 	#[derive(Serialize, Deserialize)]
 	struct TestState {
@@ -279,7 +312,7 @@ async fn asteroids_grab_ring_element() {
 	impl Default for TestState {
 		fn default() -> Self {
 			TestState {
-				grab_pos: [0.0; 3].into(),
+				grab_pos: [0.0, 0.4, -0.5].into(),
 			}
 		}
 	}
@@ -297,12 +330,35 @@ async fn asteroids_grab_ring_element() {
 			_context: &Context,
 			_tasks: impl Tasker<Self>,
 		) -> impl crate::Element<Self> {
-			GrabRing::new(self.grab_pos, |state: &mut Self, pos| {
-				state.grab_pos = pos;
-			})
-			.radius(0.05)
-			.thickness(0.004)
-			.build()
+			let box_shape = Shape::Box {
+				size: [0.3; 3].into(),
+			};
+			crate::elements::Spatial::default()
+				.build()
+				.child(
+					Entity::new(box_shape.clone())
+						.pos([0.0, 0.0, -0.5])
+						.component(Container)
+						.build()
+						.child(
+							crate::elements::Lines::new(
+								stardust_xr_molecules::lines::shape(box_shape)
+									.into_iter()
+									.map(|l| {
+										l.color(rgba_linear!(0.0, 0.75, 1.0, 1.0)).thickness(0.005)
+									}),
+							)
+							.build(),
+						),
+				)
+				.child(
+					GrabRing::new(self.grab_pos, |state: &mut Self, pos| {
+						state.grab_pos = pos;
+					})
+					.radius(0.05)
+					.thickness(0.004)
+					.build(),
+				)
 		}
 	}
 
