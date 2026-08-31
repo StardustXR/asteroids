@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Entity, Migrate, Reify, Tasker, Transformable,
 	client,
-	components::Derezzable,
+	components::{Containable, Derezzable},
 	elements::{Button, Lines, Model, Spatial, Text},
 	project_local_resources,
 };
@@ -74,6 +74,7 @@ impl Reify for State {
 	fn reify(&self, context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
 		Entity::new(Shape::Sphere { radius: 0.05 })
 			.component(Derezzable::program_stopper(context))
+			.component(Containable::default())
 			.build()
 			.child(
 				Spatial::default()

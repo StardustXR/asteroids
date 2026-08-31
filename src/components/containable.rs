@@ -20,13 +20,14 @@ type Evaluator = CloneFnWrapper<dyn Fn(&Containers) -> Option<SpatialRef> + Send
 pub struct Containable {
 	evaluator: Evaluator,
 }
-impl Containable {
-	pub fn new() -> Self {
-		Containable {
+impl Default for Containable {
+	fn default() -> Self {
+		Self {
 			evaluator: CloneFnWrapper(Arc::new(innermost_container)),
 		}
 	}
-
+}
+impl Containable {
 	/// pick which of the containers it's currently inside to land in, `None` to go back home
 	pub fn evaluator<F: Fn(&Containers) -> Option<SpatialRef> + Send + Sync + 'static>(
 		mut self,
@@ -34,11 +35,6 @@ impl Containable {
 	) -> Self {
 		self.evaluator = CloneFnWrapper(Arc::new(f));
 		self
-	}
-}
-impl Default for Containable {
-	fn default() -> Self {
-		Containable::new()
 	}
 }
 impl<State: ValidState> Component<State> for Containable {
@@ -205,7 +201,7 @@ async fn asteroids_containable_component() {
 							)
 							.pointer_mode(PointerMode::Move),
 						)
-						.component(Containable::new())
+						.component(Containable::default())
 						.build()
 						.child(
 							crate::elements::Lines::new(
