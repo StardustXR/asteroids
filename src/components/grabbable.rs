@@ -2,7 +2,6 @@ use crate::{
 	CloneFnWrapper, Component, ComponentCreateInfo, Context, Inners, ValidState,
 	custom::derive_setters::Setters,
 };
-use std::sync::Arc;
 use derive_where::derive_where;
 use glam::{Affine3A, Quat, Vec3, vec3};
 use mint::{Quaternion, Vector3};
@@ -11,6 +10,7 @@ use stardust_xr_molecules::input_action::{
 	InputQueue, InputSnapshot, SingleAction, grab_pinch_interact,
 };
 use std::f32::consts::PI;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PointerMode {
@@ -81,13 +81,14 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner> {
 		// the entity owns the spatial/field/transform now — we just sense input on them.
-		// input is reported relative to the *stationary* parent space, not the moving
-		// entity spatial — otherwise dragging fights itself (jitter + half movement)
+		// input is reported relative to the anchor, not the moving entity spatial, otherwise
+		// dragging fights itself. the anchor rather than parent_space so a containment
+		// doesn't split the two apart
 		let input = InputQueue::new(
 			&context.stardust_client,
 			info.spatial.clone(),
 			info.field.clone(),
-			info.parent_space.clone(),
+			info.anchor_space.clone(),
 		)
 		.await?;
 
@@ -159,6 +160,10 @@ pub struct GrabbableInner {
 	prev_pose: Affine3A,
 }
 impl GrabbableInner {
+	pub fn grabbing(&self) -> bool {
+		self.grab_action.actor_acting()
+	}
+
 	fn handle_events(&mut self, current: Affine3A) -> GrabUpdate {
 		if !self.input.handle_events() {
 			return GrabUpdate::default();

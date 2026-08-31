@@ -10,7 +10,7 @@ use stardust_xr_fusion::{
 	client::FrameInfo,
 	fields::{Field, FieldExt, Shape},
 	query::QueryableObject,
-	spatial::{Spatial, SpatialRef, Transform},
+	spatial::{Spatial, SpatialExt, SpatialRef, Transform},
 };
 
 use crate::{Context, CreateInnerInfo, CustomElement, Transformable, ValidState};
@@ -118,6 +118,10 @@ impl Error for BoxError {
 #[derive(Clone, Copy)]
 pub struct ComponentCreateInfo<'a> {
 	pub parent_space: &'a SpatialRef,
+	/// one level above the entity's spatial, so a `Containable` can move the entity without
+	/// anything else having to notice
+	pub anchor: &'a Spatial,
+	pub anchor_space: &'a SpatialRef,
 	/// The entity's shared spatial.
 	pub spatial: &'a Spatial,
 	/// The entity's shared field.
@@ -362,12 +366,16 @@ fn spawn_create_component<State: ValidState, C: Component<State> + Clone>(
 ) -> ComponentCreation<State, C> {
 	let context = context.clone();
 	let parent_space = info.parent_space.clone();
+	let anchor = info.anchor.clone();
+	let anchor_space = info.anchor_space.clone();
 	let spatial = info.spatial.clone();
 	let field = info.field.clone();
 	let queryable = info.queryable.clone();
 	tokio::spawn(async move {
 		let info = ComponentCreateInfo {
 			parent_space: &parent_space,
+			anchor: &anchor,
+			anchor_space: &anchor_space,
 			spatial: &spatial,
 			field: &field,
 			queryable: &queryable,
@@ -493,7 +501,19 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
+		// a Containable reparents the anchor, never the spatial, so the transform stays local to
+		// the same space on both sides of a containment
+		let (anchor, anchor_space) = Spatial::new(
+			&context.stardust_client,
+			&info.parent_space,
+			Transform::IDENTITY,
+		)
+		.await
+		.map_err(BoxError::new)?;
 		let spatial = info.child_space;
+		spatial
+			.set_parent(anchor_space.clone())
+			.map_err(BoxError::new)?;
 		spatial
 			.set_local_transform(self.transform)
 			.map_err(BoxError::new)?;
@@ -518,6 +538,8 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 				context,
 				ComponentCreateInfo {
 					parent_space: &info.parent_space,
+					anchor: &anchor,
+					anchor_space: &anchor_space,
 					spatial: &spatial,
 					field: &field,
 					queryable: &queryable,
@@ -528,6 +550,8 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 
 		Ok(EntityInner {
 			parent_space: info.parent_space,
+			anchor,
+			anchor_space,
 			spatial,
 			field,
 			_queryable: queryable,
@@ -545,6 +569,8 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 		// rebuild the shared creation info so components can recreate themselves live
 		let info = ComponentCreateInfo {
 			parent_space: &inner.parent_space,
+			anchor: &inner.anchor,
+			anchor_space: &inner.anchor_space,
 			spatial: &inner.spatial,
 			field: &inner.field,
 			queryable: &inner._queryable,
@@ -576,6 +602,9 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 pub struct EntityInner<State: ValidState, C: Component<State>> {
 	// the entity's stationary parent space, kept so toggled-on components can be (re)created
 	parent_space: SpatialRef,
+	// the spatial's real parent, held here to keep it alive
+	anchor: Spatial,
+	anchor_space: SpatialRef,
 	spatial: Spatial,
 	field: Field,
 	// keeps the shared queryable alive for the entity's lifetime; the per-interface guards

@@ -572,7 +572,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1451,7 +1451,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1674,7 +1674,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.51.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#5f8e7b539de3a89f0f8e2d6fa6d1171169fe599d"
+source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#63ba5b2063ad3be7c39d7680ae5d71fcdee041a4"
 dependencies = [
  "futures",
  "glam 0.29.3",
@@ -1695,7 +1695,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules-protocols"
 version = "0.1.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#5f8e7b539de3a89f0f8e2d6fa6d1171169fe599d"
+source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#63ba5b2063ad3be7c39d7680ae5d71fcdee041a4"
 dependencies = [
  "gluon",
  "gluon-codegen",
@@ -1797,7 +1797,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
