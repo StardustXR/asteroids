@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Entity, Migrate, Reify, Tasker, Transformable,
 	client,
-	components::{Containable, Derezzable},
+	components::{Containable, Derezzable, Poseable},
 	elements::{Button, Lines, Model, Spatial, Text},
 	project_local_resources,
 };
@@ -12,7 +12,10 @@ use stardust_xr_fusion::{
 	client::FrameInfo,
 	drawable::{XAlign, YAlign},
 	fields::Shape,
-	types::color::{Deg, Hsv, ToRgba},
+	types::{
+		Posef,
+		color::{Deg, Hsv, ToRgba},
+	},
 };
 use stardust_xr_molecules::{
 	DebugSettings,
@@ -46,6 +49,7 @@ pub struct State {
 	elapsed: f32,
 	pressed_time: f32,
 	text: String,
+	pose: Posef,
 }
 impl Default for State {
 	fn default() -> Self {
@@ -53,6 +57,7 @@ impl Default for State {
 			elapsed: 0.0,
 			pressed_time: -10000.0,
 			text: "triangle :D".to_string(),
+			pose: Posef::default(),
 		}
 	}
 }
@@ -73,8 +78,13 @@ impl ClientState for State {
 impl Reify for State {
 	fn reify(&self, context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
 		Entity::new(Shape::Sphere { radius: 0.05 })
+			.pos(self.pose.position)
+			.rot(self.pose.orientation)
 			.component(Derezzable::program_stopper(context))
 			.component(Containable::default())
+			.component(Poseable::new(|state: &mut Self, pose| {
+				state.pose = pose;
+			}))
 			.build()
 			.child(
 				Spatial::default()

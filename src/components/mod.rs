@@ -11,3 +11,4 @@ mod_expose!(keyboard_handler);
 mod_expose!(mouse_handler);
 mod_expose!(container);
 mod_expose!(containable);
+mod_expose!(transformable);

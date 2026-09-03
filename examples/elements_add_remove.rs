@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Entity, Migrate, Reify, Tasker, Transformable,
 	client,
-	components::{Containable, Derezzable},
+	components::{Containable, Derezzable, Poseable},
 	elements::{Button, Spatial, Text},
 	project_local_resources,
 };
@@ -11,6 +11,7 @@ use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	fields::Shape,
 	spatial::Transform,
+	types::Posef,
 };
 use stardust_xr_molecules::DebugSettings;
 use tracing::level_filters::LevelFilter;
@@ -36,11 +37,13 @@ async fn main() {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct State {
+	pose: Posef,
 	list: Vec<String>,
 }
 impl Default for State {
 	fn default() -> Self {
 		State {
+			pose: Posef::default(),
 			list: vec!["List Item 0".to_string()],
 		}
 	}
@@ -54,8 +57,13 @@ impl ClientState for State {
 impl Reify for State {
 	fn reify(&self, context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
 		Entity::new(Shape::Sphere { radius: 0.05 })
+			.pos(self.pose.position)
+			.rot(self.pose.orientation)
 			.component(Derezzable::program_stopper(context))
 			.component(Containable::default())
+			.component(Poseable::new(|state: &mut Self, pose| {
+				state.pose = pose;
+			}))
 			.build()
 			.child(
 				LabeledButton::new(|state: &mut State| {
