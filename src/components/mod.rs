@@ -10,5 +10,6 @@ mod_expose!(grabbable);
 mod_expose!(keyboard_handler);
 mod_expose!(mouse_handler);
 mod_expose!(container);
+mod_expose!(environment);
 mod_expose!(containable);
 mod_expose!(transformable);

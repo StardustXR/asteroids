@@ -572,7 +572,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1451,7 +1451,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -1658,7 +1658,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-fusion"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=refactor%2Fstrongipc#bbc1abf10b98fd3d5fc13791548f4d00f6d6e577"
+source = "git+https://github.com/StardustXR/core.git?branch=refactor%2Fstrongipc#a6ffc99818759f860f51aa10a9c7b350c79a6402"
 dependencies = [
  "glam 0.30.7",
  "gluon",
@@ -1674,10 +1674,10 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules"
 version = "0.51.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#e4d389f67f6dba23675d3e3732ee9ea62e857c7f"
+source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#2b04c299e155b70c0125d569b251bc9ccf487048"
 dependencies = [
  "futures",
- "glam 0.29.3",
+ "glam 0.30.7",
  "gluon",
  "lazy_static",
  "lerp",
@@ -1695,7 +1695,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-molecules-protocols"
 version = "0.1.0"
-source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#e4d389f67f6dba23675d3e3732ee9ea62e857c7f"
+source = "git+https://github.com/StardustXR/molecules.git?branch=refactor%2Fstrongipc#2b04c299e155b70c0125d569b251bc9ccf487048"
 dependencies = [
  "gluon",
  "gluon-codegen",
@@ -1706,7 +1706,7 @@ dependencies = [
 [[package]]
 name = "stardust-xr-protocol"
 version = "0.51.1"
-source = "git+https://github.com/StardustXR/core.git?branch=refactor%2Fstrongipc#bbc1abf10b98fd3d5fc13791548f4d00f6d6e577"
+source = "git+https://github.com/StardustXR/core.git?branch=refactor%2Fstrongipc#a6ffc99818759f860f51aa10a9c7b350c79a6402"
 dependencies = [
  "fnv",
  "glam 0.29.3",
@@ -1797,7 +1797,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
