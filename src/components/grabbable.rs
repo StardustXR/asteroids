@@ -4,8 +4,13 @@ use crate::{
 };
 use derive_where::derive_where;
 use glam::{Affine3A, Quat, Vec3, vec3};
-use mint::{Quaternion, Vector3};
-use stardust_xr_fusion::{Error, Result, client::FrameInfo, suis::InputDataType};
+use stardust_xr_fusion::{
+	Error, Result,
+	client::FrameInfo,
+	spatial::Transform,
+	suis::InputDataType,
+	types::Posef,
+};
 use stardust_xr_molecules::input_action::{
 	InputQueue, InputSnapshot, SingleAction, grab_pinch_interact,
 };
@@ -20,8 +25,7 @@ pub enum PointerMode {
 }
 
 /// Called every frame the pose changes while grabbed, with the new pose.
-type OnChangePose<State> =
-	CloneFnWrapper<dyn Fn(&mut State, Vector3<f32>, Quaternion<f32>) + Send + Sync>;
+type OnChangePose<State> = CloneFnWrapper<dyn Fn(&mut State, Posef) + Send + Sync>;
 type GrabStart<State> = CloneFnWrapper<dyn Fn(&mut State) + Send + Sync>;
 type GrabStop<State> = CloneFnWrapper<dyn Fn(&mut State) + Send + Sync>;
 
@@ -29,10 +33,6 @@ type GrabStop<State> = CloneFnWrapper<dyn Fn(&mut State) + Send + Sync>;
 #[derive(Setters)]
 #[setters(into)]
 pub struct Grabbable<State: ValidState> {
-	#[setters(skip)]
-	pos: Vector3<f32>,
-	#[setters(skip)]
-	rot: Quaternion<f32>,
 	#[setters(skip)]
 	on_change_pose: OnChangePose<State>,
 	#[setters(skip)]
@@ -45,14 +45,8 @@ pub struct Grabbable<State: ValidState> {
 	pointer_mode: PointerMode,
 }
 impl<State: ValidState> Grabbable<State> {
-	pub fn new<F: Fn(&mut State, Vector3<f32>, Quaternion<f32>) + Send + Sync + 'static>(
-		pos: impl Into<Vector3<f32>>,
-		rot: impl Into<Quaternion<f32>>,
-		on_change: F,
-	) -> Self {
+	pub fn new<F: Fn(&mut State, Posef) + Send + Sync + 'static>(on_change: F) -> Self {
 		Grabbable {
-			pos: pos.into(),
-			rot: rot.into(),
 			on_change_pose: CloneFnWrapper(Arc::new(on_change)),
 			grab_start: CloneFnWrapper(Arc::new(|_| ())),
 			grab_stop: CloneFnWrapper(Arc::new(|_| ())),
@@ -97,6 +91,7 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 			grab_action: SingleAction::default(),
 			max_distance: self.max_distance,
 			pointer_mode: self.pointer_mode,
+			pose: pose(info.transform),
 			relative_transform: Affine3A::IDENTITY,
 			prev_pose: Affine3A::IDENTITY,
 		})
@@ -106,13 +101,15 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 		&self,
 		_old_self: &Self,
 		_context: &Context,
-		_info: ComponentCreateInfo<'_>,
+		info: ComponentCreateInfo<'_>,
 		inners: &mut Inners<'_, State, Self>,
 	) {
 		let inner = inners.self_inner();
-		// the entity applies the state-owned pose onto the shared spatial; we only sync knobs.
 		inner.max_distance = self.max_distance;
 		inner.pointer_mode = self.pointer_mode;
+		// the entity transform is where the state-owned pose came back to us, so a grab starts
+		// from there rather than from wherever the last one ended
+		inner.pose = pose(info.transform);
 	}
 
 	fn frame(
@@ -123,12 +120,10 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 		inners: &mut Inners<'_, State, Self>,
 	) {
 		let inner = inners.self_inner();
-		let current =
-			Affine3A::from_rotation_translation(Quat::from(self.rot), Vec3::from(self.pos));
-		let update = inner.handle_events(current);
+		let update = inner.handle_events();
 
-		if let Some((pos, rot)) = update.new_pose {
-			(self.on_change_pose.0)(state, pos.into(), rot.into());
+		if let Some(pose) = update.new_pose {
+			(self.on_change_pose.0)(state, pose);
 		}
 		if update.started {
 			(self.grab_start.0)(state);
@@ -143,7 +138,7 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 #[derive(Default)]
 struct GrabUpdate {
 	/// The new pose while actively grabbed, to write back into `State`.
-	new_pose: Option<(Vec3, Quat)>,
+	new_pose: Option<Posef>,
 	started: bool,
 	stopped: bool,
 }
@@ -155,6 +150,8 @@ pub struct GrabbableInner {
 	max_distance: f32,
 	pointer_mode: PointerMode,
 
+	pose: Posef,
+
 	// transient interaction state, only meaningful during an active grab
 	relative_transform: Affine3A,
 	prev_pose: Affine3A,
@@ -164,10 +161,14 @@ impl GrabbableInner {
 		self.grab_action.actor_acting()
 	}
 
-	fn handle_events(&mut self, current: Affine3A) -> GrabUpdate {
+	fn handle_events(&mut self) -> GrabUpdate {
 		if !self.input.handle_events() {
 			return GrabUpdate::default();
 		}
+		let current = Affine3A::from_rotation_translation(
+			Quat::from(self.pose.orientation),
+			Vec3::from(self.pose.position),
+		);
 		let max_distance = self.max_distance;
 		self.grab_action.update(
 			true,
@@ -231,7 +232,11 @@ impl GrabbableInner {
 			self.prev_pose = new_pose;
 
 			let (_, rot, pos) = new_pose.to_scale_rotation_translation();
-			update.new_pose = Some((pos, rot));
+			self.pose = Posef {
+				position: pos.into(),
+				orientation: rot.into(),
+			};
+			update.new_pose = Some(self.pose);
 		}
 
 		if self.grab_action.actor_stopped() {
@@ -240,6 +245,14 @@ impl GrabbableInner {
 		}
 
 		update
+	}
+}
+
+/// the entity's scale is its own business, a grab only ever moves it around
+fn pose(transform: &Transform) -> Posef {
+	Posef {
+		position: transform.translation,
+		orientation: transform.rotation,
 	}
 }
 
@@ -272,23 +285,22 @@ async fn asteroids_grabbable_element() {
 		client::{self, ClientState},
 		custom::CustomElement,
 	};
-	use glam::Quat;
-	use mint::Vector3;
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::{fields::Shape, types::rgba_linear};
 	use stardust_xr_molecules::lines::LineExt as _;
 
 	#[derive(Debug, Serialize, Deserialize)]
 	struct TestState {
-		pos: Vector3<f32>,
-		rot: Quaternion<f32>,
+		pose: Posef,
 		grabbed: bool,
 	}
 	impl Default for TestState {
 		fn default() -> Self {
 			TestState {
-				pos: [0.0, 0.5, 0.0].into(),
-				rot: Quat::IDENTITY.into(),
+				pose: Posef {
+					position: [0.0, 0.5, 0.0].into(),
+					..Default::default()
+				},
 				grabbed: false,
 			}
 		}
@@ -313,12 +325,10 @@ async fn asteroids_grabbable_element() {
 			// one Entity owning the shared spatial+field; Grabbable is a component on it,
 			// and the visual Lines hang off the same shared spatial as a child element.
 			Entity::new(shape.clone())
-				.pos(self.pos)
-				.rot(self.rot)
+				.pose(self.pose)
 				.component(
-					Grabbable::new(self.pos, self.rot, |state: &mut Self, pos, rot| {
-						state.pos = pos;
-						state.rot = rot;
+					Grabbable::new(|state: &mut Self, pose| {
+						state.pose = pose;
 					})
 					.grab_start(|state: &mut Self| {
 						state.grabbed = true;

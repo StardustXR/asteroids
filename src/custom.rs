@@ -3,6 +3,7 @@ pub use derive_setters;
 use stardust_xr_fusion::{
 	client::FrameInfo,
 	spatial::{Spatial, SpatialRef, Transform},
+	types::Posef,
 };
 use std::{any::Any, error::Error, fmt::Debug, path::PathBuf, sync::Arc};
 
@@ -84,6 +85,12 @@ pub trait Transformable: Sized {
 	}
 	fn rot(mut self, rot: impl Into<mint::Quaternion<f32>>) -> Self {
 		self.transform_mut().rotation = rot.into();
+		self
+	}
+	fn pose(mut self, pose: impl Into<Posef>) -> Self {
+		let pose = pose.into();
+		self.transform_mut().translation = pose.position;
+		self.transform_mut().rotation = pose.orientation;
 		self
 	}
 	fn scl(mut self, scl: impl Into<mint::Vector3<f32>>) -> Self {

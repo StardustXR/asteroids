@@ -128,6 +128,8 @@ pub struct ComponentCreateInfo<'a> {
 	pub field: &'a Field,
 	/// The entity's shared queryable — `add_interface` onto this to expose protocols.
 	pub queryable: &'a QueryableObject,
+	/// The entity's local transform, so a component can start from where the entity already is.
+	pub transform: &'a Transform,
 }
 
 pub trait Component<State: ValidState>: Any + Debug + Send + Sync + Sized + 'static {
@@ -371,6 +373,7 @@ fn spawn_create_component<State: ValidState, C: Component<State> + Clone>(
 	let spatial = info.spatial.clone();
 	let field = info.field.clone();
 	let queryable = info.queryable.clone();
+	let transform = *info.transform;
 	tokio::spawn(async move {
 		let info = ComponentCreateInfo {
 			parent_space: &parent_space,
@@ -379,6 +382,7 @@ fn spawn_create_component<State: ValidState, C: Component<State> + Clone>(
 			spatial: &spatial,
 			field: &field,
 			queryable: &queryable,
+			transform: &transform,
 		};
 		// `create_inner` only borrows `component`, so we can hand it back for reconciliation
 		let result = component.create_inner(&context, info).await;
@@ -543,6 +547,7 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 					spatial: &spatial,
 					field: &field,
 					queryable: &queryable,
+					transform: &self.transform,
 				},
 			)
 			.await
@@ -574,6 +579,7 @@ impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<Sta
 			spatial: &inner.spatial,
 			field: &inner.field,
 			queryable: &inner._queryable,
+			transform: &self.transform,
 		};
 		self.components.diff(
 			&old_self.components,

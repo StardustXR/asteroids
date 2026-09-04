@@ -120,7 +120,6 @@ async fn asteroids_containable_component() {
 		components::{Container, PointerMode},
 		custom::CustomElement,
 	};
-	use glam::Quat;
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::{
 		fields::Shape,
@@ -167,13 +166,9 @@ async fn asteroids_containable_component() {
 						.pos(self.container)
 						.component(Container)
 						.component(
-							Grabbable::new(
-								self.container,
-								Quat::IDENTITY,
-								|state: &mut Self, pos, _rot| {
-									state.container = pos;
-								},
-							)
+							Grabbable::new(|state: &mut Self, pose| {
+								state.container = pose.position;
+							})
 							.pointer_mode(PointerMode::Move),
 						)
 						.build()
@@ -192,13 +187,9 @@ async fn asteroids_containable_component() {
 					Entity::new(containable.clone())
 						.pos(self.containable)
 						.component(
-							Grabbable::new(
-								self.containable,
-								Quat::IDENTITY,
-								|state: &mut Self, pos, _rot| {
-									state.containable = pos;
-								},
-							)
+							Grabbable::new(|state: &mut Self, pose| {
+								state.containable = pose.position;
+							})
 							.pointer_mode(PointerMode::Move),
 						)
 						.component(Containable::default())
