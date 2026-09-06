@@ -1,15 +1,17 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
+	components::TransformableInner,
 	custom::{CustomElement, FnWrapper, Transformable, derive_setters::Setters},
 };
 use derive_where::derive_where;
-use glam::{Mat4, Quat, Vec3};
+use glam::{EulerRot, Mat4, Quat, Vec3};
 use map_range::MapRange;
 use stardust_xr_fusion::{
 	Error,
 	client::FrameInfo,
 	drawable::{Line, LinePoint, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
+	query::{QueryableExt as _, QueryableObject},
 	spatial::{PartialTransform, Spatial, SpatialExt, Transform},
 	suis::InputDataType,
 	types::rgba_linear,
@@ -73,9 +75,23 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 			&context.stardust_client,
 			root_spatial.clone(),
 			field.clone(),
-			root_spatial_ref,
+			root_spatial_ref.clone(),
 		)
 		.await?;
+
+		let queryable = QueryableObject::new(
+			&context.stardust_client,
+			root_spatial.clone(),
+			field.clone(),
+		)
+		.await?;
+		// rotations come back relative to the root, the space the platter's angle lives in
+		let mut transformable = TransformableInner::new(
+			&context.stardust_client,
+			content_parent.clone(),
+			root_spatial_ref,
+		);
+		transformable.rotatable(&queryable).await?;
 
 		let grip = Lines::new(&context.stardust_client, &content_parent, self.grip_lines()).await?;
 
@@ -88,6 +104,8 @@ impl<State: ValidState> CustomElement<State> for Turntable<State> {
 			grip_lit: true,
 			field,
 			input,
+			_queryable: queryable,
+			transformable,
 			pointer_hover_action: Default::default(),
 			touch_action: Default::default(),
 			prev_angle: None,
@@ -244,6 +262,8 @@ pub struct TurntableInner {
 	field: Field,
 
 	input: InputQueue,
+	_queryable: QueryableObject,
+	transformable: TransformableInner,
 	pointer_hover_action: SimpleAction,
 	touch_action: SingleAction,
 	angular_momentum: f32,
@@ -304,6 +324,7 @@ impl TurntableInner {
 		self.update_touch(settings);
 		self.update_scroll_rotation(settings, state);
 		self.update_touch_rotation(&info, settings, state);
+		self.update_external_rotation(settings, state);
 		self.update_momentum_rotation(&info, settings, state);
 		self.update_grip_visuals(settings);
 	}
@@ -376,6 +397,32 @@ impl TurntableInner {
 		if self.touch_action.actor_stopped() {
 			self.prev_angle.take();
 		}
+	}
+
+	fn update_external_rotation<State: ValidState>(
+		&mut self,
+		settings: &Turntable<State>,
+		state: &mut State,
+	) {
+		// a touch owns the platter while it lasts, so anything that came in meanwhile is dropped
+		let Some(transform) = self
+			.transformable
+			.take_pending()
+			.filter(|_| !self.touch_action.actor_acting())
+		else {
+			return;
+		};
+		// the platter only spins, so all that's kept of whatever was asked for is the yaw
+		let (yaw, _, _) = Quat::from(transform.rotation).to_euler(EulerRot::YXZ);
+		// leftover spin would just drift away from the angle that was asked for
+		self.angular_momentum = 0.0;
+		// rotate adds, so hand it the difference from where the platter already sits
+		self.rotate(
+			yaw - settings.rotation,
+			settings.rotation,
+			state,
+			&settings.on_rotate,
+		);
 	}
 
 	fn update_momentum_rotation<State: ValidState>(
