@@ -319,11 +319,7 @@ pub struct TransformableInner {
 impl TransformableInner {
 	/// `spatial` is what moves and `parent` is the space the reported transforms come back in,
 	/// so a custom element hands in its own two rather than an entity's
-	pub fn new<H: ClientHandler>(
-		client: &Client<H>,
-		spatial: Spatial,
-		parent: SpatialRef,
-	) -> Self {
+	pub fn new<H: ClientHandler>(client: &Client<H>, spatial: Spatial, parent: SpatialRef) -> Self {
 		TransformableInner {
 			core: Arc::new(TransformableCore {
 				spatial_interface: client.spatial_interface().clone(),
@@ -470,7 +466,7 @@ impl PoseableHandler for PoseableNode {
 		self.0.offset(reference, pose(offset)).await
 	}
 
-	async fn set_relative_scale(&self, _ctx: gluon::Context, reference: SpatialRef, pose: Posef) {
+	async fn set_relative_pose(&self, _ctx: gluon::Context, reference: SpatialRef, pose: Posef) {
 		self.0.set(reference, self::pose(pose)).await
 	}
 }
