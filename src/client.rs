@@ -123,7 +123,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 	// return;
 	// };
 
-    #[cfg(feature = "subsecond")]
+	#[cfg(feature = "subsecond")]
 	dioxus_devtools::connect_subsecond();
 
 	let (tx, rx) = mpsc::channel();
