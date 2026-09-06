@@ -1,6 +1,6 @@
 use crate::{
 	Context, CreateInnerInfo, ValidState,
-	components::innermost_container,
+	components::{TransformableInner, innermost_container},
 	custom::{CustomElement, FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
@@ -10,6 +10,7 @@ use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
+	query::{QueryableExt, QueryableObject},
 	spatial::{Spatial, SpatialExt, Transform},
 	suis::InputDataType,
 };
@@ -94,6 +95,17 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 		// it only settles into a container once you let go, never mid-drag
 		containable.set_auto_reparent(false);
 
+		let queryable = QueryableObject::new(
+			&context.stardust_client,
+			content_root.clone(),
+			field.clone(),
+		)
+		.await?;
+		// positions come back relative to the anchor, the same space pos already lives in
+		let mut transformable =
+			TransformableInner::new(&context.stardust_client, content_root.clone(), anchor_space);
+		transformable.translatable(&queryable).await?;
+
 		let ring_line = circle(64, 0.0, self.radius).thickness(self.thickness);
 		let ring_visual = Lines::new(
 			&context.stardust_client,
@@ -106,6 +118,8 @@ impl<State: ValidState> CustomElement<State> for GrabRing<State> {
 			field,
 			input,
 			containable: Arc::new(containable),
+			_queryable: queryable,
+			transformable,
 			grab_action: SingleAction::default(),
 			pointer_distance: 0.0,
 			old_interact_point: Vec3::ZERO,
@@ -138,6 +152,8 @@ pub struct GrabRingInner {
 	field: Field,
 	input: InputQueue,
 	containable: Arc<Containable>,
+	_queryable: QueryableObject,
+	transformable: TransformableInner,
 	grab_action: SingleAction,
 	old_interact_point: Vec3,
 	pointer_distance: f32,
@@ -220,7 +236,13 @@ impl GrabRingInner {
 			return None;
 		}
 
-		let new_pos = self.handle_grab(pos.into());
+		// a grab owns the position while it lasts, so anything that came in meanwhile is dropped
+		let moved = self
+			.transformable
+			.take_pending()
+			.filter(|_| !self.grab_action.actor_acting())
+			.map(|transform| Vec3::from(transform.translation));
+		let new_pos = self.handle_grab(pos.into()).or(moved);
 		if let Some(new_pos) = new_pos.as_ref() {
 			let _ = self
 				.content_root
