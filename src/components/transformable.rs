@@ -5,8 +5,9 @@ use crate::{
 use gluon::{HandledBy, Handler, RefExt};
 use stardust_xr_fusion::{
 	Error,
-	client::{Client, DefaultHandler, FrameInfo},
-	spatial::{PartialTransform, Spatial, SpatialRef, Transform},
+	client::{Client, ClientHandler, FrameInfo},
+	query::QueryableObject,
+	spatial::{PartialTransform, Spatial, SpatialInterface, SpatialRef, Transform},
 	types::{Posef, QuatF, Vec3F},
 };
 use stardust_xr_molecules::transformable::protocol::{
@@ -42,8 +43,12 @@ impl<State: ValidState> Component<State> for Transformable<State> {
 		context: &Context,
 		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
-		let mut inner = TransformableInner::new(context, &info);
-		inner.transformable(&info).await?;
+		let mut inner = TransformableInner::new(
+			&context.stardust_client,
+			info.spatial.clone(),
+			info.parent_space.clone(),
+		);
+		inner.transformable(info.queryable).await?;
 		Ok(inner)
 	}
 
@@ -93,8 +98,12 @@ impl<State: ValidState> Component<State> for Poseable<State> {
 		context: &Context,
 		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
-		let mut inner = TransformableInner::new(context, &info);
-		inner.poseable(&info).await?;
+		let mut inner = TransformableInner::new(
+			&context.stardust_client,
+			info.spatial.clone(),
+			info.parent_space.clone(),
+		);
+		inner.poseable(info.queryable).await?;
 		Ok(inner)
 	}
 
@@ -148,8 +157,12 @@ impl<State: ValidState> Component<State> for Translatable<State> {
 		context: &Context,
 		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
-		let mut inner = TransformableInner::new(context, &info);
-		inner.translatable(&info).await?;
+		let mut inner = TransformableInner::new(
+			&context.stardust_client,
+			info.spatial.clone(),
+			info.parent_space.clone(),
+		);
+		inner.translatable(info.queryable).await?;
 		Ok(inner)
 	}
 
@@ -197,8 +210,12 @@ impl<State: ValidState> Component<State> for Rotatable<State> {
 		context: &Context,
 		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
-		let mut inner = TransformableInner::new(context, &info);
-		inner.rotatable(&info).await?;
+		let mut inner = TransformableInner::new(
+			&context.stardust_client,
+			info.spatial.clone(),
+			info.parent_space.clone(),
+		);
+		inner.rotatable(info.queryable).await?;
 		Ok(inner)
 	}
 
@@ -246,8 +263,12 @@ impl<State: ValidState> Component<State> for Scalable<State> {
 		context: &Context,
 		info: ComponentCreateInfo<'_>,
 	) -> Result<Self::Inner, Self::Error> {
-		let mut inner = TransformableInner::new(context, &info);
-		inner.scalable(&info).await?;
+		let mut inner = TransformableInner::new(
+			&context.stardust_client,
+			info.spatial.clone(),
+			info.parent_space.clone(),
+		);
+		inner.scalable(info.queryable).await?;
 		Ok(inner)
 	}
 
@@ -283,11 +304,7 @@ fn take_pending<State: ValidState, Own: Component<State, Inner = TransformableIn
 		.is_some_and(GrabbableInner::grabbing);
 
 	// a grab owns the pose while it lasts, so anything that came in meanwhile is dropped
-	inners
-		.self_inner()
-		.core
-		.take_pending()
-		.filter(|_| !grabbing)
+	inners.self_inner().take_pending().filter(|_| !grabbing)
 }
 
 /// what every component in the hierarchy runs on: one core plus however many nodes it takes to
@@ -300,51 +317,62 @@ pub struct TransformableInner {
 	served: Vec<Box<dyn Send + Sync>>,
 }
 impl TransformableInner {
-	fn new(context: &Context, info: &ComponentCreateInfo<'_>) -> Self {
+	/// `spatial` is what moves and `parent` is the space the reported transforms come back in,
+	/// so a custom element hands in its own two rather than an entity's
+	pub fn new<H: ClientHandler>(
+		client: &Client<H>,
+		spatial: Spatial,
+		parent: SpatialRef,
+	) -> Self {
 		TransformableInner {
 			core: Arc::new(TransformableCore {
-				client: context.stardust_client.clone(),
-				spatial: info.spatial.clone(),
-				parent: info.parent_space.clone(),
+				spatial_interface: client.spatial_interface().clone(),
+				spatial,
+				parent,
 				pending_transform_change: Mutex::new(None),
 			}),
 			served: Vec::new(),
 		}
 	}
 
+	/// whatever came in since the last call, as a local transform of `parent`
+	pub fn take_pending(&self) -> Option<Transform> {
+		self.core.take_pending()
+	}
+
 	async fn serve<I: RefExt + HandledBy<H>, H: Handler>(
 		&mut self,
 		handler: H,
-		info: &ComponentCreateInfo<'_>,
+		queryable: &QueryableObject,
 	) -> Result<(), Error> {
 		let (node, interface) = I::new_node(handler)?;
-		let advertisement = info.queryable.add_interface(&interface, I::ID).await??;
+		let advertisement = queryable.add_interface(&interface, I::ID).await??;
 		self.served.push(Box::new((node, advertisement)));
 		Ok(())
 	}
 
-	async fn transformable(&mut self, info: &ComponentCreateInfo<'_>) -> Result<(), Error> {
-		self.serve::<protocol::Transformable, _>(TransformableNode(self.core.clone()), info)
+	pub async fn transformable(&mut self, queryable: &QueryableObject) -> Result<(), Error> {
+		self.serve::<protocol::Transformable, _>(TransformableNode(self.core.clone()), queryable)
 			.await?;
-		self.poseable(info).await?;
-		self.scalable(info).await
+		self.poseable(queryable).await?;
+		self.scalable(queryable).await
 	}
-	async fn poseable(&mut self, info: &ComponentCreateInfo<'_>) -> Result<(), Error> {
-		self.serve::<protocol::Poseable, _>(PoseableNode(self.core.clone()), info)
+	pub async fn poseable(&mut self, queryable: &QueryableObject) -> Result<(), Error> {
+		self.serve::<protocol::Poseable, _>(PoseableNode(self.core.clone()), queryable)
 			.await?;
-		self.translatable(info).await?;
-		self.rotatable(info).await
+		self.translatable(queryable).await?;
+		self.rotatable(queryable).await
 	}
-	async fn translatable(&mut self, info: &ComponentCreateInfo<'_>) -> Result<(), Error> {
-		self.serve::<protocol::Translatable, _>(TranslatableNode(self.core.clone()), info)
+	pub async fn translatable(&mut self, queryable: &QueryableObject) -> Result<(), Error> {
+		self.serve::<protocol::Translatable, _>(TranslatableNode(self.core.clone()), queryable)
 			.await
 	}
-	async fn rotatable(&mut self, info: &ComponentCreateInfo<'_>) -> Result<(), Error> {
-		self.serve::<protocol::Rotatable, _>(RotatableNode(self.core.clone()), info)
+	pub async fn rotatable(&mut self, queryable: &QueryableObject) -> Result<(), Error> {
+		self.serve::<protocol::Rotatable, _>(RotatableNode(self.core.clone()), queryable)
 			.await
 	}
-	async fn scalable(&mut self, info: &ComponentCreateInfo<'_>) -> Result<(), Error> {
-		self.serve::<protocol::Scalable, _>(ScalableNode(self.core.clone()), info)
+	pub async fn scalable(&mut self, queryable: &QueryableObject) -> Result<(), Error> {
+		self.serve::<protocol::Scalable, _>(ScalableNode(self.core.clone()), queryable)
 			.await
 	}
 }
@@ -352,7 +380,7 @@ impl TransformableInner {
 /// the one pending transform every node in the hierarchy writes into, and the frame math they all
 /// share
 pub struct TransformableCore {
-	client: Arc<Client<DefaultHandler>>,
+	spatial_interface: SpatialInterface,
 	spatial: Spatial,
 	parent: SpatialRef,
 
@@ -369,10 +397,11 @@ impl TransformableCore {
 	/// both directions get fetched rather than inverting one, `Transform::inverse` only round
 	/// trips under uniform scale
 	async fn frames(&self, reference: SpatialRef) -> Option<(Transform, Transform, Transform)> {
-		let spatial_interface = self.client.spatial_interface();
 		let (reference_in_parent, parent_in_reference, local) = tokio::join!(
-			spatial_interface.get_relative_transform(self.parent.clone(), reference.clone()),
-			spatial_interface.get_relative_transform(reference, self.parent.clone()),
+			self.spatial_interface
+				.get_relative_transform(self.parent.clone(), reference.clone()),
+			self.spatial_interface
+				.get_relative_transform(reference, self.parent.clone()),
 			self.spatial.get_relative_transform(self.parent.clone()),
 		);
 		Some((
