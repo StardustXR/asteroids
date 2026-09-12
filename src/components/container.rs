@@ -1,5 +1,5 @@
 use crate::{Component, ComponentCreateInfo, Context, Inners, ValidState};
-use gluon::Node;
+use gluon_ipc::Node;
 use stardust_xr_fusion::Error;
 use stardust_xr_molecules::container;
 

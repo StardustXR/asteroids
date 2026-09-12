@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, Inners, ValidState};
-use gluon::{Handler, Interface, Node, RefExt};
+use gluon_ipc::{Handler, Interface, Node, RefExt};
 use stardust_xr_fusion::{Error, query::QueryableInterface, types::Timestamp};
 use stardust_xr_molecules::keyboard_handler::protocol::{
 	KeyEvent, KeyboardHandler as KeyboardHandlerProxy, KeyboardHandlerHandler,
@@ -43,7 +43,7 @@ struct KbHandler {
 impl KeyboardHandlerHandler for KbHandler {
 	async fn key(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		event: stardust_xr_molecules::keyboard_handler::protocol::KeyEvent,
 		timestamp: Option<stardust_xr_fusion::types::Timestamp>,
 	) {

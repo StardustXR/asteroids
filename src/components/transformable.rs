@@ -2,7 +2,7 @@ use crate::{
 	CloneFnWrapper, Component, ComponentCreateInfo, Context, Inners, ValidState,
 	components::{Grabbable, GrabbableInner},
 };
-use gluon::{HandledBy, Handler, RefExt};
+use gluon_ipc::{HandledBy, Handler, RefExt};
 use stardust_xr_fusion::{
 	Error,
 	client::{Client, ClientHandler, FrameInfo},
@@ -437,7 +437,7 @@ struct TransformableNode(Arc<TransformableCore>);
 impl TransformableHandler for TransformableNode {
 	async fn offset_relative_transform(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
 		offset_transform: PartialTransform,
 	) {
@@ -446,7 +446,7 @@ impl TransformableHandler for TransformableNode {
 
 	async fn set_relative_transform(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
 		transform: PartialTransform,
 	) {
@@ -459,14 +459,19 @@ struct PoseableNode(Arc<TransformableCore>);
 impl PoseableHandler for PoseableNode {
 	async fn offset_relative_pse(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
 		offset: Posef,
 	) {
 		self.0.offset(reference, pose(offset)).await
 	}
 
-	async fn set_relative_pose(&self, _ctx: gluon::Context, reference: SpatialRef, pose: Posef) {
+	async fn set_relative_pose(
+		&self,
+		_ctx: gluon_ipc::Context,
+		reference: SpatialRef,
+		pose: Posef,
+	) {
 		self.0.set(reference, self::pose(pose)).await
 	}
 }
@@ -476,7 +481,7 @@ struct TranslatableNode(Arc<TransformableCore>);
 impl TranslatableHandler for TranslatableNode {
 	async fn offset_relative_translation(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
 		offset: Vec3F,
 	) {
@@ -485,7 +490,7 @@ impl TranslatableHandler for TranslatableNode {
 
 	async fn set_relative_translation(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
 		translation: Vec3F,
 	) {
@@ -498,7 +503,7 @@ struct RotatableNode(Arc<TransformableCore>);
 impl RotatableHandler for RotatableNode {
 	async fn offset_relative_rotation(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
 		offset: QuatF,
 	) {
@@ -507,7 +512,7 @@ impl RotatableHandler for RotatableNode {
 
 	async fn set_relative_rotation(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
 		rotation: QuatF,
 	) {
@@ -520,14 +525,19 @@ struct ScalableNode(Arc<TransformableCore>);
 impl ScalableHandler for ScalableNode {
 	async fn offset_relative_scale(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
 		offset: Vec3F,
 	) {
 		self.0.offset(reference, scale(offset)).await
 	}
 
-	async fn set_relative_scale(&self, _ctx: gluon::Context, reference: SpatialRef, scale: Vec3F) {
+	async fn set_relative_scale(
+		&self,
+		_ctx: gluon_ipc::Context,
+		reference: SpatialRef,
+		scale: Vec3F,
+	) {
 		self.0.set(reference, self::scale(scale)).await
 	}
 }

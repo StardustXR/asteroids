@@ -3,7 +3,7 @@ use crate::{
 	task::RootTasker,
 	util::{Migrate, RonFile},
 };
-use gluon::Liveness;
+use gluon_ipc::Liveness;
 use serde::{Serialize, de::DeserializeOwned};
 use stardust_xr_fusion::{Result, client::FrameInfo};
 use stardust_xr_molecules::accent_color::AccentColor;
@@ -211,13 +211,13 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 // 	projector: Mutex<Projector<State>>,
 // }
 // impl<State: ClientState> ClientHandler for Asteroids<State> {
-// 	fn ping(&self, _ctx: gluon::Context) -> impl Future<Output = ()> + Send + Sync {
+// 	fn ping(&self, _ctx: gluon_ipc::Context) -> impl Future<Output = ()> + Send + Sync {
 // 		todo!()
 // 	}
 
 // 	fn frame(
 // 		&self,
-// 		_ctx: gluon::Context,
+// 		_ctx: gluon_ipc::Context,
 // 		info: FrameInfo,
 // 	) -> impl Future<Output = ()> + Send + Sync {
 // 		todo!()

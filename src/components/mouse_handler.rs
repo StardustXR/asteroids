@@ -1,5 +1,5 @@
 use crate::{CloneFnWrapper, Component, ComponentCreateInfo, Context, Inners, ValidState};
-use gluon::{Handler, Interface, Node, RefExt};
+use gluon_ipc::{Handler, Interface, Node, RefExt};
 use mint::Vector2;
 use stardust_xr_fusion::{
 	Error,
@@ -166,7 +166,7 @@ struct MouseHandlerQueryable {
 	callbacks: Arc<RwLock<AsyncMouseCallbacks>>,
 }
 impl MouseHandlerHandler for MouseHandlerQueryable {
-	async fn motion(&self, _ctx: gluon::Context, delta: Vec2F, timestamp: Option<Timestamp>) {
+	async fn motion(&self, _ctx: gluon_ipc::Context, delta: Vec2F, timestamp: Option<Timestamp>) {
 		let callbacks = self.callbacks.read().await;
 		if let Some(on_motion) = callbacks.on_motion.as_ref() {
 			(on_motion.0)(delta, timestamp);
@@ -176,7 +176,7 @@ impl MouseHandlerHandler for MouseHandlerQueryable {
 
 	async fn button(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		button: u32,
 		pressed: bool,
 		timestamp: Option<Timestamp>,
@@ -190,7 +190,7 @@ impl MouseHandlerHandler for MouseHandlerQueryable {
 
 	async fn scroll_smooth(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		delta: Vec2F,
 		source: ScrollSource,
 		timestamp: Option<Timestamp>,
@@ -204,7 +204,7 @@ impl MouseHandlerHandler for MouseHandlerQueryable {
 
 	async fn scroll_discrete(
 		&self,
-		_ctx: gluon::Context,
+		_ctx: gluon_ipc::Context,
 		delta: Vec2F,
 		source: ScrollSource,
 		timestamp: Option<Timestamp>,
