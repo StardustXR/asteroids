@@ -196,7 +196,7 @@ async fn asteroids_field_viz_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			FieldViz::default()
 				.shape(Shape::Transform {

@@ -86,7 +86,7 @@ async fn asteroids_derezzable_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			let shape = Shape::Box {
 				size: [0.1; 3].into(),

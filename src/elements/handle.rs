@@ -343,7 +343,7 @@ async fn asteroids_handle_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			let width = 0.1;
 			let start_x = width * -0.5;

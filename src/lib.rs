@@ -42,8 +42,14 @@ macro_rules! mod_expose {
 pub trait ValidState: Sized + Send + Sync + 'static {}
 impl<T: Sized + Send + Sync + 'static> ValidState for T {}
 
-pub trait Reify: ValidState + Sized + Send + Sync + 'static {
-	fn reify(&self, context: &Context, tasks: impl Tasker<Self>) -> impl Element<Self>;
+/// props are whatever the parent hands down while building, borrows included
+pub trait Reify<Props = ()>: ValidState + Sized + Send + Sync + 'static {
+	fn reify(
+		&self,
+		context: &Context,
+		tasks: impl Tasker<Self>,
+		props: Props,
+	) -> impl Element<Self>;
 
 	fn reify_substate<
 		SuperState: ValidState,
@@ -52,10 +58,11 @@ pub trait Reify: ValidState + Sized + Send + Sync + 'static {
 		&self,
 		context: &Context,
 		tasks: impl Tasker<SuperState>,
+		props: Props,
 		mapper: Mapper,
 	) -> Mapped<SuperState, Self, Mapper, impl Element<Self>> {
 		let tasks = tasks.clone().map::<Self, Mapper>(mapper.clone());
-		self.reify(context, tasks).map(mapper)
+		self.reify(context, tasks, props).map(mapper)
 	}
 }
 
@@ -71,7 +78,7 @@ impl<State: Reify> Projector<State> {
 	) -> Projector<State> {
 		let mut inner_map = ElementInnerMap::default();
 
-		let mut blueprint = state.reify(context, tasker.clone());
+		let mut blueprint = state.reify(context, tasker.clone(), ());
 		blueprint.create_inner_recursive(
 			0,
 			context,
@@ -107,7 +114,7 @@ impl<State: Reify> Projector<State> {
 				(task_callback_rx)(state);
 			}
 		});
-		let mut blueprint = state.reify(context, projector.borrow_root_tasker().clone());
+		let mut blueprint = state.reify(context, projector.borrow_root_tasker().clone(), ());
 		projector.with_mut(|fields| {
 			let _span = tracing::debug_span!("Diffing whole tree").entered();
 			blueprint.dynamic_diff(

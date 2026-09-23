@@ -157,7 +157,7 @@ async fn asteroids_bounds_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			let expected_bounds = BoundingBox {
 				center: [0.02, 0.5, 0.7].into(),

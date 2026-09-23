@@ -505,7 +505,7 @@ async fn asteroids_turntable_element() {
 		}
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self, context: &Context, _tasks: impl Tasker<Self>) -> impl crate::Element<Self> {
+		fn reify(&self, context: &Context, _tasks: impl Tasker<Self>, _props: ()) -> impl crate::Element<Self> {
 			crate::Entity::new(stardust_xr_fusion::fields::Shape::Sphere { radius: 0.05 })
 				.component(Derezzable::program_stopper(context))
 				.build()

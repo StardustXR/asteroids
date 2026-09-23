@@ -76,7 +76,12 @@ impl ClientState for State {
 	}
 }
 impl Reify for State {
-	fn reify(&self, context: &Context, _tasks: impl Tasker<Self>) -> impl Element<Self> {
+	fn reify(
+		&self,
+		context: &Context,
+		_tasks: impl Tasker<Self>,
+		_props: (),
+	) -> impl Element<Self> {
 		Entity::new(Shape::Sphere { radius: 0.05 })
 			.pos(self.pose.position)
 			.rot(self.pose.orientation)

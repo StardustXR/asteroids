@@ -150,7 +150,7 @@ async fn asteroids_keyboard_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			Entity::new(Shape::Sphere { radius: 0.5 })
 				.component(KeyboardHandler::new().on_key(Self::key_press))

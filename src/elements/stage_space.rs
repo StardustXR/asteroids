@@ -46,7 +46,7 @@ async fn asteroids_playspace_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			StageSpace
 				.build()

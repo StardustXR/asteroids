@@ -108,7 +108,7 @@ async fn asteroids_text_test() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			let cell_size_x = 0.1;
 			let cell_size_y = 0.01;

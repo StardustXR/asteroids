@@ -312,7 +312,7 @@ async fn asteroids_pen_test() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			Axes::default()
 				.build()

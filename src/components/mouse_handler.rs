@@ -367,7 +367,7 @@ async fn asteroids_mouse_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			Entity::new(Shape::Sphere { radius: 0.5 })
 				.component(

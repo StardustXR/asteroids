@@ -19,11 +19,11 @@ impl ClientState for Test {
 	const APP_ID: &'static str = "org.stardustxr.asteroids.Recursion";
 }
 impl Reify for Test {
-	fn reify(&self, context: &Context, tasks: impl Tasker<Self>) -> impl Element<Self> {
+	fn reify(&self, context: &Context, tasks: impl Tasker<Self>, _props: ()) -> impl Element<Self> {
 		Spatial::default().build().maybe_child(
 			self.next
 				.as_ref()
-				.map(|n| n.reify(context, tasks).dynamic()),
+				.map(|n| n.reify(context, tasks, ()).dynamic()),
 		)
 	}
 }

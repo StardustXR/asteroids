@@ -546,7 +546,7 @@ async fn asteroids_spline_rail_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			// Lemniscate (figure-8): x(t) = r·sin(t), y(t) = r·sin(2t)/2
 			// 8 control points at t = k·π/4, handles from tangent scaled by Δt/3

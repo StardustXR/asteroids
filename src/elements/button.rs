@@ -141,7 +141,7 @@ async fn asteroids_button_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			Button::new(|_| {
 				// std::process::exit(0);

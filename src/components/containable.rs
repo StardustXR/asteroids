@@ -150,7 +150,7 @@ async fn asteroids_containable_component() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			let container = Shape::Box {
 				size: [0.3; 3].into(),

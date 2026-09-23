@@ -330,7 +330,7 @@ async fn asteroids_dial_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			let hours = (self.value / 60.0).floor();
 			let minutes = (self.value % 60.0).floor();

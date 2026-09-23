@@ -350,7 +350,7 @@ async fn asteroids_grab_ring_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>,
+			_tasks: impl Tasker<Self>, _props: (),
 		) -> impl crate::Element<Self> {
 			let box_shape = Shape::Box {
 				size: [0.3; 3].into(),

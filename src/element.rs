@@ -65,6 +65,29 @@ pub trait Element<State: ValidState>: ElementDiffer<State> + Sized + 'static {
 	) -> Mapped<SuperState, State, F, Self> {
 		Mapped::new(self, mapper)
 	}
+	fn map_field<SuperState: ValidState>(
+		self,
+		lens: fn(&mut SuperState) -> &mut State,
+	) -> Mapped<
+		SuperState,
+		State,
+		impl Fn(&mut SuperState) -> Option<&mut State> + Clone + Send + Sync + 'static,
+		Self,
+	> {
+		self.map(move |s: &mut SuperState| Some(lens(s)))
+	}
+	fn map_at<SuperState: ValidState>(
+		self,
+		lens: fn(&mut SuperState) -> &mut Vec<State>,
+		i: usize,
+	) -> Mapped<
+		SuperState,
+		State,
+		impl Fn(&mut SuperState) -> Option<&mut State> + Clone + Send + Sync + 'static,
+		Self,
+	> {
+		self.map(move |s: &mut SuperState| lens(s).get_mut(i))
+	}
 	/// Box as dynamic element for type swapping (rare cases like KDL)
 	fn dynamic(self) -> DynamicElement<State>
 	where
