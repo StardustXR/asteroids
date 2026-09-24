@@ -5,11 +5,7 @@ use crate::{
 use derive_where::derive_where;
 use glam::{Affine3A, Quat, Vec3, vec3};
 use stardust_xr_fusion::{
-	Error, Result,
-	client::FrameInfo,
-	spatial::Transform,
-	suis::InputDataType,
-	types::Posef,
+	Error, Result, client::FrameInfo, spatial::Transform, suis::InputDataType, types::Posef,
 };
 use stardust_xr_molecules::input_action::{
 	InputQueue, InputSnapshot, SingleAction, grab_pinch_interact,
@@ -122,11 +118,11 @@ impl<State: ValidState> Component<State> for Grabbable<State> {
 		let inner = inners.self_inner();
 		let update = inner.handle_events();
 
-		if let Some(pose) = update.new_pose {
-			(self.on_change_pose.0)(state, pose);
-		}
 		if update.started {
 			(self.grab_start.0)(state);
+		}
+		if let Some(pose) = update.new_pose {
+			(self.on_change_pose.0)(state, pose);
 		}
 		if update.stopped {
 			(self.grab_stop.0)(state);
@@ -317,7 +313,8 @@ async fn asteroids_grabbable_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			let shape = Shape::Box {
 				size: [0.1; 3].into(),
