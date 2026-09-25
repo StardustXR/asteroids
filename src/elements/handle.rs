@@ -2,6 +2,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use crate::{
 	Context, CreateInnerInfo, ValidState,
+	components::TransformableInner,
 	custom::{CustomElement, FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
@@ -12,6 +13,7 @@ use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
+	query::{QueryableExt, QueryableObject},
 	spatial::{Spatial, Transform},
 	suis::InputDataType,
 	types::rgba_linear,
@@ -85,6 +87,19 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 		)
 		.await?;
 
+		let queryable = QueryableObject::new(
+			&context.stardust_client,
+			content_root.clone(),
+			field.clone(),
+		)
+		.await?;
+		let mut transformable = TransformableInner::new(
+			&context.stardust_client,
+			content_root.clone(),
+			info.parent_space.clone(),
+		);
+		transformable.translatable(&queryable).await?;
+
 		let diamond = circle(4, 0.0, RADIUS).thickness(LINE_THICKNESS);
 		let octahedron = [
 			diamond.clone().transform(Mat4::from_rotation_x(FRAC_PI_2)),
@@ -96,6 +111,8 @@ impl<State: ValidState> CustomElement<State> for Handle<State> {
 		let mut inner = HandleInner {
 			field,
 			input,
+			_queryable: queryable,
+			transformable,
 			grab_action: SingleAction::default(),
 			pointer_distance: 0.0,
 			last_grab_pos: self.root_pos,
@@ -154,6 +171,8 @@ pub struct HandleInner {
 	content_root: Spatial,
 	field: Field,
 	input: InputQueue,
+	_queryable: QueryableObject,
+	transformable: TransformableInner,
 	grab_action: SingleAction,
 	pointer_distance: f32,
 	last_grab_pos: Vector3<f32>,
@@ -218,7 +237,20 @@ impl HandleInner {
 		root_pos: Vector3<f32>,
 		head_offset: Vector3<f32>,
 	) -> Option<HandleUpdate> {
-		if !self.update_input() {
+		let input_changed = self.update_input();
+		// a grab owns the position while it lasts, so anything that came in meanwhile is dropped
+		if let Some(t) = self
+			.transformable
+			.take_pending()
+			.filter(|_| !self.grab_action.actor_acting())
+		{
+			// the transform moves the root but the callbacks speak in head positions
+			return Some(HandleUpdate {
+				pos: (Vec3::from(t.translation) + Vec3::from(head_offset)).into(),
+				released: true,
+			});
+		}
+		if !input_changed {
 			return None;
 		}
 		self.update_signifiers(root_pos.into(), head_offset.into());
