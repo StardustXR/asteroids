@@ -19,6 +19,7 @@ mod_expose!(handle);
 mod_expose!(lines);
 mod_expose!(model);
 mod_expose!(pen);
+mod_expose!(query);
 mod_expose!(sky_light);
 mod_expose!(sky_texture);
 mod_expose!(spatial);
