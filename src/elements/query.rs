@@ -310,3 +310,89 @@ impl PointsQueryHandlerHandler for PointsQueryInner {
 		let _ = self.tx.send(QueryEvent::Left(obj));
 	}
 }
+
+#[tokio::test]
+async fn asteroids_points_query_element() {
+	use crate::{
+		Context, Entity, Tasker,
+		client::{self, ClientState},
+		components::Derezzable,
+		custom::{CustomElement, Transformable},
+		elements::{GrabRing, Lines, Spatial},
+	};
+	use mint::Vector3;
+	use serde::{Deserialize, Serialize};
+	use stardust_xr_fusion::{fields::Shape, types::rgba_linear};
+	use stardust_xr_molecules::{
+		derezzable::protocol::Derezzable as DerezzableProxy,
+		lines::{LineExt, line_from_points, shape},
+	};
+
+	#[derive(Serialize, Deserialize)]
+	struct TestState {
+		center: Vector3<f32>,
+		#[serde(skip)]
+		derezzables: SampleQueryCache<(DerezzableProxy,)>,
+	}
+	impl Default for TestState {
+		fn default() -> Self {
+			TestState {
+				center: [0.0; 3].into(),
+				derezzables: SampleQueryCache::default(),
+			}
+		}
+	}
+	impl crate::util::Migrate for TestState {
+		type Old = Self;
+	}
+	impl ClientState for TestState {
+		const APP_ID: &'static str = "org.asteroids.points_query";
+	}
+	impl crate::Reify for TestState {
+		fn reify(
+			&self,
+			_context: &Context,
+			_tasks: impl Tasker<Self>,
+			_props: (),
+		) -> impl crate::Element<Self> {
+			let target = Shape::Box {
+				size: [0.1; 3].into(),
+			};
+			Spatial::default()
+				.build()
+				.child(
+					GrabRing::new(self.center, |s: &mut Self, p| s.center = p)
+						.build()
+						.child(
+							PointsQuery::new_cached([[0.0; 3]], |s: &mut Self| &mut s.derezzables)
+								.margin(1.0)
+								.build()
+								.child(
+									Lines::new(self.derezzables.0.values().map(|q| {
+										line_from_points(vec![
+											[0.0; 3].into(),
+											q.sample.closest_point,
+										])
+										.color(rgba_linear!(0.1, 1.0, 0.1, 1.0))
+										.thickness(0.005)
+									}))
+									.build(),
+								),
+						),
+				)
+				.child(
+					Entity::new(target.clone())
+						.pos([0.3, 0.0, 0.0])
+						.component(Derezzable::new(|_| {}))
+						.build()
+						.child(
+							Lines::new(shape(target).into_iter().map(|l| {
+								l.color(rgba_linear!(1.0, 0.1, 0.1, 1.0)).thickness(0.005)
+							}))
+							.build(),
+						),
+				)
+		}
+	}
+	client::run::<TestState>(&[]).await.unwrap()
+}
