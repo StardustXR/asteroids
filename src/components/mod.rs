@@ -13,3 +13,4 @@ mod_expose!(container);
 mod_expose!(environment);
 mod_expose!(containable);
 mod_expose!(transformable);
+mod_expose!(zone_query);

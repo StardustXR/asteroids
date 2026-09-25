@@ -92,7 +92,7 @@ pub struct SampledQueryable<I: QueryableInterfaces> {
 // derive_where so the default doesn't demand I: Default, which no interface proxy has
 #[derive(Debug, Clone)]
 #[derive_where::derive_where(Default)]
-pub struct SampleQueryCache<I: QueryableInterfaces>(
+pub struct PointsQueryCache<I: QueryableInterfaces>(
 	pub FxHashMap<QueryableId, SampledQueryable<I>>,
 );
 
@@ -134,7 +134,7 @@ impl<State: ValidState, I: QueryableInterfaces> PointsQuery<State, I> {
 	}
 	pub fn new_cached<P: Into<Vec3F>>(
 		points: impl IntoIterator<Item = P>,
-		cache: impl Fn(&mut State) -> &mut SampleQueryCache<I> + Clone + Send + Sync + 'static,
+		cache: impl Fn(&mut State) -> &mut PointsQueryCache<I> + Clone + Send + Sync + 'static,
 	) -> Self {
 		let entered = cache.clone();
 		let changed = cache.clone();
@@ -190,16 +190,17 @@ impl<State: ValidState, I: QueryableInterfaces> std::fmt::Debug for PointsQuery<
 			.finish()
 	}
 }
-enum QueryEvent {
+pub(crate) enum QueryEvent<P = ()> {
 	Entered(
 		QueryableId,
 		FieldRef,
 		SpatialRef,
 		Vec<QueriedInterface>,
+		P,
 		FieldSample,
 	),
 	InterfacesChanged(QueryableId, Vec<QueriedInterface>),
-	Moved(QueryableId, FieldSample),
+	Moved(QueryableId, P, FieldSample),
 	Left(QueryableId),
 }
 
@@ -253,7 +254,7 @@ impl<State: ValidState, I: QueryableInterfaces> CustomElement<State> for PointsQ
 	) {
 		while let Ok(event) = inner.events.try_recv() {
 			match event {
-				QueryEvent::Entered(id, field, spatial, interfaces, sample) => {
+				QueryEvent::Entered(id, field, spatial, interfaces, (), sample) => {
 					if let Some(interfaces) = I::from_queried(&interfaces) {
 						(self.on_entered.0)(state, id, field, spatial, interfaces, sample);
 					}
@@ -263,7 +264,7 @@ impl<State: ValidState, I: QueryableInterfaces> CustomElement<State> for PointsQ
 						(self.on_interfaces_changed.0)(state, id, interfaces);
 					}
 				}
-				QueryEvent::Moved(id, sample) => (self.on_moved.0)(state, id, sample),
+				QueryEvent::Moved(id, (), sample) => (self.on_moved.0)(state, id, sample),
 				QueryEvent::Left(id) => (self.on_left.0)(state, id),
 			}
 		}
@@ -289,6 +290,7 @@ impl PointsQueryHandlerHandler for PointsQueryInner {
 			field,
 			spatial,
 			interfaces,
+			(),
 			spatial_info,
 		));
 	}
@@ -303,7 +305,7 @@ impl PointsQueryHandlerHandler for PointsQueryInner {
 	}
 
 	async fn moved(&self, _ctx: gluon_ipc::Context, obj: QueryableId, spatial_info: FieldSample) {
-		let _ = self.tx.send(QueryEvent::Moved(obj, spatial_info));
+		let _ = self.tx.send(QueryEvent::Moved(obj, (), spatial_info));
 	}
 
 	async fn left(&self, _ctx: gluon_ipc::Context, obj: QueryableId) {
@@ -332,13 +334,13 @@ async fn asteroids_points_query_element() {
 	struct TestState {
 		center: Vector3<f32>,
 		#[serde(skip)]
-		derezzables: SampleQueryCache<(DerezzableProxy,)>,
+		derezzables: PointsQueryCache<(DerezzableProxy,)>,
 	}
 	impl Default for TestState {
 		fn default() -> Self {
 			TestState {
 				center: [0.0; 3].into(),
-				derezzables: SampleQueryCache::default(),
+				derezzables: PointsQueryCache::default(),
 			}
 		}
 	}
