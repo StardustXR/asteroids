@@ -6,6 +6,7 @@ pub use stardust_xr_molecules::{
 use crate::mod_expose;
 
 mod_expose!(derezzable);
+mod_expose!(lines);
 mod_expose!(grabbable);
 mod_expose!(keyboard_handler);
 mod_expose!(mouse_handler);

@@ -242,9 +242,9 @@ async fn asteroids_zone_query_component() {
 	use crate::{
 		Entity, Tasker, Transformable,
 		client::{self, ClientState},
-		components::{Derezzable, Grabbable},
+		components::{Derezzable, Grabbable, Lines},
 		custom::CustomElement,
-		elements::{Lines, Spatial},
+		elements::Spatial,
 	};
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_fusion::{
@@ -297,22 +297,18 @@ async fn asteroids_zone_query_component() {
 			let target = Shape::Box {
 				size: [0.05; 3].into(),
 			};
-			let target_at =
-				|i: usize| {
-					Entity::new(target.clone())
-						.pose(self.targets[i])
-						.component(Grabbable::new(move |s: &mut Self, pose| {
-							s.targets[i] = pose
-						}))
-						.component(Derezzable::new(|_| {}))
-						.build()
-						.child(
-							Lines::new(shape(target.clone()).into_iter().map(|l| {
-								l.color(rgba_linear!(1.0, 0.1, 0.1, 1.0)).thickness(0.005)
-							}))
-							.build(),
-						)
-				};
+			let target_at = |i: usize| {
+				Entity::new(target.clone())
+					.pose(self.targets[i])
+					.component(Grabbable::new(move |s: &mut Self, pose| {
+						s.targets[i] = pose
+					}))
+					.component(Derezzable::new(|_| {}))
+					.component(Lines::new(shape(target.clone()).into_iter().map(|l| {
+						l.color(rgba_linear!(1.0, 0.1, 0.1, 1.0)).thickness(0.005)
+					})))
+					.build()
+			};
 			Spatial::default()
 				.build()
 				.child(
@@ -320,9 +316,8 @@ async fn asteroids_zone_query_component() {
 						.pose(self.pose)
 						.component(Grabbable::new(|s: &mut Self, pose| s.pose = pose))
 						.component(ZoneQuery::new_cached(|s: &mut Self| &mut s.derezzables))
-						.build()
-						.child(
-							Lines::new(shape(zone).into_iter().map(|l| l.thickness(0.005)).chain(
+						.component(Lines::new(
+							shape(zone).into_iter().map(|l| l.thickness(0.005)).chain(
 								self.derezzables.0.values().map(|q| {
 									line_from_points(vec![
 										q.sample.closest_point,
@@ -331,9 +326,9 @@ async fn asteroids_zone_query_component() {
 									.color(rgba_linear!(0.1, 1.0, 0.1, 1.0))
 									.thickness(0.005)
 								}),
-							))
-							.build(),
-						),
+							),
+						))
+						.build(),
 				)
 				.child(target_at(0))
 				.child(target_at(1))

@@ -615,13 +615,12 @@ async fn asteroids_points_query_element() {
 					Entity::new(target.clone())
 						.pos([0.3, 0.0, 0.0])
 						.component(Derezzable::new(|_| {}))
-						.build()
-						.child(
-							Lines::new(shape(target).into_iter().map(|l| {
+						.component(crate::components::Lines::new(
+							shape(target).into_iter().map(|l| {
 								l.color(rgba_linear!(1.0, 0.1, 0.1, 1.0)).thickness(0.005)
-							}))
-							.build(),
-						),
+							}),
+						))
+						.build(),
 				)
 		}
 	}
@@ -710,22 +709,20 @@ async fn asteroids_beam_query_element() {
 			let target = Shape::Box {
 				size: [0.05; 3].into(),
 			};
-			let target_at =
-				|i: usize| {
-					Entity::new(target.clone())
-						.pose(self.targets[i])
-						.component(Grabbable::new(move |s: &mut Self, pose| {
-							s.targets[i] = pose
-						}))
-						.component(Derezzable::new(|_| {}))
-						.build()
-						.child(
-							Lines::new(shape(target.clone()).into_iter().map(|l| {
-								l.color(rgba_linear!(1.0, 0.1, 0.1, 1.0)).thickness(0.005)
-							}))
-							.build(),
-						)
-				};
+			let target_at = |i: usize| {
+				Entity::new(target.clone())
+					.pose(self.targets[i])
+					.component(Grabbable::new(move |s: &mut Self, pose| {
+						s.targets[i] = pose
+					}))
+					.component(Derezzable::new(|_| {}))
+					.component(crate::components::Lines::new(
+						shape(target.clone())
+							.into_iter()
+							.map(|l| l.color(rgba_linear!(1.0, 0.1, 0.1, 1.0)).thickness(0.005)),
+					))
+					.build()
+			};
 			Spatial::default()
 				.build()
 				.child(
