@@ -114,7 +114,7 @@ impl<State: ValidState, I: QueryableInterfaces> std::fmt::Debug for ZoneQuery<St
 pub struct ZoneQueryComponentInner {
 	_node: Node<ZoneQueryInner>,
 	handle: ZoneQueryHandle,
-	events: mpsc::UnboundedReceiver<QueryEvent<Vec3F>>,
+	events: mpsc::UnboundedReceiver<QueryEvent<(Vec3F, FieldSample)>>,
 }
 impl<State: ValidState, I: QueryableInterfaces> Component<State> for ZoneQuery<State, I> {
 	type Inner = ZoneQueryComponentInner;
@@ -166,7 +166,7 @@ impl<State: ValidState, I: QueryableInterfaces> Component<State> for ZoneQuery<S
 		let inner = inners.self_inner();
 		while let Ok(event) = inner.events.try_recv() {
 			match event {
-				QueryEvent::Entered(id, field, spatial, interfaces, position, sample) => {
+				QueryEvent::Entered(id, field, spatial, interfaces, (position, sample)) => {
 					if let Some(interfaces) = I::from_queried(&interfaces) {
 						(self.on_entered.0)(
 							state, id, field, spatial, interfaces, position, sample,
@@ -178,7 +178,7 @@ impl<State: ValidState, I: QueryableInterfaces> Component<State> for ZoneQuery<S
 						(self.on_interfaces_changed.0)(state, id, interfaces);
 					}
 				}
-				QueryEvent::Moved(id, position, sample) => {
+				QueryEvent::Moved(id, (position, sample)) => {
 					(self.on_moved.0)(state, id, position, sample)
 				}
 				QueryEvent::Left(id) => (self.on_left.0)(state, id),
@@ -189,7 +189,7 @@ impl<State: ValidState, I: QueryableInterfaces> Component<State> for ZoneQuery<S
 
 #[derive(Handler)]
 pub struct ZoneQueryInner {
-	tx: mpsc::UnboundedSender<QueryEvent<Vec3F>>,
+	tx: mpsc::UnboundedSender<QueryEvent<(Vec3F, FieldSample)>>,
 }
 impl ZoneQueryHandlerHandler for ZoneQueryInner {
 	async fn entered(
@@ -207,8 +207,7 @@ impl ZoneQueryHandlerHandler for ZoneQueryInner {
 			field,
 			spatial,
 			interfaces,
-			relative_position,
-			spatial_info,
+			(relative_position, spatial_info),
 		));
 	}
 
@@ -230,7 +229,7 @@ impl ZoneQueryHandlerHandler for ZoneQueryInner {
 	) {
 		let _ = self
 			.tx
-			.send(QueryEvent::Moved(obj, relative_position, spatial_info));
+			.send(QueryEvent::Moved(obj, (relative_position, spatial_info)));
 	}
 
 	async fn left(&self, _ctx: gluon_ipc::Context, obj: QueryableId) {
