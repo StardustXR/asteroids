@@ -26,4 +26,5 @@ mod_expose!(spatial);
 mod_expose!(spline_rail);
 mod_expose!(stage_space);
 mod_expose!(text);
+mod_expose!(tracked);
 mod_expose!(turntable);
