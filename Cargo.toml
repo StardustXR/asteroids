@@ -1,6 +1,6 @@
 [package]
 name = "stardust-xr-asteroids"
-version = "0.52.0"
+version = "0.53.0-rc.1"
 edition = "2024"
 rust-version = "1.86"
 authors = ["Nova King <technobaboo@proton.me>"]
@@ -35,18 +35,18 @@ ouroboros = "0.18.5"
 futures = { version = "0.3.32", default-features = false }
 
 [dependencies.gluon-ipc]
-version = "0.1.0"
+version = "0.1.1"
 # git = "https://github.com/StardustXR/gluon-ipc.git"
 # path = "../gluon"
 
 [dependencies.stardust-xr-fusion]
-version = "0.52.0"
+version = "0.53.0-rc.1"
 # git = "https://github.com/StardustXR/core.git"
 features = ["serde"]
 # path = "../core/fusion"
 
 [dependencies.stardust-xr-molecules]
-version = "0.52.0"
+version = "0.53.0-rc.1"
 # git = "https://github.com/StardustXR/molecules.git"
 # path = "../molecules"
 

@@ -457,7 +457,7 @@ impl TransformableHandler for TransformableNode {
 #[derive(Handler)]
 struct PoseableNode(Arc<TransformableCore>);
 impl PoseableHandler for PoseableNode {
-	async fn offset_relative_pse(
+	async fn offset_relative_pose(
 		&self,
 		_ctx: gluon_ipc::Context,
 		reference: SpatialRef,
