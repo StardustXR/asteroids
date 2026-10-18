@@ -5,8 +5,9 @@ use syn::{Data, DeriveInput, Index, Member, parse_macro_input, parse_quote};
 
 /// blends every `Mix` field unless it's marked `#[no_animate]`
 ///
-/// also makes `{Name}Animation` with a curve setter per field, and implements `CustomElement`
-/// by forwarding to the struct's `AnimatedElement` impl
+/// also makes `{Name}Animation` with a curve setter per field, `{Name}Transition` with a
+/// start value and curve setter per field, and implements `CustomElement` by forwarding to the
+/// struct's `AnimatedElement` impl
 ///
 /// tuple fields get setters named after their position, `_0`, `_1` and so on
 #[proc_macro_derive(Animatable, attributes(no_animate))]
@@ -15,6 +16,7 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 	let name = &input.ident;
 	let vis = &input.vis;
 	let animation_ty = format_ident!("{name}Animation");
+	let transition_ty = format_ident!("{name}Transition");
 	let tracks_ty = format_ident!("{name}Tracks");
 
 	let fields = match &input.data {
@@ -41,6 +43,7 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 			None => (Member::Unnamed(Index::from(i)), format_ident!("_{i}"), f),
 		})
 		.collect();
+	let members: Vec<_> = animated.iter().map(|(member, _, _)| member).collect();
 	let idents: Vec<_> = animated.iter().map(|(_, part, _)| part).collect();
 	let tys: Vec<_> = animated.iter().map(|(_, _, f)| &f.ty).collect();
 
@@ -57,6 +60,21 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 				&mut _tracks.#part,
 				_now,
 			);
+		}
+	});
+
+	let arrives = animated.iter().map(|(member, part, f)| {
+		let ty = &f.ty;
+		quote! {
+			if let ::core::option::Option::Some(from) = _transition.#part.0.take() {
+				(&#p::Probe::<#ty>::new()).step(
+					&mut self.#member,
+					&from,
+					_transition.#part.1.as_ref().or(_animation.#part.as_ref()),
+					&mut _tracks.#part,
+					_now,
+				);
+			}
 		}
 	});
 
@@ -97,6 +115,30 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 			)*
 		}
 
+		#vis struct #transition_ty #generics #where_clause {
+			#(#idents: (::core::option::Option<#tys>, ::core::option::Option<#a::Curve>),)*
+			_phantom: ::core::marker::PhantomData<fn() -> (#(#type_params,)*)>,
+		}
+		impl #impl_generics ::core::default::Default for #transition_ty #ty_generics #where_clause {
+			fn default() -> Self {
+				Self {
+					#(#idents: (::core::option::Option::None, ::core::option::Option::None),)*
+					_phantom: ::core::marker::PhantomData,
+				}
+			}
+		}
+		impl #impl_generics #transition_ty #ty_generics #where_clause {
+			#(
+				pub fn #idents(mut self, from: #tys, curve: #a::Curve) -> Self
+				where
+					for<'__a> #tys: #a::Mix,
+				{
+					self.#idents = (::core::option::Option::Some(from), ::core::option::Option::Some(curve));
+					self
+				}
+			)*
+		}
+
 		#[doc(hidden)]
 		#vis struct #tracks_ty #generics #where_clause {
 			#(#idents: ::core::option::Option<#p::Track<#tys>>,)*
@@ -113,6 +155,7 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 
 		impl #impl_generics #a::Animatable for #name #ty_generics #where_clause {
 			type Animation = #animation_ty #ty_generics;
+			type Transition = #transition_ty #ty_generics;
 			type Tracks = #tracks_ty #ty_generics;
 			fn blend(
 				&mut self,
@@ -123,6 +166,23 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 			) {
 				use #p::{ViaMix as _, ViaOther as _};
 				#(#steps)*
+			}
+			fn appear_from(&mut self, _transition: &mut Self::Transition) {
+				#(
+					if let ::core::option::Option::Some(from) = _transition.#idents.0.take() {
+						self.#members = from;
+					}
+				)*
+			}
+			fn arrive(
+				&mut self,
+				_transition: &mut Self::Transition,
+				_animation: &Self::Animation,
+				_tracks: &mut Self::Tracks,
+				_now: ::core::option::Option<#p::Timestamp>,
+			) {
+				use #p::{ViaMix as _, ViaOther as _};
+				#(#arrives)*
 			}
 		}
 
@@ -154,15 +214,6 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 				inner: &mut Self::Inner,
 			) {
 				#animated_element::frame(self, context, info, state, &mut inner.inner)
-			}
-			fn blend_in_place(
-				&mut self,
-				old_self: &Self,
-				context: &#a::Context,
-				animation: ::core::option::Option<&(dyn ::core::any::Any + Send + Sync)>,
-				inner: &mut Self::Inner,
-			) {
-				#p::blend(self, old_self, context, animation, &mut inner.tracks)
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-use crate::{CloneFnWrapper, Context, CreateInnerInfo, ValidState};
+use crate::{Context, CreateInnerInfo, ValidState};
 use glam::{Quat, Vec2, Vec3};
 use stardust_xr_fusion::{
 	client::FrameInfo,
@@ -48,49 +48,96 @@ use std::{any::Any, fmt::Debug, sync::Arc};
 /// ```
 pub use stardust_xr_asteroids_derive::Animatable;
 
-/// elapsed seconds in, progress out, `None` once it's done
-pub type Curve = CloneFnWrapper<dyn Fn(f32) -> Option<f32> + Send + Sync>;
-pub fn curve(f: impl Fn(f32) -> Option<f32> + Send + Sync + 'static) -> Curve {
-	CloneFnWrapper(Arc::new(f))
+/// the built-in ones are plain values, only `Custom` allocates
+// TODO: find a better way, running tracks outlive the reify so the curve's type has to be erased
+// somewhere, and an enum was the least bad option without allocating
+#[derive(Clone)]
+pub enum Curve {
+	Linear(f32),
+	EaseIn(f32),
+	EaseOut(f32),
+	EaseInOut(f32),
+	Spring { duration: f32, bounce: f32 },
+	Custom(Arc<dyn CustomCurve>),
+}
+impl Curve {
+	/// elapsed seconds in, progress out, `None` once it's done
+	pub fn progress(&self, t: f32) -> Option<f32> {
+		match *self {
+			Curve::Linear(d) => (t < d).then(|| t / d),
+			Curve::EaseIn(d) => (t < d).then(|| (t / d).powi(3)),
+			Curve::EaseOut(d) => (t < d).then(|| 1.0 - (1.0 - t / d).powi(3)),
+			Curve::EaseInOut(d) => (t < d).then(|| {
+				let p = t / d;
+				if p < 0.5 {
+					4.0 * p.powi(3)
+				} else {
+					1.0 - (2.0 - 2.0 * p).powi(3) / 2.0
+				}
+			}),
+			Curve::Spring { duration, bounce } => {
+				let w = std::f32::consts::TAU / duration;
+				let zeta = 1.0 - bounce.clamp(0.0, 0.99);
+				let wd = w * (1.0 - zeta * zeta).sqrt();
+				let decay = (-zeta * w * t).exp();
+				(decay * (1.0 + w * t) > 1e-3).then(|| {
+					if wd > 0.0 {
+						1.0 - decay * ((wd * t).cos() + zeta * w / wd * (wd * t).sin())
+					} else {
+						1.0 - decay * (1.0 + w * t)
+					}
+				})
+			}
+			Curve::Custom(ref c) => c.progress(t),
+		}
+	}
+}
+impl Debug for Curve {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Curve::Linear(d) => f.debug_tuple("Linear").field(d).finish(),
+			Curve::EaseIn(d) => f.debug_tuple("EaseIn").field(d).finish(),
+			Curve::EaseOut(d) => f.debug_tuple("EaseOut").field(d).finish(),
+			Curve::EaseInOut(d) => f.debug_tuple("EaseInOut").field(d).finish(),
+			Curve::Spring { duration, bounce } => f
+				.debug_struct("Spring")
+				.field("duration", duration)
+				.field("bounce", bounce)
+				.finish(),
+			Curve::Custom(_) => f.write_str("Custom"),
+		}
+	}
+}
+
+pub trait CustomCurve: Send + Sync + 'static {
+	fn progress(&self, t: f32) -> Option<f32>;
+}
+impl<F: Fn(f32) -> Option<f32> + Send + Sync + 'static> CustomCurve for F {
+	fn progress(&self, t: f32) -> Option<f32> {
+		self(t)
+	}
+}
+
+pub fn curve(c: impl CustomCurve) -> Curve {
+	Curve::Custom(Arc::new(c))
 }
 pub fn linear(duration: f32) -> Curve {
-	curve(move |t| (t < duration).then(|| t / duration))
+	Curve::Linear(duration)
 }
 pub fn ease_in(duration: f32) -> Curve {
-	curve(move |t| (t < duration).then(|| (t / duration).powi(3)))
+	Curve::EaseIn(duration)
 }
 pub fn ease_out(duration: f32) -> Curve {
-	curve(move |t| (t < duration).then(|| 1.0 - (1.0 - t / duration).powi(3)))
+	Curve::EaseOut(duration)
 }
 pub fn ease_in_out(duration: f32) -> Curve {
-	curve(move |t| {
-		(t < duration).then(|| {
-			let p = t / duration;
-			if p < 0.5 {
-				4.0 * p.powi(3)
-			} else {
-				1.0 - (2.0 - 2.0 * p).powi(3) / 2.0
-			}
-		})
-	})
+	Curve::EaseInOut(duration)
 }
 /// like swiftui's, `duration` is the period and `bounce` goes from 0 (none) toward 1 (forever)
 ///
 /// it runs until it settles rather than for `duration`, and overshoots when it bounces
 pub fn spring(duration: f32, bounce: f32) -> Curve {
-	let w = std::f32::consts::TAU / duration;
-	let zeta = 1.0 - bounce.clamp(0.0, 0.99);
-	let wd = w * (1.0 - zeta * zeta).sqrt();
-	curve(move |t| {
-		let decay = (-zeta * w * t).exp();
-		(decay * (1.0 + w * t) > 1e-3).then(|| {
-			if wd > 0.0 {
-				1.0 - decay * ((wd * t).cos() + zeta * w / wd * (wd * t).sin())
-			} else {
-				1.0 - decay * (1.0 + w * t)
-			}
-		})
-	})
+	Curve::Spring { duration, bounce }
 }
 
 #[diagnostic::on_unimplemented(
@@ -144,11 +191,23 @@ impl Mix for Color {
 pub trait Animatable: Sized {
 	/// one optional curve per field, what `.animation(|a| ..)` builds
 	type Animation: Default + Send + Sync + 'static;
+	/// one optional start value and curve per field, what `.appear(|a| ..)` builds
+	type Transition: Default + Send + Sync + 'static;
 	type Tracks: Default + Send + Sync + 'static;
 	/// `self` is the fresh target and `old` is what's on screen, this blends `self` in place
 	fn blend(
 		&mut self,
 		old: &Self,
+		animation: &Self::Animation,
+		tracks: &mut Self::Tracks,
+		now: Option<Timestamp>,
+	);
+	/// moves every field the transition covers to where it starts, taking the start values out of it
+	fn appear_from(&mut self, transition: &mut Self::Transition);
+	/// blends every field the transition covers from where it starts, taking the start values out of it
+	fn arrive(
+		&mut self,
+		transition: &mut Self::Transition,
 		animation: &Self::Animation,
 		tracks: &mut Self::Tracks,
 		now: Option<Timestamp>,
@@ -220,7 +279,7 @@ pub mod __private {
 			Some(now) => seconds_between(*t.start.get_or_insert(now), now),
 			None => 0.0,
 		};
-		match (t.curve.0)(elapsed) {
+		match t.curve.progress(elapsed) {
 			Some(p) => *v = t.from.mix(&t.to, p),
 			None => *track = None,
 		}
@@ -229,24 +288,6 @@ pub mod __private {
 	pub struct AnimatedInner<I, T> {
 		pub inner: I,
 		pub tracks: T,
-	}
-
-	pub fn blend<E: Animatable>(
-		e: &mut E,
-		old: &E,
-		context: &Context,
-		animation: Option<&(dyn Any + Send + Sync)>,
-		tracks: &mut E::Tracks,
-	) {
-		let default;
-		let animation = match animation.and_then(|a| a.downcast_ref()) {
-			Some(a) => a,
-			None => {
-				default = E::Animation::default();
-				&default
-			}
-		};
-		e.blend(old, animation, tracks, context.predicted_display_time());
 	}
 
 	// autoref picks `ViaMix` when the field is `Mix` and falls through to the no-op otherwise
@@ -362,22 +403,56 @@ mod tests {
 			ease_in_out(1.0),
 			spring(1.0, 0.0),
 			spring(1.0, 0.5),
+			curve(|t: f32| (t < 1.0).then_some(t)),
 		] {
-			assert_eq!((c.0)(0.0), Some(0.0));
-			assert_eq!((c.0)(100.0), None);
+			assert_eq!(c.progress(0.0), Some(0.0));
+			assert_eq!(c.progress(100.0), None);
 		}
-		assert_eq!((ease_in_out(1.0).0)(0.5), Some(0.5));
+		assert_eq!(ease_in_out(1.0).progress(0.5), Some(0.5));
 	}
 
 	#[test]
 	fn spring_overshoots_only_when_bouncy() {
 		let peak = |c: Curve| {
 			(0..1000)
-				.filter_map(|i| (c.0)(i as f32 / 100.0))
+				.filter_map(|i| c.progress(i as f32 / 100.0))
 				.fold(0.0, f32::max)
 		};
 		assert!(peak(spring(1.0, 0.0)) <= 1.0);
 		assert!(peak(spring(1.0, 0.5)) > 1.1);
+	}
+
+	#[test]
+	fn appears_from_start_value() {
+		#[derive(Debug, Animatable)]
+		struct Dot {
+			x: f32,
+			y: f32,
+			z: f32,
+		}
+		let appear = || {
+			DotTransition::default()
+				.x(0.0, linear(1.0))
+				.y(2.0, linear(1.0))
+		};
+		let animation = DotAnimation::default().z(linear(1.0));
+		let dot = || Dot {
+			x: 1.0,
+			y: 1.0,
+			z: 1.0,
+		};
+		let mut decl = dot();
+		decl.appear_from(&mut appear());
+		assert_eq!((decl.x, decl.y, decl.z), (0.0, 2.0, 1.0));
+
+		let mut tracks = Default::default();
+		let mut new = dot();
+		new.arrive(&mut appear(), &animation, &mut tracks, at(0.0));
+		assert_eq!((new.x, new.y, new.z), (0.0, 2.0, 1.0));
+		let shown = new;
+		let mut new = dot();
+		new.blend(&shown, &animation, &mut tracks, at(0.5));
+		assert_eq!((new.x, new.y, new.z), (0.5, 1.5, 1.0));
 	}
 
 	#[test]

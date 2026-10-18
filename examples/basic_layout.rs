@@ -12,6 +12,7 @@ use stardust_xr_asteroids::{
 use stardust_xr_fusion::{
 	drawable::{XAlign, YAlign},
 	fields::Shape,
+	spatial::Transform,
 	types::{
 		Posef,
 		color::{Deg, Hsv, ToRgba},
@@ -106,19 +107,21 @@ impl Reify for State {
 						.build()
 						.animation(|a| a.size(ease_in_out(0.1))),
 					)
-					.child(
-						Text::new(&self.text)
-							.pos([
-								0.0,
-								if pressed { -0.3 } else { -0.2 },
-								0.0,
-							])
+					.maybe_child(pressed.then(|| {
+						Text::new("pressed!")
+							.pos([0.0, -0.3, 0.0])
 							.align_x(XAlign::Center)
-							.align_y(YAlign::Top)
-							.character_height(0.1)
+							.align_y(YAlign::Bottom)
+							.character_height(0.05)
 							.build()
-							.animation(|a| a.transform(spring(0.1, 0.4))),
-					)
+							.appear(|a| {
+								a.transform(
+									Transform::from_translation([0.0; 3]),
+									spring(0.25, 0.25),
+								)
+								.character_height(0.0, spring(0.25, 0.25))
+							})
+					}))
 					.children(make_triangles(0.3, 25, 0.01)),
 			)
 	}

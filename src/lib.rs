@@ -3,6 +3,7 @@
 // lets derive output name `::stardust_xr_asteroids` from inside this crate too
 extern crate self as stardust_xr_asteroids;
 
+mod animated;
 mod animation;
 pub mod client;
 pub mod components;
@@ -26,6 +27,7 @@ use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::{path::PathBuf, sync::mpsc};
 use tokio::sync::watch;
 
+pub use animated::Animated;
 pub use animation::*;
 pub use client::ClientState;
 pub use context::*;
