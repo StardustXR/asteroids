@@ -1653,7 +1653,7 @@ dependencies = [
 
 [[package]]
 name = "stardust-xr-asteroids-derive"
-version = "0.52.0"
+version = "0.53.0-rc.1"
 dependencies = [
  "proc-macro2",
  "quote",

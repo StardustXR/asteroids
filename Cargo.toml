@@ -36,7 +36,7 @@ tracy-client = { version = "0.18.4", optional = true }
 bumpalo = { version = "3.17.0", features = ["collections", "boxed"] }
 ouroboros = "0.18.5"
 futures = { version = "0.3.32", default-features = false }
-stardust-xr-asteroids-derive = { version = "0.52.0", path = "./derive" }
+stardust-xr-asteroids-derive = { version = "0.53.0-rc.1", path = "./derive" }
 
 [dependencies.gluon-ipc]
 version = "0.1.1"
