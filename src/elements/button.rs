@@ -1,23 +1,24 @@
 use crate::{
-	CreateInnerInfo, ValidState,
+	AnimatedElement, CreateInnerInfo, ValidState,
 	context::Context,
-	custom::{CustomElement, FnWrapper, Transformable},
+	custom::{FnWrapper, Transformable},
 };
 use derive_setters::Setters;
-use mint::Vector2;
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error,
 	spatial::{Spatial, Transform},
+	types::Vec2F,
 };
 use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
 use tracing::debug_span;
 
-#[derive(Setters)]
+#[derive(Setters, Animatable)]
 #[setters(into, strip_option)]
 pub struct Button<State: ValidState> {
 	transform: Transform,
 	on_press: FnWrapper<dyn Fn(&mut State) + Send + Sync>,
-	size: Vector2<f32>,
+	size: Vec2F,
 	max_hover_distance: f32,
 	line_thickness: f32,
 	debug: Option<DebugSettings>,
@@ -55,7 +56,7 @@ impl<State: ValidState> Button<State> {
 		}
 	}
 }
-impl<State: ValidState> CustomElement<State> for Button<State> {
+impl<State: ValidState> AnimatedElement<State> for Button<State> {
 	type Inner = (Spatial, stardust_xr_molecules::button::Button);
 	type Error = Error;
 
@@ -141,7 +142,8 @@ async fn asteroids_button_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			Button::new(|_| {
 				// std::process::exit(0);

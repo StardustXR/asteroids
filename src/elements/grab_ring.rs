@@ -1,11 +1,12 @@
 use crate::{
-	Context, CreateInnerInfo, ValidState,
+	AnimatedElement, Context, CreateInnerInfo, ValidState,
 	components::{TransformableInner, innermost_container},
-	custom::{CustomElement, FnWrapper, derive_setters::Setters},
+	custom::{FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
 use glam::Vec3;
 use mint::Vector3;
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
@@ -22,7 +23,7 @@ use stardust_xr_molecules::{
 use std::sync::Arc;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
-#[derive(Setters)]
+#[derive(Setters, Animatable)]
 #[derive_where(Debug)]
 pub struct GrabRing<State: ValidState> {
 	radius: f32,
@@ -47,7 +48,7 @@ impl<State: ValidState> GrabRing<State> {
 		}
 	}
 }
-impl<State: ValidState> CustomElement<State> for GrabRing<State> {
+impl<State: ValidState> AnimatedElement<State> for GrabRing<State> {
 	type Inner = GrabRingInner;
 
 	type Error = Error;
@@ -350,7 +351,8 @@ async fn asteroids_grab_ring_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			let box_shape = Shape::Box {
 				size: [0.3; 3].into(),

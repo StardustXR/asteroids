@@ -1,8 +1,6 @@
-use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, Transformable},
-};
+use crate::{AnimatedElement, Context, CreateInnerInfo, ValidState, custom::Transformable};
 use glam::Mat4;
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error,
 	drawable::{Line, Lines, LinesExt},
@@ -12,7 +10,7 @@ use stardust_xr_fusion::{
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
 use std::{f32::consts::FRAC_PI_2, fmt::Debug};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Animatable)]
 pub struct Axes {
 	transform: Transform,
 	thickness: f32,
@@ -27,7 +25,7 @@ impl Default for Axes {
 		}
 	}
 }
-impl<State: ValidState> CustomElement<State> for Axes {
+impl<State: ValidState> AnimatedElement<State> for Axes {
 	type Inner = (Lines, Spatial);
 	type Error = Error;
 
@@ -99,7 +97,8 @@ async fn asteroids_axes_test() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			Axes::default().build()
 		}

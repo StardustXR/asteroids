@@ -1,9 +1,10 @@
 use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, FnWrapper, Transformable},
+	AnimatedElement, Context, CreateInnerInfo, ValidState,
+	custom::{FnWrapper, Transformable},
 };
 use derive_setters::Setters;
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, vec3};
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
@@ -24,7 +25,7 @@ use std::{
 pub type OnChangeFn<State> = FnWrapper<dyn Fn(&mut State, f32) + Send + Sync>;
 
 #[derive_where::derive_where(Debug, PartialEq)]
-#[derive(Setters)]
+#[derive(Setters, Animatable)]
 #[setters(into, strip_option)]
 pub struct Dial<State: ValidState> {
 	transform: Transform,
@@ -64,7 +65,7 @@ impl<State: ValidState> Dial<State> {
 	}
 }
 
-impl<State: ValidState> CustomElement<State> for Dial<State> {
+impl<State: ValidState> AnimatedElement<State> for Dial<State> {
 	// You'll need to create this type in stardust_xr_molecules
 	type Inner = DialInner;
 
@@ -312,6 +313,7 @@ async fn asteroids_dial_element() {
 	use crate::{
 		Tasker,
 		client::{self, ClientState},
+		custom::CustomElement,
 		elements::Dial,
 	};
 	use serde::{Deserialize, Serialize};
@@ -330,7 +332,8 @@ async fn asteroids_dial_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			let hours = (self.value / 60.0).floor();
 			let minutes = (self.value % 60.0).floor();

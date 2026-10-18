@@ -1,13 +1,12 @@
 use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, Transformable},
+	Animatable, AnimatedElement, Context, CreateInnerInfo, ValidState, custom::Transformable,
 };
 use stardust_xr_fusion::{Error, spatial::Transform};
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Animatable)]
 pub struct Spatial(pub Transform);
-impl<State: ValidState> CustomElement<State> for Spatial {
+impl<State: ValidState> AnimatedElement<State> for Spatial {
 	type Inner = stardust_xr_fusion::spatial::Spatial;
 
 	type Error = Error;

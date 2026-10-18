@@ -1,7 +1,5 @@
-use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, Transformable},
-};
+use crate::{AnimatedElement, Context, CreateInnerInfo, ValidState, custom::Transformable};
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error,
 	drawable::{Line, LinesExt},
@@ -11,7 +9,7 @@ use std::fmt::Debug;
 
 pub use stardust_xr_molecules::lines::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Animatable)]
 pub struct Lines {
 	transform: Transform,
 	lines: Vec<Line>,
@@ -24,7 +22,7 @@ impl Lines {
 		}
 	}
 }
-impl<State: ValidState> CustomElement<State> for Lines {
+impl<State: ValidState> AnimatedElement<State> for Lines {
 	type Inner = (Spatial, stardust_xr_fusion::drawable::Lines);
 	type Error = Error;
 

@@ -1640,6 +1640,7 @@ dependencies = [
  "ron",
  "rustc-hash",
  "serde",
+ "stardust-xr-asteroids-derive",
  "stardust-xr-fusion",
  "stardust-xr-molecules",
  "tokio",
@@ -1648,6 +1649,15 @@ dependencies = [
  "tracing-tracy",
  "tracy-client",
  "zbus",
+]
+
+[[package]]
+name = "stardust-xr-asteroids-derive"
+version = "0.52.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

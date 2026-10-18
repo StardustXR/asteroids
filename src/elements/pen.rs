@@ -1,18 +1,18 @@
-use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, FnWrapper},
-};
+use crate::{AnimatedElement, Context, CreateInnerInfo, ValidState, custom::FnWrapper};
 use derive_setters::Setters;
 use glam::{Quat, Vec3};
 use map_range::MapRange as _;
-use mint::{Quaternion, Vector3};
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, LinePoint, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
 	spatial::{Spatial, SpatialExt, Transform},
 	suis::InputDataType,
-	types::color::{AlphaColor, Rgb, color_space::LinearRgb, rgba_linear},
+	types::{
+		QuatF, Vec3F,
+		color::{AlphaColor, Rgb, color_space::LinearRgb, rgba_linear},
+	},
 };
 use stardust_xr_molecules::input_action::{InputQueue, SimpleAction, SingleAction};
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
@@ -40,8 +40,8 @@ pub struct PenInner {
 	drawing: bool,
 }
 
+#[derive(Setters, Animatable)]
 #[derive_where::derive_where(Debug)]
-#[derive(Setters)]
 #[setters(into, strip_option)]
 pub struct Pen<State: ValidState> {
 	pub length: f32,
@@ -50,18 +50,17 @@ pub struct Pen<State: ValidState> {
 	pub hand_draw_threshold: f32,
 	pub tip_draw_threshold: f32,
 	pub color: AlphaColor<f32, Rgb<f32, LinearRgb>>,
-	pub pos: Vector3<f32>,
-	pub rot: Quaternion<f32>,
+	pub pos: Vec3F,
+	pub rot: QuatF,
 	#[expect(clippy::type_complexity)]
 	#[setters(skip)]
-	pub update:
-		FnWrapper<dyn Fn(&mut State, PenState, Vector3<f32>, Quaternion<f32>) + Send + Sync>,
+	pub update: FnWrapper<dyn Fn(&mut State, PenState, Vec3F, QuatF) + Send + Sync>,
 }
 impl<State: ValidState> Pen<State> {
 	pub fn new(
-		pos: impl Into<Vector3<f32>>,
-		rot: impl Into<Quaternion<f32>>,
-		update: impl Fn(&mut State, PenState, Vector3<f32>, Quaternion<f32>) + Send + Sync + 'static,
+		pos: impl Into<Vec3F>,
+		rot: impl Into<QuatF>,
+		update: impl Fn(&mut State, PenState, Vec3F, QuatF) + Send + Sync + 'static,
 	) -> Self {
 		Pen {
 			length: 0.075,
@@ -99,7 +98,7 @@ impl<State: ValidState> Pen<State> {
 		}
 	}
 }
-impl<State: ValidState> CustomElement<State> for Pen<State> {
+impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 	type Inner = PenInner;
 
 	type Error = Error;
@@ -280,7 +279,6 @@ async fn asteroids_pen_test() {
 		custom::CustomElement,
 		elements::{Axes, Lines, Pen, line_from_points},
 	};
-	use mint::{Quaternion, Vector3};
 	use serde::{Deserialize, Serialize};
 	use stardust_xr_molecules::lines::LineExt;
 
@@ -288,8 +286,8 @@ async fn asteroids_pen_test() {
 	struct TestState {
 		#[serde(skip)]
 		pen_state: PenState,
-		pos: Vector3<f32>,
-		rot: Quaternion<f32>,
+		pos: Vec3F,
+		rot: QuatF,
 	}
 	impl Default for TestState {
 		fn default() -> Self {
@@ -312,7 +310,8 @@ async fn asteroids_pen_test() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			Axes::default()
 				.build()

@@ -13,7 +13,7 @@ use stardust_xr_fusion::{
 	spatial::{Spatial, SpatialExt, SpatialRef, Transform},
 };
 
-use crate::{Context, CreateInnerInfo, CustomElement, Transformable, ValidState};
+use crate::{Animatable, AnimatedElement, Context, CreateInnerInfo, Transformable, ValidState};
 use futures::FutureExt;
 use std::{
 	any::{Any, TypeId},
@@ -452,6 +452,7 @@ impl<State: ValidState, A: Component<State>, B: Component<State>> Component<Stat
 	}
 }
 
+#[derive(Animatable)]
 pub struct Entity<State: ValidState, C: Component<State>> {
 	transform: Transform,
 	field_shape: Shape,
@@ -496,7 +497,7 @@ impl<State: ValidState, C: Component<State>> Debug for Entity<State, C> {
 			.finish()
 	}
 }
-impl<State: ValidState, C: Component<State>> CustomElement<State> for Entity<State, C> {
+impl<State: ValidState, C: Component<State>> AnimatedElement<State> for Entity<State, C> {
 	type Inner = EntityInner<State, C>;
 	type Error = BoxError;
 

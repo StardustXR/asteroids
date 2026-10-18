@@ -15,7 +15,10 @@ use std::{
 		mpsc,
 	},
 };
-use tokio::signal::unix::{SignalKind, signal};
+use tokio::{
+	signal::unix::{SignalKind, signal},
+	sync::watch,
+};
 use zbus::Connection;
 
 #[macro_export]
@@ -111,11 +114,13 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 	let dbus_connection = Connection::session().await.unwrap();
 	tracing::debug!("connected to dbus");
 	let accent_color = AccentColor::new(dbus_connection.clone());
+	let (predicted_display_time, predicted_display_time_rx) = watch::channel(None);
 	let context = Context {
 		stardust_client: Arc::new(stardust_client),
 		dbus_connection,
 		accent_color: Arc::new(accent_color),
 		stop: Arc::new(AtomicBool::new(false)),
+		predicted_display_time: predicted_display_time_rx,
 	};
 
 	let mut state: State = initial_state();
@@ -193,6 +198,9 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 			}
 			state.on_frame(frame);
 			projector.frame(&context, frame, &mut state);
+		}
+		if let Some(frame) = frames.last() {
+			predicted_display_time.send_replace(Some(frame.predicted_display_time));
 		}
 		tracing::debug!("diff the tree");
 		projector.update(&context, &mut state);

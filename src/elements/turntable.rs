@@ -1,11 +1,12 @@
 use crate::{
-	Context, CreateInnerInfo, ValidState,
+	AnimatedElement, Context, CreateInnerInfo, ValidState,
 	components::TransformableInner,
-	custom::{CustomElement, FnWrapper, Transformable, derive_setters::Setters},
+	custom::{FnWrapper, Transformable, derive_setters::Setters},
 };
 use derive_where::derive_where;
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use map_range::MapRange;
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error,
 	client::FrameInfo,
@@ -20,7 +21,7 @@ use stardust_xr_molecules::input_action::{InputQueue, InputSnapshot, SimpleActio
 use std::f32::consts::TAU;
 
 type OnRotate<State> = FnWrapper<dyn Fn(&mut State, f32) + Send + Sync>;
-#[derive(Setters)]
+#[derive(Setters, Animatable)]
 #[derive_where(Debug)]
 pub struct Turntable<State: ValidState> {
 	#[setters(skip)]
@@ -43,7 +44,7 @@ impl<State: ValidState> Transformable for Turntable<State> {
 		&mut self.transform
 	}
 }
-impl<State: ValidState> CustomElement<State> for Turntable<State> {
+impl<State: ValidState> AnimatedElement<State> for Turntable<State> {
 	type Inner = TurntableInner;
 	type Error = Error;
 
@@ -505,7 +506,12 @@ async fn asteroids_turntable_element() {
 		}
 	}
 	impl crate::Reify for TestState {
-		fn reify(&self, context: &Context, _tasks: impl Tasker<Self>, _props: ()) -> impl crate::Element<Self> {
+		fn reify(
+			&self,
+			context: &Context,
+			_tasks: impl Tasker<Self>,
+			_props: (),
+		) -> impl crate::Element<Self> {
 			crate::Entity::new(stardust_xr_fusion::fields::Shape::Sphere { radius: 0.05 })
 				.component(Derezzable::program_stopper(context))
 				.build()

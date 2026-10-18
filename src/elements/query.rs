@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{CustomElement, FnWrapper, ValidState};
+use crate::{AnimatedElement, FnWrapper, ValidState};
 use gluon_ipc::{Handler, Node, RefExt};
 use rustc_hash::FxHashMap;
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	fields::{FieldRef, FieldSample, RayMarchResult},
 	query::{InterfaceDependency, QueriedInterface, QueryableId},
@@ -105,6 +106,7 @@ pub type OnMovedSampled<State> =
 	FnWrapper<dyn Fn(&mut State, QueryableId, FieldSample) + Send + Sync>;
 pub type OnLeftSampled<State> = FnWrapper<dyn Fn(&mut State, QueryableId) + Send + Sync>;
 
+#[derive(Animatable)]
 pub struct PointsQuery<State: ValidState, I: QueryableInterfaces> {
 	points: Vec<Vec3F>,
 	margin: f32,
@@ -205,7 +207,7 @@ pub struct PointsQueryElementInner {
 	handle: PointsQueryHandle,
 	events: mpsc::UnboundedReceiver<QueryEvent<FieldSample>>,
 }
-impl<State: ValidState, I: QueryableInterfaces> CustomElement<State> for PointsQuery<State, I> {
+impl<State: ValidState, I: QueryableInterfaces> AnimatedElement<State> for PointsQuery<State, I> {
 	type Inner = PointsQueryElementInner;
 	type Error = stardust_xr_fusion::Error;
 
@@ -330,6 +332,7 @@ pub type OnMovedIntersected<State> =
 	FnWrapper<dyn Fn(&mut State, QueryableId, RayMarchResult) + Send + Sync>;
 pub type OnLeftIntersected<State> = FnWrapper<dyn Fn(&mut State, QueryableId) + Send + Sync>;
 
+#[derive(Animatable)]
 pub struct BeamQuery<State: ValidState, I: QueryableInterfaces> {
 	origin: Vec3F,
 	direction: Vec3F,
@@ -426,7 +429,7 @@ pub struct BeamQueryElementInner {
 	handle: BeamQueryHandle,
 	events: mpsc::UnboundedReceiver<QueryEvent<RayMarchResult>>,
 }
-impl<State: ValidState, I: QueryableInterfaces> CustomElement<State> for BeamQuery<State, I> {
+impl<State: ValidState, I: QueryableInterfaces> AnimatedElement<State> for BeamQuery<State, I> {
 	type Inner = BeamQueryElementInner;
 	type Error = stardust_xr_fusion::Error;
 

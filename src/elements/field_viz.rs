@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, Transformable, derive_setters::Setters},
+	AnimatedElement, Context, CreateInnerInfo, ValidState,
+	custom::{Transformable, derive_setters::Setters},
 };
 use glam::{Vec3, Vec3A};
 use mint::Vector3;
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
@@ -15,7 +16,7 @@ use stardust_xr_fusion::{
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
 
-#[derive(Clone, Setters)]
+#[derive(Clone, Setters, Animatable)]
 #[setters(into, strip_option)]
 pub struct FieldViz {
 	transform: Transform,
@@ -125,7 +126,7 @@ pub struct FieldVizInner {
 	lines: Lines,
 }
 
-impl<State: ValidState> CustomElement<State> for FieldViz {
+impl<State: ValidState> AnimatedElement<State> for FieldViz {
 	type Inner = FieldVizInner;
 	type Error = Error;
 
@@ -196,7 +197,8 @@ async fn asteroids_field_viz_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			FieldViz::default()
 				.shape(Shape::Transform {

@@ -1,5 +1,9 @@
 #![allow(clippy::too_many_arguments)]
 
+// lets derive output name `::stardust_xr_asteroids` from inside this crate too
+extern crate self as stardust_xr_asteroids;
+
+mod animation;
 pub mod client;
 pub mod components;
 mod context;
@@ -22,6 +26,7 @@ use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef};
 use std::{path::PathBuf, sync::mpsc};
 use tokio::sync::watch;
 
+pub use animation::*;
 pub use client::ClientState;
 pub use context::*;
 pub use custom::*;

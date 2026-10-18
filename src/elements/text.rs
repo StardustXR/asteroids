@@ -1,6 +1,5 @@
 use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, Transformable},
+	AnimatedElement, Animatable, Context, CreateInnerInfo, ValidState, custom::Transformable,
 };
 use derive_setters::Setters;
 use stardust_xr_fusion::{
@@ -11,13 +10,15 @@ use stardust_xr_fusion::{
 };
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, PartialEq, Setters)]
+#[derive(Debug, Clone, PartialEq, Setters, Animatable)]
 #[setters(into, strip_option)]
 pub struct Text {
 	transform: Transform,
 	#[setters(skip)]
 	text: String,
 	character_height: f32,
+	// text has no color setter, so it'd never reach the server
+	#[no_animate]
 	color: Color,
 	font: Option<Resource>,
 	align_x: XAlign,
@@ -38,7 +39,7 @@ impl Text {
 		}
 	}
 }
-impl<State: ValidState> CustomElement<State> for Text {
+impl<State: ValidState> AnimatedElement<State> for Text {
 	type Inner = (Spatial, stardust_xr_fusion::drawable::Text);
 	type Error = Error;
 

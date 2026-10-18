@@ -5,8 +5,9 @@ use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Entity, Migrate, Reify, Tasker, Transformable,
 	client,
 	components::{Containable, Derezzable, Poseable},
+	ease_in_out, ease_out,
 	elements::{Button, Lines, Model, Spatial, Text},
-	project_local_resources,
+	project_local_resources, spring,
 };
 use stardust_xr_fusion::{
 	client::FrameInfo,
@@ -82,6 +83,7 @@ impl Reify for State {
 		_tasks: impl Tasker<Self>,
 		_props: (),
 	) -> impl Element<Self> {
+		let pressed = self.elapsed - self.pressed_time <= 1.0;
 		Entity::new(Shape::Sphere { radius: 0.05 })
 			.pos(self.pose.position)
 			.rot(self.pose.orientation)
@@ -100,22 +102,29 @@ impl Reify for State {
 					])
 					.build()
 					.child(Model::namespaced(Self::APP_ID, "grabbable").build())
-					.maybe_child((self.elapsed - self.pressed_time > 1.0).then(|| {
+					.child(
 						Button::new(|state: &mut State| {
 							state.text = "button press".to_string();
 							state.pressed_time = state.elapsed;
 						})
-						.size([0.15, 0.3])
+						.size(if pressed { [0.0; 2] } else { [0.15, 0.3] })
 						.debug(DebugSettings::default())
 						.build()
-					}))
+						.animation(|a| a.size(ease_in_out(0.1))),
+					)
 					.child(
 						Text::new(&self.text)
-							.pos([0.0, -0.2, 0.0])
+							.pos([
+								0.0,
+								if pressed { -0.3 } else { -0.2 },
+								0.0,
+							])
 							.align_x(XAlign::Center)
 							.align_y(YAlign::Top)
 							.character_height(0.1)
-							.build(),
+							.build()
+							// .animation(|a| a.transform(ease_in_out(0.1))),
+							.animation(|a| a.transform(spring(0.1, 0.4))),
 					)
 					.children(make_triangles(0.3, 25, 0.01)),
 			)

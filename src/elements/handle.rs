@@ -1,14 +1,15 @@
 use std::f32::consts::FRAC_PI_2;
 
 use crate::{
-	Context, CreateInnerInfo, ValidState,
+	AnimatedElement, Context, CreateInnerInfo, ValidState,
 	components::TransformableInner,
-	custom::{CustomElement, FnWrapper, derive_setters::Setters},
+	custom::{FnWrapper, derive_setters::Setters},
 };
 use derive_where::derive_where;
 use glam::{Mat4, Vec3, vec3};
 use map_range::MapRange;
 use mint::Vector3;
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
@@ -16,7 +17,7 @@ use stardust_xr_fusion::{
 	query::{QueryableExt, QueryableObject},
 	spatial::{Spatial, Transform},
 	suis::InputDataType,
-	types::rgba_linear,
+	types::{Vec3F, rgba_linear},
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, InputSnapshot, SingleAction},
@@ -28,13 +29,13 @@ const LINE_THICKNESS: f32 = 0.001;
 
 type OnGrab<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
 type OnRelease<State> = FnWrapper<dyn Fn(&mut State, Vector3<f32>) + Send + Sync>;
-#[derive(Setters)]
+#[derive(Setters, Animatable)]
 #[derive_where(Debug)]
 #[setters(into)]
 pub struct Handle<State: ValidState> {
 	#[setters(skip)]
-	root_pos: Vector3<f32>,
-	head_offset: Vector3<f32>,
+	root_pos: Vec3F,
+	head_offset: Vec3F,
 	#[setters(skip)]
 	on_grab: OnGrab<State>,
 	#[setters(skip)]
@@ -60,7 +61,7 @@ impl<State: ValidState> Handle<State> {
 		self
 	}
 }
-impl<State: ValidState> CustomElement<State> for Handle<State> {
+impl<State: ValidState> AnimatedElement<State> for Handle<State> {
 	type Inner = HandleInner;
 	type Error = Error;
 
@@ -349,6 +350,7 @@ async fn asteroids_handle_element() {
 	use crate::{
 		Tasker,
 		client::{self, ClientState},
+		custom::CustomElement,
 		elements::Handle,
 	};
 	use glam::FloatExt;
@@ -375,7 +377,8 @@ async fn asteroids_handle_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			let width = 0.1;
 			let start_x = width * -0.5;

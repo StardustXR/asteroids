@@ -1,9 +1,7 @@
-use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, Transformable},
-};
+use crate::{AnimatedElement, Context, CreateInnerInfo, ValidState, custom::Transformable};
 use derive_setters::Setters;
 use rustc_hash::{FxHashMap, FxHashSet};
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{MaterialParameter, ModelExt},
@@ -81,14 +79,14 @@ impl Hash for ModelPart {
 }
 impl Eq for ModelPart {}
 
-#[derive(Debug, Clone, Setters)]
+#[derive(Debug, Clone, Setters, Animatable)]
 #[setters(into, strip_option)]
 pub struct Model {
 	transform: Transform,
 	pub resource: Resource,
 	pub model_parts: FxHashSet<ModelPart>,
 }
-impl<State: ValidState> CustomElement<State> for Model {
+impl<State: ValidState> AnimatedElement<State> for Model {
 	type Inner = ModelInner;
 	type Error = Error;
 

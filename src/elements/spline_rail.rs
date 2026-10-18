@@ -1,9 +1,10 @@
 use crate::{
-	Context, CreateInnerInfo, ValidState,
-	custom::{CustomElement, FnWrapper, Transformable},
+	AnimatedElement, Context, CreateInnerInfo, ValidState,
+	custom::{FnWrapper, Transformable},
 };
 use derive_setters::Setters;
 use glam::Vec3;
+use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
@@ -41,7 +42,7 @@ impl CubicSplineShape {
 }
 
 #[derive_where::derive_where(Debug, PartialEq)]
-#[derive(Setters)]
+#[derive(Setters, Animatable)]
 #[setters(into, strip_option)]
 pub struct SplineRail<State: ValidState> {
 	transform: Transform,
@@ -75,7 +76,7 @@ impl<State: ValidState> Transformable for SplineRail<State> {
 	}
 }
 
-impl<State: ValidState> CustomElement<State> for SplineRail<State> {
+impl<State: ValidState> AnimatedElement<State> for SplineRail<State> {
 	type Inner = SplineRailInner;
 
 	type Error = Error;
@@ -527,6 +528,7 @@ async fn asteroids_spline_rail_element() {
 	use crate::{
 		Tasker,
 		client::{self, ClientState},
+		custom::CustomElement,
 		elements::{SplineRail, Text},
 	};
 	use serde::{Deserialize, Serialize};
@@ -546,7 +548,8 @@ async fn asteroids_spline_rail_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			// Lemniscate (figure-8): x(t) = r·sin(t), y(t) = r·sin(2t)/2
 			// 8 control points at t = k·π/4, handles from tangent scaled by Δt/3

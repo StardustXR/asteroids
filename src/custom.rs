@@ -40,6 +40,16 @@ pub trait CustomElement<State: ValidState>: Any + Debug + Send + Sync + Sized + 
 	fn build(self) -> ElementWrapper<State, Self, ()> {
 		ElementWrapper::<State, Self, ()>::new(self)
 	}
+	/// only `#[derive(Animatable)]` overrides this, it blends the fresh target toward what's shown
+	#[doc(hidden)]
+	fn blend_in_place(
+		&mut self,
+		_old_self: &Self,
+		_context: &Context,
+		_animation: Option<&(dyn Any + Send + Sync)>,
+		_inner: &mut Self::Inner,
+	) {
+	}
 }
 
 pub struct FnWrapper<Signature: Send + Sync + ?Sized>(pub Box<Signature>);

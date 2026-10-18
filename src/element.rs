@@ -1,7 +1,7 @@
 #![allow(private_bounds)]
 
 use crate::{
-	Context, CreateInnerInfo, CustomElement, ValidState,
+	Animatable, Context, CreateInnerInfo, CustomElement, ValidState,
 	dynamic_element::{DynamicDiffer, DynamicElement},
 	inner::{ElementInner, ElementInnerMap},
 	mapped::Mapped,
@@ -13,7 +13,7 @@ use stardust_xr_fusion::{
 	spatial::{Spatial, SpatialExt, SpatialRef, Transform},
 };
 use std::{
-	any::{TypeId, type_name_of_val},
+	any::{Any, TypeId, type_name_of_val},
 	hash::{DefaultHasher, Hash, Hasher},
 	marker::PhantomData,
 	path::{Path, PathBuf},
@@ -490,10 +490,13 @@ impl<State: ValidState, E: Element<State>> ElementDiffer<State> for Option<E> {
 	}
 }
 
+#[derive(Debug)]
 pub struct ElementWrapper<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> {
 	pub custom_element: Option<E>,
 	children: C,
 	inner_key: OnceLock<u64>,
+	// erased so elements without animation don't need to name a type for it
+	animation: Option<Box<dyn Any + Send + Sync>>,
 	state_phantom: PhantomData<State>,
 }
 
@@ -505,6 +508,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 			custom_element: Some(custom_element),
 			children: (),
 			inner_key: OnceLock::new(),
+			animation: None,
 			state_phantom: PhantomData,
 		}
 	}
@@ -513,6 +517,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 			custom_element: self.custom_element,
 			children: (self.children, child),
 			inner_key: self.inner_key,
+			animation: self.animation,
 			state_phantom: PhantomData,
 		}
 	}
@@ -524,6 +529,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 			custom_element: self.custom_element,
 			children: (self.children, child),
 			inner_key: self.inner_key,
+			animation: self.animation,
 			state_phantom: PhantomData,
 		}
 	}
@@ -535,6 +541,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 			custom_element: self.custom_element,
 			children: (self.children, children.into_iter().collect()),
 			inner_key: self.inner_key,
+			animation: self.animation,
 			state_phantom: PhantomData,
 		}
 	}
@@ -546,8 +553,17 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>>
 			custom_element: self.custom_element,
 			children: (self.children, FxHashMap::from_iter(children)),
 			inner_key: self.inner_key,
+			animation: self.animation,
 			state_phantom: PhantomData,
 		}
+	}
+}
+impl<State: ValidState, E: CustomElement<State> + Animatable, C: ElementDiffer<State>>
+	ElementWrapper<State, E, C>
+{
+	pub fn animation(mut self, f: impl FnOnce(E::Animation) -> E::Animation) -> Self {
+		self.animation = Some(Box::new(f(Default::default())));
+		self
 	}
 }
 impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> ElementDiffer<State>
@@ -673,9 +689,10 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		let _ = self.inner_key.set(inner_key);
 
 		// Diff this element
-		if let Some(new_element) = &self.custom_element
+		if let Some(new_element) = &mut self.custom_element
 			&& let Some(old_element) = &old.custom_element
 		{
+			let animation = self.animation.as_deref();
 			let Some(inner_mut) = inner_map.get_mut::<State, E>(inner_key) else {
 				return;
 			};
@@ -699,6 +716,12 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 									Ok(mut element) => {
 										// diff from the stored state at creation to the most recent creation
 										// since async stuff *could* take several frames
+										new_element.blend_in_place(
+											&decl,
+											context,
+											animation,
+											&mut element,
+										);
 										new_element.diff(&decl, context, &mut element);
 										ElementInner::Done(element, child_spatial)
 									}
@@ -726,6 +749,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 					}
 				}
 				ElementInner::Done(inner, _) => {
+					new_element.blend_in_place(old_element, context, animation, inner);
 					new_element.diff(old_element, context, inner);
 				}
 				_ => (),
