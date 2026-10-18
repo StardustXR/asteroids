@@ -96,6 +96,7 @@ impl Reify for State {
 						context.time().cos() * 0.1,
 					])
 					.build()
+					.appear(|a| a._0(Transform::from_scale([0.0; 3]), ease_in(5.0)))
 					.child(Model::namespaced(Self::APP_ID, "grabbable").build())
 					.child(
 						Button::new(move |state: &mut State| {

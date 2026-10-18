@@ -251,11 +251,25 @@ pub mod __private {
 	use std::marker::PhantomData;
 
 	pub struct Track<T> {
-		from: T,
 		to: T,
+		/// when the target last moved
 		start: Option<Timestamp>,
 		curve: Curve,
+		motion: Motion<T>,
 	}
+	enum Motion<T> {
+		Eased {
+			from: T,
+		},
+		// the value one substep before what's shown, so the velocity is `shown - prev`
+		Spring {
+			prev: T,
+			last: Option<Timestamp>,
+			carry: f32,
+		},
+	}
+
+	const SUBSTEP: f32 = 1.0 / 240.0;
 
 	pub fn step<T: Mix>(
 		v: &mut T,
@@ -269,11 +283,27 @@ pub mod __private {
 			None => *v != *old,
 		};
 		if moved {
-			*track = curve.map(|c| Track {
-				from: old.clone(),
-				to: v.clone(),
-				start: None,
-				curve: c.clone(),
+			*track = curve.map(|c| {
+				let motion = match (c, track.take()) {
+					// a spring keeps its momentum when the target moves, so chasing one stays smooth
+					(Curve::Spring { .. }, Some(t))
+						if matches!(t.motion, Motion::Spring { .. }) =>
+					{
+						t.motion
+					}
+					(Curve::Spring { .. }, _) => Motion::Spring {
+						prev: old.clone(),
+						last: None,
+						carry: 0.0,
+					},
+					_ => Motion::Eased { from: old.clone() },
+				};
+				Track {
+					to: v.clone(),
+					start: None,
+					curve: c.clone(),
+					motion,
+				}
 			});
 		}
 		let Some(t) = track else {
@@ -283,9 +313,32 @@ pub mod __private {
 			Some(now) => seconds_between(*t.start.get_or_insert(now), now),
 			None => 0.0,
 		};
-		match t.curve.progress(elapsed) {
-			Some(p) => *v = t.from.mix(&t.to, p),
-			None => *track = None,
+		let Some(p) = t.curve.progress(elapsed) else {
+			*track = None;
+			return;
+		};
+		match (&mut t.motion, &t.curve) {
+			(Motion::Spring { prev, last, carry }, &Curve::Spring { duration, bounce }) => {
+				let mut x = old.clone();
+				if let Some(now) = now {
+					*carry += seconds_between(*last.get_or_insert(now), now).min(0.25);
+					*last = Some(now);
+				}
+				let w = std::f32::consts::TAU / duration;
+				let zeta = 1.0 - bounce.clamp(0.0, 0.99);
+				let damping = (-2.0 * zeta * w * SUBSTEP).exp();
+				let pull = (w * SUBSTEP).powi(2);
+				while *carry >= SUBSTEP {
+					let next = prev.mix(&x, 1.0 + damping).mix(&t.to, pull);
+					*prev = std::mem::replace(&mut x, next);
+					*carry -= SUBSTEP;
+				}
+				*v = x;
+			}
+			(Motion::Eased { from }, _) => *v = from.mix(&t.to, p),
+			(Motion::Spring { .. }, _) => {
+				unreachable!("spring motion only comes from spring curves")
+			}
 		}
 	}
 
@@ -487,6 +540,47 @@ mod tests {
 			assert_eq!(Dot::moving(&tracks), moving);
 			shown = next;
 		}
+	}
+
+	#[test]
+	fn spring_settles_on_target() {
+		let c = spring(0.3, 0.0);
+		let mut track = None;
+		let mut shown = 0.0;
+		for i in 0..=180 {
+			let mut v = 1.0;
+			step(&mut v, &shown, Some(&c), &mut track, at(i as f32 / 90.0));
+			shown = v;
+		}
+		assert_eq!(shown, 1.0);
+		assert!(track.is_none());
+	}
+
+	#[test]
+	fn spring_chases_a_moving_target() {
+		let c = spring(0.3, 0.0);
+		let mut track = None;
+		let mut shown = 0.0;
+		let mut eased = 0.0;
+		let mut eased_track = None;
+		for i in 0..=90 {
+			let t = i as f32 / 90.0;
+			let mut v = t;
+			step(&mut v, &shown, Some(&c), &mut track, at(t));
+			shown = v;
+			let mut v = t;
+			step(
+				&mut v,
+				&eased,
+				Some(&ease_in_out(1.0)),
+				&mut eased_track,
+				at(t),
+			);
+			eased = v;
+		}
+		// a target that moves every update restarts a duration curve, so it never leaves the start
+		assert_eq!(eased, 0.0);
+		assert!((0.8..1.0).contains(&shown), "{shown}");
 	}
 
 	#[test]
