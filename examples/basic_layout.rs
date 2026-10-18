@@ -7,10 +7,10 @@ use stardust_xr_asteroids::{
 	components::{Containable, Derezzable, Poseable},
 	ease_in, ease_in_out,
 	elements::{Button, Lines, Model, Spatial, Text},
-	project_local_resources, spring,
+	linear, project_local_resources, spring,
 };
 use stardust_xr_fusion::{
-	drawable::{XAlign, YAlign},
+	drawable::{Line, XAlign, YAlign},
 	fields::Shape,
 	spatial::Transform,
 	types::{
@@ -153,5 +153,11 @@ fn make_triangles(
 			])
 			.rot(Quat::from_rotation_x(-FRAC_PI_2))
 			.build()
+			.appear(|a| a.lines(vec![], linear(0.5).delay(f * 0.03).via(trace)))
 	})
+}
+
+#[allow(clippy::ptr_arg)]
+fn trace(_from: &Vec<Line>, to: &Vec<Line>, t: f32) -> Vec<Line> {
+	to.iter().map(|l| l.clone().trace(t)).collect()
 }

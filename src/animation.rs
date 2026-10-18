@@ -62,6 +62,17 @@ impl Curve {
 		self.delay += seconds;
 		self
 	}
+	/// blends with `mix` instead of the type's own `Mix`, so a field can arc, trace in, or animate
+	/// a type that can't blend at all
+	///
+	/// springs lose their momentum with this, since only the type's own mix can extrapolate
+	pub fn via<T>(self, mix: fn(&T, &T, f32) -> T) -> Tween<T> {
+		Tween {
+			curve: self,
+			mix,
+			momentum: false,
+		}
+	}
 	/// elapsed seconds in, progress out, `None` once it's done
 	pub fn progress(&self, t: f32) -> Option<f32> {
 		if t < self.delay {
@@ -162,6 +173,49 @@ pub fn ease_in_out(duration: f32) -> Curve {
 /// it runs until it settles rather than for `duration`, and overshoots when it bounces
 pub fn spring(duration: f32, bounce: f32) -> Curve {
 	Shape::Spring { duration, bounce }.into()
+}
+
+/// a curve plus how a field blends along it
+pub struct Tween<T> {
+	curve: Curve,
+	mix: fn(&T, &T, f32) -> T,
+	momentum: bool,
+}
+impl<T> Clone for Tween<T> {
+	fn clone(&self) -> Self {
+		Tween {
+			curve: self.curve.clone(),
+			mix: self.mix,
+			momentum: self.momentum,
+		}
+	}
+}
+impl<T> Debug for Tween<T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_tuple("Tween").field(&self.curve).finish()
+	}
+}
+
+#[diagnostic::on_unimplemented(
+	message = "`{T}` can't blend on its own, give the curve a mix with `.via(..)`",
+	label = "not `Mix`"
+)]
+pub trait IntoTween<T> {
+	fn into_tween(self) -> Tween<T>;
+}
+impl<T: Mix> IntoTween<T> for Curve {
+	fn into_tween(self) -> Tween<T> {
+		Tween {
+			curve: self,
+			mix: T::mix,
+			momentum: true,
+		}
+	}
+}
+impl<T> IntoTween<T> for Tween<T> {
+	fn into_tween(self) -> Tween<T> {
+		self
+	}
 }
 
 #[diagnostic::on_unimplemented(
@@ -280,7 +334,7 @@ pub mod __private {
 		start: Option<Timestamp>,
 		/// what's left of the delay when the target moved
 		wait: f32,
-		curve: Curve,
+		tween: Tween<T>,
 		motion: Motion<T>,
 	}
 	enum Motion<T> {
@@ -297,28 +351,32 @@ pub mod __private {
 
 	const SUBSTEP: f32 = 1.0 / 240.0;
 
-	pub fn step<T: Mix>(
+	pub fn step<T: PartialEq + Clone>(
 		v: &mut T,
 		old: &T,
-		curve: Option<&Curve>,
+		tween: Option<&Tween<T>>,
 		track: &mut Option<Track<T>>,
 		now: Option<Timestamp>,
 	) {
+		if tween.is_none() && track.is_none() {
+			return;
+		}
 		let moved = match track {
 			Some(t) => *v != t.to,
 			None => *v != *old,
 		};
 		if moved {
 			let prev = track.take();
-			*track = curve.map(|c| {
+			*track = tween.map(|c| {
 				let wait = match &prev {
-					None => c.delay,
+					None => c.curve.delay,
 					Some(p) => match (p.start, now) {
 						(Some(s), Some(now)) => (p.wait - seconds_between(s, now)).max(0.0),
 						_ => p.wait,
 					},
 				};
-				let motion = match (&c.shape, prev) {
+				let motion = match (&c.curve.shape, prev) {
+					(Shape::Spring { .. }, _) if !c.momentum => Motion::Eased { from: old.clone() },
 					// a spring keeps its momentum when the target moves, so chasing one stays smooth
 					(Shape::Spring { .. }, Some(p))
 						if matches!(p.motion, Motion::Spring { .. }) =>
@@ -336,7 +394,7 @@ pub mod __private {
 					to: v.clone(),
 					start: None,
 					wait,
-					curve: c.clone(),
+					tween: c.clone(),
 					motion,
 				}
 			});
@@ -355,11 +413,11 @@ pub mod __private {
 			}
 			return;
 		}
-		let Some(p) = t.curve.shape.progress(elapsed) else {
+		let Some(p) = t.tween.curve.shape.progress(elapsed) else {
 			*track = None;
 			return;
 		};
-		match (&mut t.motion, &t.curve.shape) {
+		match (&mut t.motion, &t.tween.curve.shape) {
 			(Motion::Spring { prev, last, carry }, &Shape::Spring { duration, bounce }) => {
 				let mut x = old.clone();
 				if let Some(now) = now {
@@ -371,13 +429,14 @@ pub mod __private {
 				let damping = (-2.0 * zeta * w * SUBSTEP).exp();
 				let pull = (w * SUBSTEP).powi(2);
 				while *carry >= SUBSTEP {
-					let next = prev.mix(&x, 1.0 + damping).mix(&t.to, pull);
+					let mix = t.tween.mix;
+					let next = mix(&mix(prev, &x, 1.0 + damping), &t.to, pull);
 					*prev = std::mem::replace(&mut x, next);
 					*carry -= SUBSTEP;
 				}
 				*v = x;
 			}
-			(Motion::Eased { from }, _) => *v = from.mix(&t.to, p),
+			(Motion::Eased { from }, _) => *v = (t.tween.mix)(from, &t.to, p),
 			(Motion::Spring { .. }, _) => {
 				unreachable!("spring motion only comes from spring curves")
 			}
@@ -389,7 +448,7 @@ pub mod __private {
 		pub tracks: T,
 	}
 
-	// autoref picks `ViaMix` when the field is `Mix` and falls through to the no-op otherwise
+	// autoref picks `ViaBlend` when the field can be compared and cloned and falls through to the no-op otherwise
 	pub struct Probe<T>(PhantomData<T>);
 	impl<T> Probe<T> {
 		#[allow(clippy::new_without_default)]
@@ -397,27 +456,27 @@ pub mod __private {
 			Probe(PhantomData)
 		}
 	}
-	pub trait ViaMix<T> {
+	pub trait ViaBlend<T> {
 		fn step(
 			&self,
 			v: &mut T,
 			old: &T,
-			curve: Option<&Curve>,
+			tween: Option<&Tween<T>>,
 			track: &mut Option<Track<T>>,
 			now: Option<Timestamp>,
 		);
 		fn assign(&self, v: &mut T, to: &Option<T>);
 	}
-	impl<T: Mix> ViaMix<T> for Probe<T> {
+	impl<T: PartialEq + Clone> ViaBlend<T> for Probe<T> {
 		fn step(
 			&self,
 			v: &mut T,
 			old: &T,
-			curve: Option<&Curve>,
+			tween: Option<&Tween<T>>,
 			track: &mut Option<Track<T>>,
 			now: Option<Timestamp>,
 		) {
-			step(v, old, curve, track, now)
+			step(v, old, tween, track, now)
 		}
 		fn assign(&self, v: &mut T, to: &Option<T>) {
 			if let Some(to) = to {
@@ -430,7 +489,7 @@ pub mod __private {
 			&self,
 			_v: &mut T,
 			_old: &T,
-			_curve: Option<&Curve>,
+			_tween: Option<&Tween<T>>,
 			_track: &mut Option<Track<T>>,
 			_now: Option<Timestamp>,
 		) {
@@ -453,7 +512,7 @@ mod tests {
 
 	#[test]
 	fn blends_to_target() {
-		let c = linear(1.0);
+		let c: Tween<f32> = linear(1.0).into_tween();
 		let mut track = None;
 
 		let mut v = 1.0;
@@ -472,7 +531,7 @@ mod tests {
 
 	#[test]
 	fn retargets_from_shown() {
-		let c = linear(1.0);
+		let c: Tween<f32> = linear(1.0).into_tween();
 		let mut track = None;
 		let mut v = 1.0;
 		step(&mut v, &0.0, Some(&c), &mut track, at(0.0));
@@ -489,7 +548,7 @@ mod tests {
 
 	#[test]
 	fn snaps_without_curve() {
-		let c = linear(1.0);
+		let c: Tween<f32> = linear(1.0).into_tween();
 		let mut track = None;
 		let mut v = 1.0;
 		step(&mut v, &0.0, Some(&c), &mut track, at(0.0));
@@ -587,7 +646,7 @@ mod tests {
 
 	#[test]
 	fn spring_settles_on_target() {
-		let c = spring(0.3, 0.0);
+		let c: Tween<f32> = spring(0.3, 0.0).into_tween();
 		let mut track = None;
 		let mut shown = 0.0;
 		for i in 0..=180 {
@@ -601,7 +660,7 @@ mod tests {
 
 	#[test]
 	fn spring_chases_a_moving_target() {
-		let c = spring(0.3, 0.0);
+		let c: Tween<f32> = spring(0.3, 0.0).into_tween();
 		let mut track = None;
 		let mut shown = 0.0;
 		let mut eased = 0.0;
@@ -615,7 +674,7 @@ mod tests {
 			step(
 				&mut v,
 				&eased,
-				Some(&ease_in_out(1.0)),
+				Some(&ease_in_out(1.0).into_tween()),
 				&mut eased_track,
 				at(t),
 			);
@@ -628,7 +687,7 @@ mod tests {
 
 	#[test]
 	fn delays_from_rest_but_not_when_chasing() {
-		let c = linear(1.0).delay(0.5);
+		let c: Tween<f32> = linear(1.0).delay(0.5).into_tween();
 		let mut track = None;
 		let mut shown = 0.0;
 		for (t, want) in [(0.0, 0.0), (0.25, 0.0), (0.5, 0.0), (1.0, 0.5)] {
@@ -647,7 +706,7 @@ mod tests {
 
 	#[test]
 	fn delayed_spring_waits_then_moves() {
-		let c = spring(0.3, 0.0).delay(0.5);
+		let c: Tween<f32> = spring(0.3, 0.0).delay(0.5).into_tween();
 		let mut track = None;
 		let mut shown = 0.0;
 		for i in 0..=45 {
@@ -663,6 +722,37 @@ mod tests {
 		}
 		assert_eq!(shown, 1.0);
 		assert!(track.is_none());
+	}
+
+	#[test]
+	fn mixes_via_a_custom_path() {
+		#[derive(Debug, Animatable)]
+		struct Label {
+			height: f32,
+			text: String,
+		}
+		fn squared(a: &f32, b: &f32, t: f32) -> f32 {
+			a.mix(b, t * t)
+		}
+		#[allow(clippy::ptr_arg)]
+		fn type_in(_: &String, to: &String, t: f32) -> String {
+			to.chars().take((to.len() as f32 * t) as usize).collect()
+		}
+		let animation = LabelAnimation::default()
+			.height(linear(1.0).via(squared))
+			.text(linear(1.0).via(type_in));
+		let mut tracks = Default::default();
+		let label = |h: f32, t: &str| Label {
+			height: h,
+			text: t.to_string(),
+		};
+
+		let mut new = label(1.0, "abcd");
+		new.blend(&label(0.0, ""), &animation, &mut tracks, at(0.0));
+		let shown = new;
+		let mut new = label(1.0, "abcd");
+		new.blend(&shown, &animation, &mut tracks, at(0.5));
+		assert_eq!((new.height, new.text.as_str()), (0.25, "ab"));
 	}
 
 	#[test]

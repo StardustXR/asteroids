@@ -96,7 +96,7 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 
 	quote! {
 		#vis struct #animation_ty #generics #where_clause {
-			#(#idents: ::core::option::Option<#a::Curve>,)*
+			#(#idents: ::core::option::Option<#a::Tween<#tys>>,)*
 			_phantom: ::core::marker::PhantomData<fn() -> (#(#type_params,)*)>,
 		}
 		impl #impl_generics ::core::default::Default for #animation_ty #ty_generics #where_clause {
@@ -110,18 +110,18 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 		impl #impl_generics #animation_ty #ty_generics #where_clause {
 			#(
 				// higher ranked so it's only checked where the setter is called
-				pub fn #idents(mut self, curve: #a::Curve) -> Self
+				pub fn #idents(mut self, curve: impl #a::IntoTween<#tys>) -> Self
 				where
-					for<'__a> #tys: #a::Mix,
+					for<'__a> #tys: ::core::cmp::PartialEq + ::core::clone::Clone,
 				{
-					self.#idents = ::core::option::Option::Some(curve);
+					self.#idents = ::core::option::Option::Some(curve.into_tween());
 					self
 				}
 			)*
 		}
 
 		#vis struct #transition_ty #generics #where_clause {
-			#(#idents: (::core::option::Option<#tys>, ::core::option::Option<#a::Curve>),)*
+			#(#idents: (::core::option::Option<#tys>, ::core::option::Option<#a::Tween<#tys>>),)*
 			_phantom: ::core::marker::PhantomData<fn() -> (#(#type_params,)*)>,
 		}
 		impl #impl_generics ::core::default::Default for #transition_ty #ty_generics #where_clause {
@@ -134,11 +134,11 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 		}
 		impl #impl_generics #transition_ty #ty_generics #where_clause {
 			#(
-				pub fn #idents(mut self, from: #tys, curve: #a::Curve) -> Self
+				pub fn #idents(mut self, from: #tys, curve: impl #a::IntoTween<#tys>) -> Self
 				where
-					for<'__a> #tys: #a::Mix,
+					for<'__a> #tys: ::core::cmp::PartialEq + ::core::clone::Clone,
 				{
-					self.#idents = (::core::option::Option::Some(from), ::core::option::Option::Some(curve));
+					self.#idents = (::core::option::Option::Some(from), ::core::option::Option::Some(curve.into_tween()));
 					self
 				}
 			)*
@@ -169,7 +169,7 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 				_tracks: &mut Self::Tracks,
 				_now: ::core::option::Option<#p::Timestamp>,
 			) {
-				use #p::{ViaMix as _, ViaOther as _};
+				use #p::{ViaBlend as _, ViaOther as _};
 				#(#steps)*
 			}
 			fn appear_from(&mut self, _transition: &mut Self::Transition) {
@@ -186,11 +186,11 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 				_tracks: &mut Self::Tracks,
 				_now: ::core::option::Option<#p::Timestamp>,
 			) {
-				use #p::{ViaMix as _, ViaOther as _};
+				use #p::{ViaBlend as _, ViaOther as _};
 				#(#arrives)*
 			}
 			fn vanish_to(&mut self, _transition: &Self::Transition) {
-				use #p::{ViaMix as _, ViaOther as _};
+				use #p::{ViaBlend as _, ViaOther as _};
 				#(#vanishes)*
 			}
 			fn departure(_transition: &Self::Transition) -> Self::Animation {
