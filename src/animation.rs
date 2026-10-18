@@ -48,11 +48,31 @@ use std::{any::Any, fmt::Debug, sync::Arc};
 /// ```
 pub use stardust_xr_asteroids_derive::Animatable;
 
-/// the built-in ones are plain values, only `Custom` allocates
+/// the built-in ones are plain values, only `curve(..)` allocates
 // TODO: find a better way, running tracks outlive the reify so the curve's type has to be erased
 // somewhere, and an enum was the least bad option without allocating
+#[derive(Clone, Debug)]
+pub struct Curve {
+	shape: Shape,
+	delay: f32,
+}
+impl Curve {
+	/// waits before moving, only when it starts from rest so a chased target doesn't stall
+	pub fn delay(mut self, seconds: f32) -> Self {
+		self.delay += seconds;
+		self
+	}
+	/// elapsed seconds in, progress out, `None` once it's done
+	pub fn progress(&self, t: f32) -> Option<f32> {
+		if t < self.delay {
+			return Some(0.0);
+		}
+		self.shape.progress(t - self.delay)
+	}
+}
+
 #[derive(Clone)]
-pub enum Curve {
+enum Shape {
 	Linear(f32),
 	EaseIn(f32),
 	EaseOut(f32),
@@ -60,14 +80,13 @@ pub enum Curve {
 	Spring { duration: f32, bounce: f32 },
 	Custom(Arc<dyn CustomCurve>),
 }
-impl Curve {
-	/// elapsed seconds in, progress out, `None` once it's done
-	pub fn progress(&self, t: f32) -> Option<f32> {
+impl Shape {
+	fn progress(&self, t: f32) -> Option<f32> {
 		match *self {
-			Curve::Linear(d) => (t < d).then(|| t / d),
-			Curve::EaseIn(d) => (t < d).then(|| (t / d).powi(3)),
-			Curve::EaseOut(d) => (t < d).then(|| 1.0 - (1.0 - t / d).powi(3)),
-			Curve::EaseInOut(d) => (t < d).then(|| {
+			Shape::Linear(d) => (t < d).then(|| t / d),
+			Shape::EaseIn(d) => (t < d).then(|| (t / d).powi(3)),
+			Shape::EaseOut(d) => (t < d).then(|| 1.0 - (1.0 - t / d).powi(3)),
+			Shape::EaseInOut(d) => (t < d).then(|| {
 				let p = t / d;
 				if p < 0.5 {
 					4.0 * p.powi(3)
@@ -75,7 +94,7 @@ impl Curve {
 					1.0 - (2.0 - 2.0 * p).powi(3) / 2.0
 				}
 			}),
-			Curve::Spring { duration, bounce } => {
+			Shape::Spring { duration, bounce } => {
 				let w = std::f32::consts::TAU / duration;
 				let zeta = 1.0 - bounce.clamp(0.0, 0.99);
 				let wd = w * (1.0 - zeta * zeta).sqrt();
@@ -88,24 +107,29 @@ impl Curve {
 					}
 				})
 			}
-			Curve::Custom(ref c) => c.progress(t),
+			Shape::Custom(ref c) => c.progress(t),
 		}
 	}
 }
-impl Debug for Curve {
+impl Debug for Shape {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Curve::Linear(d) => f.debug_tuple("Linear").field(d).finish(),
-			Curve::EaseIn(d) => f.debug_tuple("EaseIn").field(d).finish(),
-			Curve::EaseOut(d) => f.debug_tuple("EaseOut").field(d).finish(),
-			Curve::EaseInOut(d) => f.debug_tuple("EaseInOut").field(d).finish(),
-			Curve::Spring { duration, bounce } => f
+			Shape::Linear(d) => f.debug_tuple("Linear").field(d).finish(),
+			Shape::EaseIn(d) => f.debug_tuple("EaseIn").field(d).finish(),
+			Shape::EaseOut(d) => f.debug_tuple("EaseOut").field(d).finish(),
+			Shape::EaseInOut(d) => f.debug_tuple("EaseInOut").field(d).finish(),
+			Shape::Spring { duration, bounce } => f
 				.debug_struct("Spring")
 				.field("duration", duration)
 				.field("bounce", bounce)
 				.finish(),
-			Curve::Custom(_) => f.write_str("Custom"),
+			Shape::Custom(_) => f.write_str("Custom"),
 		}
+	}
+}
+impl From<Shape> for Curve {
+	fn from(shape: Shape) -> Self {
+		Curve { shape, delay: 0.0 }
 	}
 }
 
@@ -119,25 +143,25 @@ impl<F: Fn(f32) -> Option<f32> + Send + Sync + 'static> CustomCurve for F {
 }
 
 pub fn curve(c: impl CustomCurve) -> Curve {
-	Curve::Custom(Arc::new(c))
+	Shape::Custom(Arc::new(c)).into()
 }
 pub fn linear(duration: f32) -> Curve {
-	Curve::Linear(duration)
+	Shape::Linear(duration).into()
 }
 pub fn ease_in(duration: f32) -> Curve {
-	Curve::EaseIn(duration)
+	Shape::EaseIn(duration).into()
 }
 pub fn ease_out(duration: f32) -> Curve {
-	Curve::EaseOut(duration)
+	Shape::EaseOut(duration).into()
 }
 pub fn ease_in_out(duration: f32) -> Curve {
-	Curve::EaseInOut(duration)
+	Shape::EaseInOut(duration).into()
 }
 /// like swiftui's, `duration` is the period and `bounce` goes from 0 (none) toward 1 (forever)
 ///
 /// it runs until it settles rather than for `duration`, and overshoots when it bounces
 pub fn spring(duration: f32, bounce: f32) -> Curve {
-	Curve::Spring { duration, bounce }
+	Shape::Spring { duration, bounce }.into()
 }
 
 #[diagnostic::on_unimplemented(
@@ -254,6 +278,8 @@ pub mod __private {
 		to: T,
 		/// when the target last moved
 		start: Option<Timestamp>,
+		/// what's left of the delay when the target moved
+		wait: f32,
 		curve: Curve,
 		motion: Motion<T>,
 	}
@@ -283,15 +309,23 @@ pub mod __private {
 			None => *v != *old,
 		};
 		if moved {
+			let prev = track.take();
 			*track = curve.map(|c| {
-				let motion = match (c, track.take()) {
+				let wait = match &prev {
+					None => c.delay,
+					Some(p) => match (p.start, now) {
+						(Some(s), Some(now)) => (p.wait - seconds_between(s, now)).max(0.0),
+						_ => p.wait,
+					},
+				};
+				let motion = match (&c.shape, prev) {
 					// a spring keeps its momentum when the target moves, so chasing one stays smooth
-					(Curve::Spring { .. }, Some(t))
-						if matches!(t.motion, Motion::Spring { .. }) =>
+					(Shape::Spring { .. }, Some(p))
+						if matches!(p.motion, Motion::Spring { .. }) =>
 					{
-						t.motion
+						p.motion
 					}
-					(Curve::Spring { .. }, _) => Motion::Spring {
+					(Shape::Spring { .. }, _) => Motion::Spring {
 						prev: old.clone(),
 						last: None,
 						carry: 0.0,
@@ -301,6 +335,7 @@ pub mod __private {
 				Track {
 					to: v.clone(),
 					start: None,
+					wait,
 					curve: c.clone(),
 					motion,
 				}
@@ -310,15 +345,22 @@ pub mod __private {
 			return;
 		};
 		let elapsed = match now {
-			Some(now) => seconds_between(*t.start.get_or_insert(now), now),
-			None => 0.0,
+			Some(now) => seconds_between(*t.start.get_or_insert(now), now) - t.wait,
+			None => -t.wait,
 		};
-		let Some(p) = t.curve.progress(elapsed) else {
+		if elapsed < 0.0 {
+			*v = old.clone();
+			if let Motion::Spring { last, .. } = &mut t.motion {
+				*last = None;
+			}
+			return;
+		}
+		let Some(p) = t.curve.shape.progress(elapsed) else {
 			*track = None;
 			return;
 		};
-		match (&mut t.motion, &t.curve) {
-			(Motion::Spring { prev, last, carry }, &Curve::Spring { duration, bounce }) => {
+		match (&mut t.motion, &t.curve.shape) {
+			(Motion::Spring { prev, last, carry }, &Shape::Spring { duration, bounce }) => {
 				let mut x = old.clone();
 				if let Some(now) = now {
 					*carry += seconds_between(*last.get_or_insert(now), now).min(0.25);
@@ -468,6 +510,7 @@ mod tests {
 			spring(1.0, 0.0),
 			spring(1.0, 0.5),
 			curve(|t: f32| (t < 1.0).then_some(t)),
+			linear(1.0).delay(0.5),
 		] {
 			assert_eq!(c.progress(0.0), Some(0.0));
 			assert_eq!(c.progress(100.0), None);
@@ -581,6 +624,45 @@ mod tests {
 		// a target that moves every update restarts a duration curve, so it never leaves the start
 		assert_eq!(eased, 0.0);
 		assert!((0.8..1.0).contains(&shown), "{shown}");
+	}
+
+	#[test]
+	fn delays_from_rest_but_not_when_chasing() {
+		let c = linear(1.0).delay(0.5);
+		let mut track = None;
+		let mut shown = 0.0;
+		for (t, want) in [(0.0, 0.0), (0.25, 0.0), (0.5, 0.0), (1.0, 0.5)] {
+			let mut v = 1.0;
+			step(&mut v, &shown, Some(&c), &mut track, at(t));
+			assert_eq!(v, want, "at {t}");
+			shown = v;
+		}
+
+		let mut v = 2.0;
+		step(&mut v, &shown, Some(&c), &mut track, at(1.0));
+		let mut v = 2.0;
+		step(&mut v, &0.5, Some(&c), &mut track, at(1.5));
+		assert_eq!(v, 1.25);
+	}
+
+	#[test]
+	fn delayed_spring_waits_then_moves() {
+		let c = spring(0.3, 0.0).delay(0.5);
+		let mut track = None;
+		let mut shown = 0.0;
+		for i in 0..=45 {
+			let mut v = 1.0;
+			step(&mut v, &shown, Some(&c), &mut track, at(i as f32 / 90.0));
+			shown = v;
+		}
+		assert_eq!(shown, 0.0);
+		for i in 46..=270 {
+			let mut v = 1.0;
+			step(&mut v, &shown, Some(&c), &mut track, at(i as f32 / 90.0));
+			shown = v;
+		}
+		assert_eq!(shown, 1.0);
+		assert!(track.is_none());
 	}
 
 	#[test]
