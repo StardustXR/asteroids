@@ -1,5 +1,5 @@
 use std::sync::{
-	Arc,
+	Arc, OnceLock,
 	atomic::{AtomicBool, Ordering},
 };
 
@@ -18,6 +18,7 @@ pub struct Context {
 	pub accent_color: Arc<AccentColor>,
 	pub(crate) stop: Arc<AtomicBool>,
 	pub(crate) predicted_display_time: watch::Receiver<Option<Timestamp>>,
+	pub(crate) first_frame: Arc<OnceLock<Timestamp>>,
 }
 impl Context {
 	pub fn stop(&self) {
@@ -26,5 +27,12 @@ impl Context {
 	/// of the latest frame, `None` before the first one
 	pub fn predicted_display_time(&self) -> Option<Timestamp> {
 		*self.predicted_display_time.borrow()
+	}
+	/// seconds since the first frame, at the predicted display time so motion lands where it's seen
+	pub fn time(&self) -> f32 {
+		match (self.first_frame.get(), self.predicted_display_time()) {
+			(Some(first), Some(now)) => crate::animation::seconds_between(*first, now),
+			_ => 0.0,
+		}
 	}
 }

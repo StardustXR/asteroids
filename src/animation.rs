@@ -177,7 +177,7 @@ pub trait AnimatedElement<State: ValidState>:
 	}
 }
 
-fn seconds_between(from: Timestamp, to: Timestamp) -> f32 {
+pub(crate) fn seconds_between(from: Timestamp, to: Timestamp) -> f32 {
 	(to.seconds - from.seconds) as f32 + (to.nanoseconds - from.nanoseconds) as f32 / 1e9
 }
 

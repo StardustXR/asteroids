@@ -5,12 +5,11 @@ use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Entity, Migrate, Reify, Tasker, Transformable,
 	client,
 	components::{Containable, Derezzable, Poseable},
-	ease_in_out, ease_out,
+	ease_in_out,
 	elements::{Button, Lines, Model, Spatial, Text},
 	project_local_resources, spring,
 };
 use stardust_xr_fusion::{
-	client::FrameInfo,
 	drawable::{XAlign, YAlign},
 	fields::Shape,
 	types::{
@@ -47,7 +46,6 @@ async fn main() {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct State {
-	elapsed: f32,
 	pressed_time: f32,
 	text: String,
 	pose: Posef,
@@ -55,7 +53,6 @@ pub struct State {
 impl Default for State {
 	fn default() -> Self {
 		State {
-			elapsed: 0.0,
 			pressed_time: -10000.0,
 			text: "triangle :D".to_string(),
 			pose: Posef::default(),
@@ -71,10 +68,6 @@ impl ClientState for State {
 	fn initial_state_update(&mut self) {
 		println!("Initial state yippee");
 	}
-
-	fn on_frame(&mut self, info: &FrameInfo) {
-		self.elapsed += info.delta;
-	}
 }
 impl Reify for State {
 	fn reify(
@@ -83,7 +76,8 @@ impl Reify for State {
 		_tasks: impl Tasker<Self>,
 		_props: (),
 	) -> impl Element<Self> {
-		let pressed = self.elapsed - self.pressed_time <= 1.0;
+		let time = context.time();
+		let pressed = time - self.pressed_time <= 1.0;
 		Entity::new(Shape::Sphere { radius: 0.05 })
 			.pos(self.pose.position)
 			.rot(self.pose.orientation)
@@ -96,16 +90,16 @@ impl Reify for State {
 			.child(
 				Spatial::default()
 					.pos([
-						self.elapsed.sin() * 0.1,
+						context.time().sin() * 0.1,
 						0.0,
-						self.elapsed.cos() * 0.1,
+						context.time().cos() * 0.1,
 					])
 					.build()
 					.child(Model::namespaced(Self::APP_ID, "grabbable").build())
 					.child(
-						Button::new(|state: &mut State| {
+						Button::new(move |state: &mut State| {
 							state.text = "button press".to_string();
-							state.pressed_time = state.elapsed;
+							state.pressed_time = time;
 						})
 						.size(if pressed { [0.0; 2] } else { [0.15, 0.3] })
 						.debug(DebugSettings::default())
@@ -123,7 +117,6 @@ impl Reify for State {
 							.align_y(YAlign::Top)
 							.character_height(0.1)
 							.build()
-							// .animation(|a| a.transform(ease_in_out(0.1))),
 							.animation(|a| a.transform(spring(0.1, 0.4))),
 					)
 					.children(make_triangles(0.3, 25, 0.01)),

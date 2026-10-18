@@ -121,6 +121,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 		accent_color: Arc::new(accent_color),
 		stop: Arc::new(AtomicBool::new(false)),
 		predicted_display_time: predicted_display_time_rx,
+		first_frame: Default::default(),
 	};
 
 	let mut state: State = initial_state();
@@ -200,6 +201,9 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 			projector.frame(&context, frame, &mut state);
 		}
 		if let Some(frame) = frames.last() {
+			context
+				.first_frame
+				.get_or_init(|| frame.predicted_display_time);
 			predicted_display_time.send_replace(Some(frame.predicted_display_time));
 		}
 		tracing::debug!("diff the tree");
