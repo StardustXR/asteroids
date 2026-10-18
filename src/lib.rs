@@ -132,6 +132,7 @@ impl<State: Reify> Projector<State> {
 				fields.root_element_path,
 				fields.inner_map,
 			);
+			fields.inner_map.tick(context);
 		});
 
 		// Move out fields by destructuring

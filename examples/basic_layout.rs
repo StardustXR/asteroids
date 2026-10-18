@@ -5,7 +5,7 @@ use stardust_xr_asteroids::{
 	ClientState, Context, CustomElement, Element, Entity, Migrate, Reify, Tasker, Transformable,
 	client,
 	components::{Containable, Derezzable, Poseable},
-	ease_in_out,
+	ease_in, ease_in_out,
 	elements::{Button, Lines, Model, Spatial, Text},
 	project_local_resources, spring,
 };
@@ -120,6 +120,10 @@ impl Reify for State {
 									spring(0.25, 0.25),
 								)
 								.character_height(0.0, spring(0.25, 0.25))
+							})
+							.vanish(|a| {
+								a.transform(Transform::from_translation([0.0; 3]), ease_in(0.2))
+									.character_height(0.0, ease_in(0.2))
 							})
 					}))
 					.children(make_triangles(0.3, 25, 0.01)),

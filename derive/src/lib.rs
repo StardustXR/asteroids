@@ -78,6 +78,11 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 		}
 	});
 
+	let vanishes = animated.iter().map(|(member, part, f)| {
+		let ty = &f.ty;
+		quote!((&#p::Probe::<#ty>::new()).assign(&mut self.#member, &_transition.#part.0);)
+	});
+
 	let mut element_generics = generics.clone();
 	element_generics
 		.params
@@ -183,6 +188,19 @@ pub fn derive_animatable(input: TokenStream) -> TokenStream {
 			) {
 				use #p::{ViaMix as _, ViaOther as _};
 				#(#arrives)*
+			}
+			fn vanish_to(&mut self, _transition: &Self::Transition) {
+				use #p::{ViaMix as _, ViaOther as _};
+				#(#vanishes)*
+			}
+			fn departure(_transition: &Self::Transition) -> Self::Animation {
+				#animation_ty {
+					#(#idents: ::core::clone::Clone::clone(&_transition.#idents.1),)*
+					_phantom: ::core::marker::PhantomData,
+				}
+			}
+			fn moving(_tracks: &Self::Tracks) -> bool {
+				false #(|| _tracks.#idents.is_some())*
 			}
 		}
 

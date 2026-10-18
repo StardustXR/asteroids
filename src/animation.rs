@@ -191,7 +191,7 @@ impl Mix for Color {
 pub trait Animatable: Sized {
 	/// one optional curve per field, what `.animation(|a| ..)` builds
 	type Animation: Default + Send + Sync + 'static;
-	/// one optional start value and curve per field, what `.appear(|a| ..)` builds
+	/// one optional value and curve per field, what `.appear(|a| ..)` and `.vanish(|a| ..)` build
 	type Transition: Default + Send + Sync + 'static;
 	type Tracks: Default + Send + Sync + 'static;
 	/// `self` is the fresh target and `old` is what's on screen, this blends `self` in place
@@ -212,6 +212,10 @@ pub trait Animatable: Sized {
 		tracks: &mut Self::Tracks,
 		now: Option<Timestamp>,
 	);
+	/// moves every field the transition covers to where it ends
+	fn vanish_to(&mut self, transition: &Self::Transition);
+	fn departure(transition: &Self::Transition) -> Self::Animation;
+	fn moving(tracks: &Self::Tracks) -> bool;
 }
 
 /// `CustomElement` for elements that `#[derive(Animatable)]`, the derive implements `CustomElement` from this
@@ -307,6 +311,7 @@ pub mod __private {
 			track: &mut Option<Track<T>>,
 			now: Option<Timestamp>,
 		);
+		fn assign(&self, v: &mut T, to: &Option<T>);
 	}
 	impl<T: Mix> ViaMix<T> for Probe<T> {
 		fn step(
@@ -319,6 +324,11 @@ pub mod __private {
 		) {
 			step(v, old, curve, track, now)
 		}
+		fn assign(&self, v: &mut T, to: &Option<T>) {
+			if let Some(to) = to {
+				*v = to.clone();
+			}
+		}
 	}
 	pub trait ViaOther<T> {
 		fn step(
@@ -330,6 +340,7 @@ pub mod __private {
 			_now: Option<Timestamp>,
 		) {
 		}
+		fn assign(&self, _v: &mut T, _to: &Option<T>) {}
 	}
 	impl<T> ViaOther<T> for &Probe<T> {}
 }
@@ -453,6 +464,29 @@ mod tests {
 		let mut new = dot();
 		new.blend(&shown, &animation, &mut tracks, at(0.5));
 		assert_eq!((new.x, new.y, new.z), (0.5, 1.5, 1.0));
+	}
+
+	#[test]
+	fn vanishes_to_end_value() {
+		#[derive(Debug, Clone, Animatable)]
+		struct Dot {
+			x: f32,
+			y: f32,
+		}
+		let vanish = DotTransition::default().x(0.0, linear(1.0));
+		let mut target = Dot { x: 1.0, y: 1.0 };
+		target.vanish_to(&vanish);
+		let curves = Dot::departure(&vanish);
+		let mut tracks = Default::default();
+
+		let mut shown = Dot { x: 1.0, y: 1.0 };
+		for (t, x, moving) in [(0.0, 1.0, true), (0.5, 0.5, true), (1.0, 0.0, false)] {
+			let mut next = target.clone();
+			next.blend(&shown, &curves, &mut tracks, at(t));
+			assert_eq!((next.x, next.y), (x, 1.0));
+			assert_eq!(Dot::moving(&tracks), moving);
+			shown = next;
+		}
 	}
 
 	#[test]

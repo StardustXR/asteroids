@@ -4,14 +4,14 @@ use crate::{
 	__private::AnimatedInner,
 	Animatable, Context, CustomElement, Element, ValidState,
 	element::{ElementDiffer, ElementWrapper},
-	inner::{ElementInner, ElementInnerMap},
+	inner::{ElementInner, ElementInnerMap, Vanishing},
 };
 use rustc_hash::FxHashMap;
 use stardust_xr_fusion::{client::FrameInfo, spatial::SpatialRef, types::Timestamp};
-use std::{fmt::Debug, hash::Hash, path::Path};
+use std::{any::Any, fmt::Debug, hash::Hash, marker::PhantomData, path::Path};
 use tokio::sync::watch;
 
-/// an element with `.animation(..)` or `.appear(..)` on it
+/// an element with `.animation(..)`, `.appear(..)` or `.vanish(..)` on it
 pub struct Animated<
 	State: ValidState,
 	E: Animatable + CustomElement<State>,
@@ -20,11 +20,14 @@ pub struct Animated<
 	wrapper: ElementWrapper<State, E, C>,
 	animation: E::Animation,
 	appear: Option<E::Transition>,
+	vanish: Option<Vanish<E>>,
 	creating: bool,
+	key: Option<u64>,
 }
 impl<State: ValidState, E, C: ElementDiffer<State>, I> ElementWrapper<State, E, C>
 where
 	E: Animatable + CustomElement<State, Inner = AnimatedInner<I, E::Tracks>>,
+	I: Send + Sync + 'static,
 {
 	pub fn animation(self, f: impl FnOnce(E::Animation) -> E::Animation) -> Animated<State, E, C> {
 		Animated::new(self).animation(f)
@@ -32,17 +35,26 @@ where
 	pub fn appear(self, f: impl FnOnce(E::Transition) -> E::Transition) -> Animated<State, E, C> {
 		Animated::new(self).appear(f)
 	}
+	pub fn vanish(self, f: impl FnOnce(E::Transition) -> E::Transition) -> Animated<State, E, C>
+	where
+		E: Clone,
+	{
+		Animated::new(self).vanish(f)
+	}
 }
 impl<State: ValidState, E, C: ElementDiffer<State>, I> Animated<State, E, C>
 where
 	E: Animatable + CustomElement<State, Inner = AnimatedInner<I, E::Tracks>>,
+	I: Send + Sync + 'static,
 {
 	fn new(wrapper: ElementWrapper<State, E, C>) -> Self {
 		Animated {
 			wrapper,
 			animation: Default::default(),
 			appear: None,
+			vanish: None,
 			creating: false,
+			key: None,
 		}
 	}
 	fn with<NC: ElementDiffer<State>>(
@@ -53,7 +65,9 @@ where
 			wrapper: f(self.wrapper),
 			animation: self.animation,
 			appear: self.appear,
+			vanish: self.vanish,
 			creating: self.creating,
+			key: self.key,
 		}
 	}
 
@@ -63,6 +77,17 @@ where
 	}
 	pub fn appear(mut self, f: impl FnOnce(E::Transition) -> E::Transition) -> Self {
 		self.appear = Some(f(self.appear.unwrap_or_default()));
+		self
+	}
+	pub fn vanish(mut self, f: impl FnOnce(E::Transition) -> E::Transition) -> Self
+	where
+		E: Clone,
+	{
+		let t = self.vanish.take().map(|v| v.transition).unwrap_or_default();
+		self.vanish = Some(Vanish {
+			transition: f(t),
+			clone: E::clone,
+		});
 		self
 	}
 
@@ -108,6 +133,7 @@ impl<State: ValidState, E, C: ElementDiffer<State>, I> ElementDiffer<State>
 	for Animated<State, E, C>
 where
 	E: Animatable + CustomElement<State, Inner = AnimatedInner<I, E::Tracks>>,
+	I: Send + Sync + 'static,
 {
 	fn create_inner_recursive(
 		&mut self,
@@ -117,6 +143,7 @@ where
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
+		self.key = Some(inner_key);
 		self.hold_at_start();
 		self.wrapper.create_inner_recursive(
 			inner_key,
@@ -147,6 +174,7 @@ where
 		element_path: &Path,
 		inner_map: &mut ElementInnerMap,
 	) {
+		self.key = Some(inner_key);
 		let now = context.predicted_display_time();
 		// the wrapper diffs straight from the creation struct when creation finishes, so the
 		// arrival is blended before that and its tracks wait here until the inner exists
@@ -189,11 +217,72 @@ where
 	}
 
 	fn destroy_inner_recursive(&self, inner_map: &mut ElementInnerMap) {
+		// inside another vanishing subtree this just rides along with it
+		if let Some(Vanish {
+			transition: t,
+			clone,
+		}) = &self.vanish
+			&& let Some(key) = self.key
+			&& let Some(shown) = &self.wrapper.custom_element
+			&& !inner_map.capturing()
+			&& let Some(ElementInner::Done(..)) = inner_map.get::<State, E>(key)
+			&& let Some(ElementInner::Done(inner, _)) = inner_map.take::<State, E>(key)
+		{
+			let children = inner_map.capture(|m| self.wrapper.destroy_inner_recursive(m));
+			let mut target = clone(shown);
+			target.vanish_to(t);
+			inner_map.vanish(Leaving {
+				_children: children,
+				inner,
+				shown: clone(shown),
+				target,
+				curves: E::departure(t),
+				clone: *clone,
+				state: PhantomData,
+			});
+			return;
+		}
 		self.wrapper.destroy_inner_recursive(inner_map);
 	}
 }
-impl<State: ValidState, E, C: ElementDiffer<State>, I> Element<State> for Animated<State, E, C> where
-	E: Animatable + CustomElement<State, Inner = AnimatedInner<I, E::Tracks>>
+
+// the old tree is only borrowed on removal, so vanishing has to clone the element out of it
+struct Vanish<E: Animatable> {
+	transition: E::Transition,
+	clone: fn(&E) -> E,
+}
+
+struct Leaving<State: ValidState, E: Animatable + CustomElement<State>> {
+	_children: Vec<Box<dyn Any + Send + Sync>>,
+	inner: E::Inner,
+	shown: E,
+	target: E,
+	curves: E::Animation,
+	clone: fn(&E) -> E,
+	state: PhantomData<fn() -> State>,
+}
+impl<State: ValidState, E, I> Vanishing for Leaving<State, E>
+where
+	E: Animatable + CustomElement<State, Inner = AnimatedInner<I, E::Tracks>>,
+	I: Send + Sync + 'static,
+{
+	fn tick(&mut self, context: &Context) -> bool {
+		let mut next = (self.clone)(&self.target);
+		next.blend(
+			&self.shown,
+			&self.curves,
+			&mut self.inner.tracks,
+			context.predicted_display_time(),
+		);
+		next.diff(&self.shown, context, &mut self.inner);
+		self.shown = next;
+		E::moving(&self.inner.tracks)
+	}
+}
+impl<State: ValidState, E, C: ElementDiffer<State>, I> Element<State> for Animated<State, E, C>
+where
+	E: Animatable + CustomElement<State, Inner = AnimatedInner<I, E::Tracks>>,
+	I: Send + Sync + 'static,
 {
 }
 impl<State: ValidState, E: Animatable + CustomElement<State>, C: ElementDiffer<State>> Debug
