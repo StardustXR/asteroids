@@ -95,32 +95,22 @@ impl<State: ValidState> AnimatedElement<State> for Dial<State> {
 		)
 		.await?;
 
-		let accent_color = context.accent_color.color();
-		let lines = Lines::new(
-			&context.stardust_client,
-			&info.child_space,
-			[
-				// circles are z-facing
-				circle(32, 0.0, self.radius)
-					.color(accent_color)
-					.transform(Mat4::from_rotation_x(FRAC_PI_2)),
-				circle(32, 0.0, self.radius)
-					.color(accent_color)
-					.transform(Mat4::from_rotation_x(FRAC_PI_2))
-					.transform(Mat4::from_translation(vec3(0.0, 0.0, self.thickness))),
-			]
-			.to_vec(),
-		)
-		.await?;
+		let lines = Lines::new(&context.stardust_client, &info.child_space, Vec::new()).await?;
 
-		Ok(DialInner {
+		let inner = DialInner {
 			spatial: info.child_space,
 			lines,
 			input,
 			single_action: SingleAction::default(),
 			field,
 			last_vector: None,
-		})
+		};
+		inner.lines.set_lines(inner.signifier_lines::<State>(
+			None,
+			self,
+			context.accent_color.color(),
+		))?;
+		Ok(inner)
 	}
 
 	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
