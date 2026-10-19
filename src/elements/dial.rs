@@ -3,7 +3,7 @@ use crate::{
 	custom::{FnWrapper, Transformable},
 };
 use derive_setters::Setters;
-use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, vec3};
+use glam::{FloatExt, Mat4, Vec2, Vec3, Vec3Swizzles, vec3};
 use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
@@ -11,7 +11,7 @@ use stardust_xr_fusion::{
 	fields::{Field, FieldExt, Shape},
 	spatial::{Spatial, Transform},
 	suis::InputDataType,
-	types::{Color, Vec3F, rgba_linear},
+	types::{Color, rgba_linear},
 };
 use stardust_xr_molecules::{
 	input_action::{InputQueue, SingleAction},
@@ -238,49 +238,53 @@ impl DialInner {
 		} else {
 			rgba_linear!(1.0, 1.0, 1.0, 0.5)
 		};
+		let shimmer = |line: Line| {
+			self.input.input().values().fold(line, |line, i| {
+				// the closest handler for an input gets the full accent, the rest fade out
+				let t = 1.0 / (i.semantic.order + 1) as f32;
+				let to = rgba_linear!(
+					color.c.r.lerp(accent_color.c.r, t),
+					color.c.g.lerp(accent_color.c.g, t),
+					color.c.b.lerp(accent_color.c.b, t),
+					color.a.lerp(accent_color.a, t)
+				);
+				let thickness = 1.0.lerp(1.25, t);
+				match i.input() {
+					InputDataType::Pointer { data: p } => {
+						line.shimmer_ray(p.pose.position, p.direction(), 0.025, 0.0, to, thickness)
+					}
+					InputDataType::Hand { data: h } => line.shimmer(
+						&[
+							h.index.tip.pose.position,
+							h.thumb.tip.pose.position,
+							h.stable_pinch_position(),
+						],
+						0.025,
+						0.0,
+						to,
+						thickness,
+					),
+					InputDataType::Tip { data: tip } => {
+						line.shimmer(&[tip.pose.position], 0.025, 0.0, to, thickness)
+					}
+				}
+			})
+		};
 		let mut lines = vec![
 			// circles are z-facing
-			circle(32, 0.0, decl.radius)
-				.color(color)
-				.thickness(0.001)
-				.transform(Mat4::from_rotation_x(FRAC_PI_2))
-				.shimmer(
-					&self
-						.single_action
-						.hovering()
-						.current()
-						.iter()
-						.flat_map(|i| -> Vec<Vec3F> {
-							match i.input() {
-								InputDataType::Pointer { data: pointer } => {
-									vec![
-										(Vec3::from(pointer.direction()) * pointer.deepest_point)
-											.into(),
-									]
-								}
-								InputDataType::Hand { data: hand } => {
-									vec![
-										hand.index.tip.pose.position,
-										hand.thumb.tip.pose.position,
-										hand.stable_pinch_position(),
-									]
-								}
-								InputDataType::Tip { data: tip } => {
-									vec![tip.pose.position]
-								}
-							}
-						})
-						.collect::<Vec<_>>(),
-					0.025,
-					0.0,
-					accent_color,
-					1.25,
-				),
-			circle(32, 0.0, decl.radius)
-				.color(color)
-				.thickness(0.001)
-				.transform(Mat4::from_rotation_x(FRAC_PI_2))
-				.transform(Mat4::from_translation(vec3(0.0, 0.0, decl.thickness))),
+			shimmer(
+				circle(32, 0.0, decl.radius)
+					.color(color)
+					.thickness(0.001)
+					.transform(Mat4::from_rotation_x(FRAC_PI_2)),
+			),
+			shimmer(
+				circle(32, 0.0, decl.radius)
+					.color(color)
+					.thickness(0.001)
+					.transform(Mat4::from_rotation_x(FRAC_PI_2))
+					.transform(Mat4::from_translation(vec3(0.0, 0.0, decl.thickness))),
+			),
 		];
 
 		if let Some(interact_point) = interact_point {
@@ -307,6 +311,7 @@ async fn asteroids_dial_element() {
 		elements::Dial,
 	};
 	use serde::{Deserialize, Serialize};
+	use stardust_xr_fusion::drawable::{XAlign, YAlign};
 
 	#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 	struct TestState {
@@ -365,6 +370,8 @@ async fn asteroids_dial_element() {
 					))
 					.character_height(0.005)
 					.pos([0.0, 0.0, 0.01])
+					.align_x(XAlign::Center)
+					.align_y(YAlign::Center)
 					.build(),
 				)
 		}
