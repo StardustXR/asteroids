@@ -703,7 +703,15 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 										new_element.diff(&decl, context, &mut element);
 										ElementInner::Done(element, child_spatial)
 									}
-									Err(err) => ElementInner::Error(err),
+									Err(err) => {
+										tracing::warn!(
+											element_type = std::any::type_name::<E>(),
+											?element_path,
+											%err,
+											"failed to create inner, children will use parent space"
+										);
+										ElementInner::Error(err)
+									}
 								};
 							}
 							Some(Err(join_error)) => {
@@ -737,6 +745,7 @@ impl<State: ValidState, E: CustomElement<State>, C: ElementDiffer<State>> Elemen
 		let child_parent_space = match inner_map.get::<State, E>(inner_key) {
 			Some(ElementInner::Done(_, spatial_ref)) => watch::channel(Some(spatial_ref.clone())).1,
 			Some(ElementInner::Creating(Some(v))) => v.pending_spatial.clone(),
+			Some(ElementInner::Error(_)) => parent_space,
 			_ => {
 				tracing::warn!("failed to get valid inner, using parent space");
 				parent_space
