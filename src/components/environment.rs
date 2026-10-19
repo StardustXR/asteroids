@@ -3,7 +3,7 @@ use gluon_ipc::Interface;
 use stardust_xr_fusion::query::QueryableInterface;
 use stardust_xr_molecules::environment::EnvironmentObject;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Environment;
 impl<State: ValidState> Component<State> for Environment {
 	type Inner = QueryableInterface;

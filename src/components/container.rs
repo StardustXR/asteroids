@@ -3,7 +3,7 @@ use gluon_ipc::Node;
 use stardust_xr_fusion::Error;
 use stardust_xr_molecules::container;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Container;
 impl<State: ValidState> Component<State> for Container {
 	type Inner = Node<container::Container>;

@@ -480,6 +480,16 @@ impl<State: ValidState, C: Component<State>> Entity<State, C> {
 		}
 	}
 }
+impl<State: ValidState, C: Component<State> + Clone> Clone for Entity<State, C> {
+	fn clone(&self) -> Self {
+		Self {
+			transform: self.transform,
+			field_shape: self.field_shape.clone(),
+			components: self.components.clone(),
+			state_phantom: self.state_phantom,
+		}
+	}
+}
 impl<State: ValidState, C: Component<State>> Transformable for Entity<State, C> {
 	fn transform(&self) -> &Transform {
 		&self.transform
