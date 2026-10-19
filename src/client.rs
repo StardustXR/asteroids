@@ -5,7 +5,7 @@ use crate::{
 };
 use gluon_ipc::Liveness;
 use serde::{Serialize, de::DeserializeOwned};
-use stardust_xr_fusion::{Result, client::FrameInfo};
+use stardust_xr_fusion::{Result, client::FrameInfo, types::Timestamp};
 use stardust_xr_molecules::accent_color::AccentColor;
 use std::{
 	fs::read_to_string,
@@ -14,6 +14,7 @@ use std::{
 		atomic::{AtomicBool, Ordering},
 		mpsc,
 	},
+	time::Duration,
 };
 use tokio::{
 	signal::unix::{SignalKind, signal},
@@ -143,6 +144,7 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 
 	let server = context.stardust_client.server();
 	tracing::debug!("entering frame select loop");
+	let mut gentle = true;
 	loop {
 		let first_frame = tokio::select! {
 			result = frame_awaiter.recv() => match result {
@@ -156,11 +158,13 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 				}
 				Err(_) => {
 					tracing::debug!("select: frame channel closed");
+					gentle = false;
 					break;
 				}
 			},
 			_ = server.death_notification() => {
 				tracing::debug!("select: server death notification");
+				gentle = false;
 				break;
 			}
 			_ = tokio::signal::ctrl_c() => {
@@ -214,8 +218,50 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 	}
 
 	save_dev_state(&state);
+	if gentle {
+		vanish(
+			&context,
+			&mut projector,
+			&mut frame_awaiter,
+			&predicted_display_time,
+		)
+		.await;
+	}
 	drop(projector);
 	Ok(())
+}
+
+// lets vanish animations play out before closing, a second ctrl+c skips them
+async fn vanish<State: ClientState>(
+	context: &Context,
+	projector: &mut Projector<State>,
+	frame_awaiter: &mut tokio::sync::broadcast::Receiver<FrameInfo>,
+	predicted_display_time: &watch::Sender<Option<Timestamp>>,
+) {
+	projector.leave();
+	if !projector.vanish(context) {
+		return;
+	}
+	let server = context.stardust_client.server();
+	let deadline = tokio::time::sleep(Duration::from_secs(2));
+	tokio::pin!(deadline);
+	loop {
+		tokio::select! {
+			result = frame_awaiter.recv() => match result {
+				Ok(frame) => {
+					predicted_display_time.send_replace(Some(frame.predicted_display_time));
+					if !projector.vanish(context) {
+						return;
+					}
+				}
+				Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+				Err(_) => return,
+			},
+			_ = server.death_notification() => return,
+			_ = tokio::signal::ctrl_c() => return,
+			_ = &mut deadline => return,
+		}
+	}
 }
 
 // pub struct Asteroids<State: ClientState> {

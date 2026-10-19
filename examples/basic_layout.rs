@@ -147,17 +147,29 @@ fn make_triangles(
 		let lines = lines::circle(3, 0.0, size)
 			.thickness(0.01)
 			.color(Hsv::new(Deg(color), 1.0, 1.0).to_rgba());
-		Lines::new([lines])
+		Lines::new([lines.clone()])
 			.pos([
 				0.0, 0.0, offset,
 			])
 			.rot(Quat::from_rotation_x(-FRAC_PI_2))
 			.build()
 			.appear(|a| a.lines(vec![], linear(0.5).delay(f * 0.03).via(trace)))
+			.vanish(|a| a.lines(vec![], linear(0.5).delay(f * 0.03).via(fade_out)))
 	})
 }
 
 #[allow(clippy::ptr_arg)]
 fn trace(_from: &Vec<Line>, to: &Vec<Line>, t: f32) -> Vec<Line> {
 	to.iter().map(|l| l.clone().trace(t)).collect()
+}
+
+#[allow(clippy::ptr_arg)]
+fn fade_out(from: &Vec<Line>, _to: &Vec<Line>, t: f32) -> Vec<Line> {
+	let mut v = from.clone();
+	for l in &mut v {
+		for l in &mut l.points {
+			l.color.a *= 1.0 - t;
+		}
+	}
+	v
 }

@@ -33,6 +33,8 @@ pub(crate) struct ElementInnerMap {
 	inners: FxHashMap<u64, Box<dyn Any + Send + Sync>>,
 	captured: Option<Vec<Box<dyn Any + Send + Sync>>>,
 	vanishing: Vec<Box<dyn Vanishing>>,
+	// while the client closes everything else stays put so its vanishes have something to sit in
+	leaving: bool,
 }
 impl ElementInnerMap {
 	pub fn insert<State: ValidState, E: CustomElement<State>>(
@@ -56,6 +58,9 @@ impl ElementInnerMap {
 		self.inners.get_mut(&key)?.downcast_mut()
 	}
 	pub fn remove(&mut self, key: u64) {
+		if self.leaving && self.captured.is_none() {
+			return;
+		}
 		if let Some(inner) = self.inners.remove(&key)
 			&& let Some(captured) = &mut self.captured
 		{
@@ -89,5 +94,12 @@ impl ElementInnerMap {
 	}
 	pub fn tick(&mut self, context: &Context) {
 		self.vanishing.retain_mut(|v| v.tick(context));
+	}
+	pub fn leave(&mut self, f: impl FnOnce(&mut Self)) {
+		self.leaving = true;
+		f(self);
+	}
+	pub fn vanishing(&self) -> bool {
+		!self.vanishing.is_empty()
 	}
 }

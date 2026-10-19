@@ -161,6 +161,25 @@ impl<State: Reify> Projector<State> {
 			},
 		));
 	}
+	/// starts every vanish in the tree and leaves the rest alone, for closing gently
+	pub fn leave(&mut self) {
+		if let Some(projector) = self.0.as_mut() {
+			projector.with_mut(|fields| {
+				fields
+					.inner_map
+					.leave(|m| fields.old.dynamic_destroy_inner_recursive(m))
+			});
+		}
+	}
+	/// false once nothing is left vanishing
+	pub fn vanish(&mut self, context: &Context) -> bool {
+		self.0.as_mut().is_some_and(|projector| {
+			projector.with_inner_map_mut(|m| {
+				m.tick(context);
+				m.vanishing()
+			})
+		})
+	}
 	pub fn frame(&mut self, context: &Context, info: &FrameInfo, state: &mut State) {
 		let Some(projector) = self.0.as_mut() else {
 			tracing::warn!("Projector not found on frame... how??");
