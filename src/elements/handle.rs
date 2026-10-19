@@ -121,9 +121,7 @@ impl<State: ValidState> AnimatedElement<State> for Handle<State> {
 			octahedron,
 			lines,
 		};
-		if self.head_offset != [0.0; 3].into() {
-			inner.update_signifiers(self.root_pos.into(), self.head_offset.into());
-		}
+		inner.update_signifiers(self.root_pos.into(), self.head_offset.into());
 		Ok(inner)
 	}
 
