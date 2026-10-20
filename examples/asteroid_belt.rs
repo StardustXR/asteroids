@@ -1,15 +1,18 @@
 use glam::{Quat, Vec3};
 use serde::{Deserialize, Serialize};
 use stardust_xr_asteroids::{
-	ClientState, Context, CustomElement, Element, Entity, Migrate, Reify, Tasker, Transformable,
-	client,
+	ClientState, Context, CustomElement, Element, Entity, Migrate, Mix, Reify, Tasker,
+	Transformable, client,
 	components::{Derezzable, Grabbable, Lines, PointerMode},
+	ease_in, ease_out,
 	elements::{BeamQuery, BeamQueryCache, Lines as LineSet, Spatial, Text},
+	linear, spring,
 };
 use stardust_xr_fusion::{
 	client::FrameInfo,
 	drawable::{Line, XAlign},
 	fields::Shape,
+	spatial::Transform,
 	types::{Posef, rgba_linear},
 };
 use stardust_xr_molecules::{
@@ -25,6 +28,7 @@ const NOSE: f32 = 0.07;
 const LASER: f32 = 2.5;
 const CHARGE: f32 = 0.4;
 const BIG: f32 = 0.07;
+const FLAPS: &str = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -63,6 +67,7 @@ impl Reify<RockProps> for Rock {
 		props: RockProps,
 	) -> impl Element<Self> {
 		let dt = props.dt;
+		let shrunk = Transform::from_translation_rotation_scale(self.pos, self.rot, [0.0; 3]);
 		Entity::new(Shape::Sphere {
 			radius: self.radius,
 		})
@@ -76,6 +81,8 @@ impl Reify<RockProps> for Rock {
 		.component(Derezzable::new(|r: &mut Self| r.shattered = true))
 		.component(Lines::new(self.lines(props)))
 		.build()
+		.appear(|a| a.transform(shrunk, spring(0.5, 0.4)))
+		.vanish(|a| a.transform(shrunk, ease_in(0.12)))
 	}
 }
 impl Rock {
@@ -127,20 +134,18 @@ impl Rock {
 	}
 }
 
-struct Spark {
+struct Burst {
+	id: u64,
 	pos: Vec3,
-	vel: Vec3,
+	sparks: Vec<Line>,
 	life: f32,
-	max: f32,
-	hot: f32,
 }
 
 #[derive(Default)]
 struct Run {
 	hits: BeamQueryCache<(DerezzableProxy,)>,
-	sparks: Vec<Spark>,
+	bursts: Vec<Burst>,
 	dt: f32,
-	time: f32,
 	charge: f32,
 	target: Option<u64>,
 	laser_end: f32,
@@ -185,7 +190,6 @@ impl ClientState for Belt {
 	fn on_frame(&mut self, info: &FrameInfo) {
 		let dt = info.delta.clamp(0.0, 0.1);
 		self.run.dt = dt;
-		self.run.time += dt;
 		self.run.banner -= dt;
 		if self.rocks.is_empty() {
 			self.next_wave();
@@ -201,12 +205,10 @@ impl ClientState for Belt {
 			.to_array();
 		}
 
-		self.run.sparks.retain(|s| s.life > 0.0);
-		for s in &mut self.run.sparks {
-			s.pos += s.vel * dt;
-			s.vel *= 1.0 - 2.5 * dt;
-			s.life -= dt;
-		}
+		self.run.bursts.retain_mut(|b| {
+			b.life -= dt;
+			b.life > 0.0
+		});
 
 		self.aim(dt);
 
@@ -279,19 +281,22 @@ impl Belt {
 				self.spawn_rock(pos + d * rock.radius * 0.4, v, rock.radius * 0.6);
 			}
 		}
-		for _ in 0..28 {
-			let d = self.rand_dir();
-			let vel = vel + d * (0.2 + self.rand() * 0.7);
-			let max = 0.3 + self.rand() * 0.7;
-			let hot = self.rand();
-			self.run.sparks.push(Spark {
-				pos,
-				vel,
-				life: max,
-				max,
-				hot,
-			});
-		}
+		let sparks = (0..28)
+			.map(|_| {
+				let p = vel * 0.5 + self.rand_dir() * (0.08 + self.rand() * 0.28);
+				let hot = self.rand();
+				// this is where the spark burns out, `fly` gets it there
+				line_from_points(vec![p * 0.85, p])
+					.color(rgba_linear!(1.0, 0.5 + 0.5 * hot, 0.25, 0.0))
+					.thickness(0.0)
+			})
+			.collect();
+		self.run.bursts.push(Burst {
+			id,
+			pos,
+			sparks,
+			life: 1.0,
+		});
 		if self.run.target == Some(id) {
 			self.run.target = None;
 			self.run.charge = 0.0;
@@ -360,8 +365,7 @@ impl Belt {
 		(self.run.charge / CHARGE).min(1.0)
 	}
 
-	fn ship_lines(&self) -> Vec<Line> {
-		let t = self.run.time;
+	fn ship_lines(&self, t: f32) -> Vec<Line> {
 		let hull_color = rgba_linear!(0.6, 0.95, 1.0, 1.0);
 		let mut hull = line_from_points(vec![
 			[0.0, 0.0, -0.05],
@@ -459,48 +463,12 @@ impl Belt {
 		lines
 	}
 
-	fn effect_lines(&self) -> Vec<Line> {
-		let sparks = self.run.sparks.iter().map(|s| {
-			let fade = s.life / s.max;
-			line_from_points(vec![
-				s.pos - s.vel * 0.03,
-				s.pos,
-			])
-			.color(rgba_linear!(
-				1.0,
-				0.5 + 0.5 * s.hot * fade,
-				0.25 * fade,
-				fade
-			))
-			.thickness(0.0005 + 0.003 * fade)
-		});
-		let mut corners = Vec::new();
-		for x in [-1.0, 1.0] {
-			for y in [-1.0, 1.0] {
-				for z in [-1.0, 1.0] {
-					let signs = Vec3::new(x, y, z);
-					let c = CENTER + HALF * signs;
-					for e in [
-						Vec3::X,
-						Vec3::Y,
-						Vec3::Z,
-					] {
-						corners.push(
-							line_from_points(vec![
-								c,
-								c - e * signs * 0.08,
-							])
-							.color(rgba_linear!(0.3, 0.8, 1.0, 0.5))
-							.thickness(0.0015),
-						);
-					}
-				}
-			}
-		}
-		sparks.chain(corners).collect()
-	}
-
 	fn ship(&self, context: &Context) -> impl Element<Self> + use<> {
+		let shrunk = Transform::from_translation_rotation_scale(
+			self.ship.position,
+			self.ship.orientation,
+			[0.0; 3],
+		);
 		Entity::new(Shape::Sphere { radius: 0.04 })
 			.pose(self.ship)
 			.component(
@@ -511,8 +479,10 @@ impl Belt {
 					.pointer_mode(PointerMode::Align),
 			)
 			.component(Derezzable::program_stopper(context))
-			.component(Lines::new(self.ship_lines()))
+			.component(Lines::new(self.ship_lines(context.time())))
 			.build()
+			.appear(|a| a.transform(shrunk, spring(0.6, 0.3)))
+			.vanish(|a| a.transform(shrunk, ease_in(0.3)))
 			.child(
 				BeamQuery::new_cached([0.0, 0.0, -NOSE], [0.0, 0.0, -1.0], |s: &mut Self| {
 					&mut s.run.hits
@@ -550,24 +520,116 @@ impl Reify for Belt {
 				);
 				(id, rock)
 			}))
-			.child(LineSet::new(self.effect_lines()).build())
+			.stable_children(self.run.bursts.iter().map(|b| {
+				let burst = LineSet::new(b.sparks.clone())
+					.pos(b.pos)
+					.build()
+					.appear(|a| a.lines(vec![], ease_out(1.0).via(fly)));
+				(b.id, burst)
+			}))
+			.child(LineSet::new(corners()).build())
 			.child(
 				Text::new(format!("SCORE {:05}    WAVE {}", self.score, self.wave))
 					.character_height(0.035)
 					.align_x(XAlign::Center)
 					.color(rgba_linear!(0.6, 0.95, 1.0, 1.0))
 					.pos(CENTER + Vec3::Y * (HALF.y + 0.08))
-					.build(),
+					.build()
+					.animation(|a| a.text(ease_out(0.6).via(tally))),
 			)
 			.maybe_child((self.run.banner > 0.0).then(|| {
 				Text::new(format!("WAVE {}", self.wave))
 					.character_height(0.09)
 					.align_x(XAlign::Center)
-					.color(rgba_linear!(1.0, 1.0, 1.0, self.run.banner.min(1.0)))
 					.pos(CENTER)
 					.build()
+					.appear(|a| a.text(String::new(), linear(1.0).via(flap)))
+					.vanish(|a| a.text(String::new(), linear(1.0).via(flap)))
 			}))
 	}
+}
+
+#[allow(clippy::ptr_arg)]
+fn fly(_from: &Vec<Line>, to: &Vec<Line>, t: f32) -> Vec<Line> {
+	to.iter()
+		.map(|l| {
+			let mut l = l.clone();
+			for p in &mut l.points {
+				p.point = (Vec3::from(p.point) * t).into();
+				p.color.a = 1.0 - t;
+				p.thickness = 0.0035 * (1.0 - t);
+			}
+			l
+		})
+		.collect()
+}
+
+// every character flips forward through FLAPS at the same rate and stops when it lands, like a
+// split-flap board, anything missing from FLAPS or past the end of a string counts as a blank
+#[allow(clippy::ptr_arg)]
+fn flap(from: &String, to: &String, t: f32) -> String {
+	let flaps: Vec<char> = FLAPS.chars().collect();
+	let n = flaps.len();
+	let at = |c: Option<char>| {
+		c.and_then(|c| flaps.iter().position(|&f| f == c))
+			.unwrap_or(0)
+	};
+	let flipped = (t * n as f32) as usize;
+	let (mut a, mut b) = (from.chars(), to.chars());
+	(0..from.chars().count().max(to.chars().count()))
+		.map(|_| {
+			let (i, j) = (at(a.next()), at(b.next()));
+			flaps[(i + ((j + n - i) % n).min(flipped)) % n]
+		})
+		.collect()
+}
+
+// rolls every number in the text up from what's shown, keeping its zero padding
+#[allow(clippy::ptr_arg)]
+fn tally(from: &String, to: &String, t: f32) -> String {
+	let digits = |c: char| c.is_ascii_digit();
+	let mut olds = from
+		.split(|c: char| !digits(c))
+		.filter_map(|n| n.parse::<u32>().ok());
+	let mut out = String::new();
+	let mut rest = to.as_str();
+	while let Some(i) = rest.find(digits) {
+		out += &rest[..i];
+		rest = &rest[i..];
+		let w = rest.find(|c: char| !digits(c)).unwrap_or(rest.len());
+		let new = rest[..w].parse::<u32>().unwrap_or(0) as f32;
+		let old = olds.next().map_or(new, |o| o as f32);
+		out += &format!("{:0w$}", old.mix(&new, t).round() as u32);
+		rest = &rest[w..];
+	}
+	out + rest
+}
+
+fn corners() -> Vec<Line> {
+	let mut corners = Vec::new();
+	for x in [-1.0, 1.0] {
+		for y in [-1.0, 1.0] {
+			for z in [-1.0, 1.0] {
+				let signs = Vec3::new(x, y, z);
+				let c = CENTER + HALF * signs;
+				for e in [
+					Vec3::X,
+					Vec3::Y,
+					Vec3::Z,
+				] {
+					corners.push(
+						line_from_points(vec![
+							c,
+							c - e * signs * 0.08,
+						])
+						.color(rgba_linear!(0.3, 0.8, 1.0, 0.5))
+						.thickness(0.0015),
+					);
+				}
+			}
+		}
+	}
+	corners
 }
 
 fn hash01(id: u64, k: u64, i: u64) -> f32 {
