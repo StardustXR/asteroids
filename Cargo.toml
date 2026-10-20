@@ -55,6 +55,8 @@ version = "0.53.0-rc.1"
 # path = "../molecules"
 
 [dev-dependencies]
+fastrand = "2.3.0"
+glam = { version = "0.33.7", features = ["serde"] }
 tokio = { version = "1.45.0", features = ["full"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-tracy = { version = "0.11.4", features = ["ondemand"] }

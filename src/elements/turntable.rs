@@ -501,7 +501,7 @@ async fn asteroids_turntable_element() {
 
 	impl ClientState for TestState {
 		const APP_ID: &'static str = "org.asteroids.turntable";
-		fn on_frame(&mut self, info: &FrameInfo) {
+		fn on_frame(&mut self, _context: &Context, info: &FrameInfo) {
 			self.elapsed += info.delta;
 		}
 	}

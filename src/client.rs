@@ -38,7 +38,7 @@ pub trait ClientState: Reify + Default + Migrate + Serialize + DeserializeOwned 
 	fn initial_state_update(&mut self) {}
 	/// Run this first thing any time! for tasks
 	fn on_start(&mut self, _context: &Context, _tasks: impl Tasker<Self>) {}
-	fn on_frame(&mut self, _info: &FrameInfo) {}
+	fn on_frame(&mut self, _context: &Context, _info: &FrameInfo) {}
 }
 
 fn initial_state<State: ClientState>() -> State {
@@ -201,14 +201,12 @@ pub async fn run<State: ClientState>(resources: &[&std::path::Path]) -> Result<(
 				info!("frame info {frame:#?}");
 				tracy_client::frame_mark();
 			}
-			state.on_frame(frame);
-			projector.frame(&context, frame, &mut state);
-		}
-		if let Some(frame) = frames.last() {
 			context
 				.first_frame
 				.get_or_init(|| frame.predicted_display_time);
 			predicted_display_time.send_replace(Some(frame.predicted_display_time));
+			state.on_frame(&context, frame);
+			projector.frame(&context, frame, &mut state);
 		}
 		tracing::debug!("diff the tree");
 		projector.update(&context, &mut state);

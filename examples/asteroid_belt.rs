@@ -38,75 +38,39 @@ async fn main() {
 	client::run::<Belt>(&[]).await.unwrap()
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+/// drifts in a straight line from where it was last thrown, wrapping around the belt
+#[derive(Serialize, Deserialize)]
 struct Rock {
 	id: u64,
-	pos: [f32; 3],
-	vel: [f32; 3],
-	rot: [f32; 4],
+	pos: Vec3,
+	vel: Vec3,
+	rot: Quat,
 	/// axis scaled by radians per second
-	spin: [f32; 3],
+	spin: Vec3,
+	thrown: f32,
 	radius: f32,
-	#[serde(skip)]
-	grabbed: bool,
-	/// the belt picks this up next frame, since splitting needs the whole belt
-	#[serde(skip)]
-	shattered: bool,
-}
-
-struct RockProps {
-	laser: (Vec3, Vec3),
-	heat: f32,
-	dt: f32,
-}
-impl Reify<RockProps> for Rock {
-	fn reify(
-		&self,
-		_context: &Context,
-		_tasks: impl Tasker<Self>,
-		props: RockProps,
-	) -> impl Element<Self> {
-		let dt = props.dt;
-		let shrunk = Transform::from_translation_rotation_scale(self.pos, self.rot, [0.0; 3]);
-		Entity::new(Shape::Sphere {
-			radius: self.radius,
-		})
-		.pos(self.pos)
-		.rot(self.rot)
-		.component(
-			Grabbable::new(move |r: &mut Self, pose| r.throw(pose, dt))
-				.grab_start(|r: &mut Self| r.grabbed = true)
-				.grab_stop(|r: &mut Self| r.grabbed = false),
-		)
-		.component(Derezzable::new(|r: &mut Self| r.shattered = true))
-		.component(Lines::new(self.lines(props)))
-		.build()
-		.appear(|a| a.transform(shrunk, spring(0.5, 0.4)))
-		.vanish(|a| a.transform(shrunk, ease_in(0.12)))
-	}
 }
 impl Rock {
-	fn throw(&mut self, pose: Posef, dt: f32) {
-		let p = Vec3::from(pose.position);
-		self.vel = ((p - Vec3::from_array(self.pos)) / dt.max(0.001))
-			.clamp_length_max(0.8)
-			.to_array();
-		self.pos = p.to_array();
-		self.rot = Quat::from(pose.orientation).to_array();
+	fn at(&self, time: f32) -> (Vec3, Quat) {
+		let t = time - self.thrown;
+		let lo = CENTER - HALF;
+		let p = self.pos + self.vel * t;
+		(
+			lo + (p - lo).rem_euclid(HALF * 2.0),
+			Quat::from_scaled_axis(self.spin * t) * self.rot,
+		)
 	}
 
-	fn lines(&self, props: RockProps) -> Vec<Line> {
-		let heat = props.heat;
-		let (origin, dir) = props.laser;
-		let inv = Quat::from_array(self.rot).inverse();
-		let lo = inv * (origin - Vec3::from_array(self.pos));
-		let ld = inv * dir;
+	fn lines(&self, pos: Vec3, rot: Quat, (origin, dir): (Vec3, Vec3), heat: f32) -> Vec<Line> {
+		let lo = rot.inverse() * (origin - pos);
+		let ld = rot.inverse() * dir;
 		let color = rgba_linear!(
 			0.75 + 0.25 * heat,
 			0.78 - 0.3 * heat,
 			0.85 - 0.7 * heat,
 			1.0
 		);
+		let mut rng = fastrand::Rng::with_seed(self.id);
 
 		[
 			(Vec3::X, Vec3::Y),
@@ -114,14 +78,12 @@ impl Rock {
 			(Vec3::Z, Vec3::X),
 		]
 		.into_iter()
-		.enumerate()
-		.map(|(k, (a, b))| {
+		.map(|(a, b)| {
 			let mut ring = line_from_points(
 				(0..11)
 					.map(|i| {
 						let t = i as f32 / 11.0 * TAU;
-						let jag = 0.72 + 0.4 * hash01(self.id, k as u64, i);
-						(a * t.cos() + b * t.sin()) * self.radius * jag
+						(a * t.cos() + b * t.sin()) * self.radius * (0.72 + 0.4 * rng.f32())
 					})
 					.collect(),
 			);
@@ -138,45 +100,51 @@ struct Burst {
 	id: u64,
 	pos: Vec3,
 	sparks: Vec<Line>,
-	life: f32,
+	born: f32,
+}
+
+struct Aim {
+	end: f32,
+	target: Option<u64>,
+	blocked: bool,
 }
 
 #[derive(Default)]
 struct Run {
 	hits: BeamQueryCache<(DerezzableProxy,)>,
 	bursts: Vec<Burst>,
-	dt: f32,
-	charge: f32,
-	target: Option<u64>,
-	laser_end: f32,
-	blocked: bool,
-	banner: f32,
+	/// the rock the beam is on and since when
+	lock: Option<(u64, f32)>,
 	ship_grabbed: bool,
+	/// `time` when this launch started, since `context.time()` starts over every launch
+	epoch: f32,
 }
 
 #[derive(Serialize, Deserialize)]
 struct Belt {
-	ship: Posef,
+	/// game seconds at the predicted display time, saved so the rocks pick up where they left off
+	time: f32,
+	ship_pos: Vec3,
+	ship_rot: Quat,
 	rocks: Vec<Rock>,
 	next_id: u64,
-	rng: u64,
 	score: u32,
 	wave: u32,
+	wave_started: f32,
 	#[serde(skip)]
 	run: Run,
 }
 impl Default for Belt {
 	fn default() -> Self {
 		Belt {
-			ship: Posef {
-				position: [0.0, -0.1, -0.3].into(),
-				..Default::default()
-			},
+			time: 0.0,
+			ship_pos: Vec3::new(0.0, -0.1, -0.3),
+			ship_rot: Quat::IDENTITY,
 			rocks: Vec::new(),
 			next_id: 0,
-			rng: 0x9E37_79B9_7F4A_7C15,
 			score: 0,
 			wave: 0,
+			wave_started: 0.0,
 			run: Run::default(),
 		}
 	}
@@ -187,79 +155,63 @@ impl Migrate for Belt {
 impl ClientState for Belt {
 	const APP_ID: &'static str = "org.asteroids.AsteroidBelt";
 
-	fn on_frame(&mut self, info: &FrameInfo) {
-		let dt = info.delta.clamp(0.0, 0.1);
-		self.run.dt = dt;
-		self.run.banner -= dt;
+	fn on_start(&mut self, _context: &Context, _tasks: impl Tasker<Self>) {
+		self.run.epoch = self.time;
 		if self.rocks.is_empty() {
 			self.next_wave();
 		}
+	}
 
-		let lo = CENTER - HALF;
-		for r in self.rocks.iter_mut().filter(|r| !r.grabbed) {
-			let p = Vec3::from_array(r.pos) + Vec3::from_array(r.vel) * dt;
-			r.pos = (lo + (p - lo).rem_euclid(HALF * 2.0)).to_array();
-			r.rot = (Quat::from_scaled_axis(Vec3::from_array(r.spin) * dt)
-				* Quat::from_array(r.rot))
-			.normalize()
-			.to_array();
-		}
-
-		self.run.bursts.retain_mut(|b| {
-			b.life -= dt;
-			b.life > 0.0
-		});
-
-		self.aim(dt);
-
-		let doomed: Vec<u64> = self
-			.rocks
-			.iter()
-			.filter(|r| r.shattered)
-			.map(|r| r.id)
-			.collect();
-		for id in doomed {
-			self.shatter(id);
+	// holding the beam on a rock is the one thing that really builds up frame by frame
+	fn on_frame(&mut self, context: &Context, _info: &FrameInfo) {
+		self.time = self.run.epoch + context.time();
+		let target = self.aim().target;
+		match self.run.lock {
+			Some((id, since)) if Some(id) == target => {
+				if self.time - since >= CHARGE {
+					self.shatter(id);
+				}
+			}
+			_ => self.run.lock = target.map(|id| (id, self.time)),
 		}
 	}
 }
 impl Belt {
-	fn rand(&mut self) -> f32 {
-		self.rng ^= self.rng << 13;
-		self.rng ^= self.rng >> 7;
-		self.rng ^= self.rng << 17;
-		(self.rng >> 40) as f32 / (1u64 << 24) as f32
-	}
-	fn rand_dir(&mut self) -> Vec3 {
-		Vec3::new(self.rand(), self.rand(), self.rand())
-			.mul_add(Vec3::splat(2.0), Vec3::NEG_ONE)
-			.normalize_or(Vec3::Y)
-	}
-
 	fn spawn_rock(&mut self, pos: Vec3, vel: Vec3, radius: f32) {
-		let id = self.next_id;
 		self.next_id += 1;
-		let spin = self.rand_dir() * (0.3 + self.rand() * 1.2);
 		self.rocks.push(Rock {
-			id,
-			pos: pos.to_array(),
-			vel: vel.to_array(),
-			rot: Quat::IDENTITY.to_array(),
-			spin: spin.to_array(),
+			id: self.next_id,
+			pos,
+			vel,
+			rot: Quat::IDENTITY,
+			spin: rand_dir() * (0.3 + fastrand::f32() * 1.2),
+			thrown: self.time,
 			radius,
-			grabbed: false,
-			shattered: false,
 		});
 	}
 	fn next_wave(&mut self) {
 		self.wave += 1;
-		self.run.banner = 2.5;
+		self.wave_started = self.time;
 		for _ in 0..3 + self.wave {
-			let p = Vec3::new(self.rand(), self.rand(), self.rand())
-				.mul_add(Vec3::splat(2.0), Vec3::NEG_ONE);
-			let v = self.rand_dir() * (0.02 + self.rand() * 0.03 + 0.005 * self.wave as f32);
+			let p = Vec3::new(fastrand::f32(), fastrand::f32(), fastrand::f32()) * 2.0 - 1.0;
+			let v = rand_dir() * (0.02 + fastrand::f32() * 0.03 + 0.005 * self.wave as f32);
 			self.spawn_rock(CENTER + p * HALF * 0.8, v, BIG);
 		}
+	}
+
+	fn throw(&mut self, id: u64, pose: Posef) {
+		let time = self.time;
+		let Some(r) = self.rocks.iter_mut().find(|r| r.id == id) else {
+			return;
+		};
+		let p = Vec3::from(pose.position);
+		// grab updates can land more than once a frame
+		if time > r.thrown {
+			r.vel = ((p - r.pos) / (time - r.thrown)).clamp_length_max(0.8);
+		}
+		r.pos = p;
+		r.rot = pose.orientation.into();
+		r.thrown = time;
 	}
 
 	fn shatter(&mut self, id: u64) {
@@ -267,53 +219,44 @@ impl Belt {
 			return;
 		};
 		let rock = self.rocks.swap_remove(i);
-		let pos = Vec3::from_array(rock.pos);
-		let vel = Vec3::from_array(rock.vel);
+		let (pos, _) = rock.at(self.time);
+		let vel = rock.vel;
 		self.score += match rock.radius {
 			r if r > 0.05 => 20,
 			r if r > 0.03 => 50,
 			_ => 100,
 		};
 		if rock.radius > 0.03 {
-			for _ in 0..2 + (self.rand() * 1.5) as usize {
-				let d = self.rand_dir();
-				let v = vel + d * (0.05 + self.rand() * 0.06);
+			for _ in 0..fastrand::usize(2..4) {
+				let d = rand_dir();
+				let v = vel + d * (0.05 + fastrand::f32() * 0.06);
 				self.spawn_rock(pos + d * rock.radius * 0.4, v, rock.radius * 0.6);
 			}
 		}
-		let sparks = (0..28)
-			.map(|_| {
-				let p = vel * 0.5 + self.rand_dir() * (0.08 + self.rand() * 0.28);
-				let hot = self.rand();
-				// this is where the spark burns out, `fly` gets it there
-				line_from_points(vec![p * 0.85, p])
-					.color(rgba_linear!(1.0, 0.5 + 0.5 * hot, 0.25, 0.0))
-					.thickness(0.0)
-			})
-			.collect();
+
+		let time = self.time;
+		self.run.bursts.retain(|b| time - b.born < 1.0);
 		self.run.bursts.push(Burst {
 			id,
 			pos,
-			sparks,
-			life: 1.0,
+			sparks: (0..28).map(|_| spark(vel)).collect(),
+			born: time,
 		});
-		if self.run.target == Some(id) {
-			self.run.target = None;
-			self.run.charge = 0.0;
+		if self.rocks.is_empty() {
+			self.next_wave();
 		}
 	}
 
 	fn laser(&self) -> (Vec3, Vec3) {
-		let rot = Quat::from(self.ship.orientation);
 		(
-			Vec3::from(self.ship.position) + rot * Vec3::new(0.0, 0.0, -NOSE),
-			rot * Vec3::NEG_Z,
+			self.ship_pos + self.ship_rot * Vec3::new(0.0, 0.0, -NOSE),
+			self.ship_rot * Vec3::NEG_Z,
 		)
 	}
 
 	// the beam hits anything derezzable, other apps included, so it only ever shatters
 	// rocks it can find in our own state and never calls derez over ipc
-	fn aim(&mut self, dt: f32) {
+	fn aim(&self) -> Aim {
 		let (origin, dir) = self.laser();
 		let nearest = self
 			.run
@@ -323,49 +266,44 @@ impl Belt {
 			.map(|q| q.ray.deepest_point_distance)
 			.min_by(f32::total_cmp);
 		let Some(d) = nearest else {
-			self.run.laser_end = LASER;
-			self.run.blocked = false;
-			self.run.target = None;
-			self.run.charge = 0.0;
-			return;
+			return Aim {
+				end: LASER,
+				target: None,
+				blocked: false,
+			};
 		};
 		let hit = origin + dir * d;
 		let rock = self
 			.rocks
 			.iter()
-			.find(|r| Vec3::from_array(r.pos).distance(hit) < r.radius * 1.3);
-
-		self.run.laser_end = match rock {
-			Some(r) => {
-				let c = Vec3::from_array(r.pos) - origin;
-				let along = c.dot(dir);
-				let miss = (c - dir * along).length_squared();
-				along - (r.radius * r.radius - miss).max(0.0).sqrt() * 0.8
-			}
-			None => d,
-		}
-		.max(0.0);
-		self.run.blocked = rock.is_none();
-
-		let id = rock.map(|r| r.id);
-		if id != self.run.target {
-			self.run.target = id;
-			self.run.charge = 0.0;
-		} else if let Some(id) = id {
-			self.run.charge += dt;
-			if self.run.charge >= CHARGE
-				&& let Some(r) = self.rocks.iter_mut().find(|r| r.id == id)
-			{
-				r.shattered = true;
-			}
+			.map(|r| (r, r.at(self.time).0))
+			.find(|(r, p)| p.distance(hit) < r.radius * 1.3);
+		let Some((r, p)) = rock else {
+			return Aim {
+				end: d,
+				target: None,
+				blocked: true,
+			};
+		};
+		let c = p - origin;
+		let along = c.dot(dir);
+		let miss = (c - dir * along).length_squared();
+		Aim {
+			end: (along - (r.radius * r.radius - miss).max(0.0).sqrt() * 0.8).max(0.0),
+			target: Some(r.id),
+			blocked: false,
 		}
 	}
 
-	fn heat(&self) -> f32 {
-		(self.run.charge / CHARGE).min(1.0)
+	fn heat(&self, id: u64) -> f32 {
+		match self.run.lock {
+			Some((locked, since)) if locked == id => ((self.time - since) / CHARGE).min(1.0),
+			_ => 0.0,
+		}
 	}
 
-	fn ship_lines(&self, t: f32) -> Vec<Line> {
+	fn ship_lines(&self, aim: &Aim) -> Vec<Line> {
+		let t = self.time;
 		let hull_color = rgba_linear!(0.6, 0.95, 1.0, 1.0);
 		let mut hull = line_from_points(vec![
 			[0.0, 0.0, -0.05],
@@ -411,10 +349,10 @@ impl Belt {
 		}
 
 		let start = Vec3::new(0.0, 0.0, -NOSE);
-		let end = start + Vec3::NEG_Z * self.run.laser_end;
-		let heat = self.heat();
+		let end = start + Vec3::NEG_Z * aim.end;
+		let heat = aim.target.map_or(0.0, |id| self.heat(id));
 		let pulse = 1.0 + 0.25 * (t * 30.0).sin();
-		let (color, thickness) = match (self.run.blocked, self.run.target) {
+		let (color, thickness) = match (aim.blocked, aim.target) {
 			(true, _) => (rgba_linear!(1.0, 0.7, 0.1, 1.0), 0.002),
 			(_, Some(_)) => (
 				rgba_linear!(1.0, 0.25 + 0.75 * heat, 0.15 + 0.85 * heat, 1.0),
@@ -428,7 +366,7 @@ impl Belt {
 				.thickness(thickness),
 		);
 
-		if self.run.blocked {
+		if aim.blocked {
 			let s = 0.015;
 			for (a, b) in [
 				(Vec3::X, Vec3::Y),
@@ -443,7 +381,7 @@ impl Belt {
 					.thickness(0.003),
 				);
 			}
-		} else if self.run.target.is_some() {
+		} else if aim.target.is_some() {
 			let s = 0.008 + 0.02 * heat * pulse;
 			for a in [
 				Vec3::X,
@@ -463,23 +401,24 @@ impl Belt {
 		lines
 	}
 
-	fn ship(&self, context: &Context) -> impl Element<Self> + use<> {
-		let shrunk = Transform::from_translation_rotation_scale(
-			self.ship.position,
-			self.ship.orientation,
-			[0.0; 3],
-		);
+	fn ship(&self, context: &Context, aim: &Aim) -> impl Element<Self> + use<> {
+		let shrunk =
+			Transform::from_translation_rotation_scale(self.ship_pos, self.ship_rot, [0.0; 3]);
 		Entity::new(Shape::Sphere { radius: 0.04 })
-			.pose(self.ship)
+			.pos(self.ship_pos)
+			.rot(self.ship_rot)
 			.component(
-				Grabbable::new(|s: &mut Self, pose| s.ship = pose)
-					.grab_start(|s: &mut Self| s.run.ship_grabbed = true)
-					.grab_stop(|s: &mut Self| s.run.ship_grabbed = false)
-					.max_distance(0.08)
-					.pointer_mode(PointerMode::Align),
+				Grabbable::new(|s: &mut Self, pose| {
+					s.ship_pos = pose.position.into();
+					s.ship_rot = pose.orientation.into();
+				})
+				.grab_start(|s: &mut Self| s.run.ship_grabbed = true)
+				.grab_stop(|s: &mut Self| s.run.ship_grabbed = false)
+				.max_distance(0.08)
+				.pointer_mode(PointerMode::Align),
 			)
 			.component(Derezzable::program_stopper(context))
-			.component(Lines::new(self.ship_lines(context.time())))
+			.component(Lines::new(self.ship_lines(aim)))
 			.build()
 			.appear(|a| a.transform(shrunk, spring(0.6, 0.3)))
 			.vanish(|a| a.transform(shrunk, ease_in(0.3)))
@@ -493,40 +432,45 @@ impl Belt {
 			)
 	}
 
-	fn rock_props(&self, r: &Rock) -> RockProps {
-		RockProps {
-			laser: self.laser(),
-			heat: if self.run.target == Some(r.id) {
-				self.heat()
-			} else {
-				0.0
-			},
-			dt: self.run.dt,
-		}
+	fn rock(&self, r: &Rock) -> impl Element<Self> + use<> {
+		let id = r.id;
+		let (pos, rot) = r.at(self.time);
+		let shrunk = Transform::from_translation_rotation_scale(pos, rot, [0.0; 3]);
+		Entity::new(Shape::Sphere { radius: r.radius })
+			.pos(pos)
+			.rot(rot)
+			.component(Grabbable::new(move |s: &mut Self, pose| s.throw(id, pose)))
+			.component(Derezzable::new(move |s: &mut Self| s.shatter(id)))
+			.component(Lines::new(r.lines(pos, rot, self.laser(), self.heat(id))))
+			.build()
+			.appear(|a| a.transform(shrunk, spring(0.5, 0.4)))
+			.vanish(|a| a.transform(shrunk, ease_in(0.12)))
 	}
 }
 impl Reify for Belt {
-	fn reify(&self, context: &Context, tasks: impl Tasker<Self>, _props: ()) -> impl Element<Self> {
+	fn reify(
+		&self,
+		context: &Context,
+		_tasks: impl Tasker<Self>,
+		_props: (),
+	) -> impl Element<Self> {
 		Spatial::default()
 			.build()
-			.child(self.ship(context))
-			.stable_children(self.rocks.iter().map(|r| {
-				let id = r.id;
-				let rock = r.reify_substate(
-					context,
-					tasks.clone(),
-					self.rock_props(r),
-					move |s: &mut Self| s.rocks.iter_mut().find(|r| r.id == id),
-				);
-				(id, rock)
-			}))
-			.stable_children(self.run.bursts.iter().map(|b| {
-				let burst = LineSet::new(b.sparks.clone())
-					.pos(b.pos)
-					.build()
-					.appear(|a| a.lines(vec![], ease_out(1.0).via(fly)));
-				(b.id, burst)
-			}))
+			.child(self.ship(context, &self.aim()))
+			.stable_children(self.rocks.iter().map(|r| (r.id, self.rock(r))))
+			.stable_children(
+				self.run
+					.bursts
+					.iter()
+					.filter(|b| self.time - b.born < 1.0)
+					.map(|b| {
+						let burst = LineSet::new(b.sparks.clone())
+							.pos(b.pos)
+							.build()
+							.appear(|a| a.lines(vec![], ease_out(1.0).via(fly)));
+						(b.id, burst)
+					}),
+			)
 			.child(LineSet::new(corners()).build())
 			.child(
 				Text::new(format!("SCORE {:05}    WAVE {}", self.score, self.wave))
@@ -537,7 +481,7 @@ impl Reify for Belt {
 					.build()
 					.animation(|a| a.text(ease_out(0.6).via(tally))),
 			)
-			.maybe_child((self.run.banner > 0.0).then(|| {
+			.maybe_child((self.time - self.wave_started < 2.5).then(|| {
 				Text::new(format!("WAVE {}", self.wave))
 					.character_height(0.09)
 					.align_x(XAlign::Center)
@@ -547,6 +491,18 @@ impl Reify for Belt {
 					.vanish(|a| a.text(String::new(), linear(1.0).via(flap)))
 			}))
 	}
+}
+
+fn rand_dir() -> Vec3 {
+	(Vec3::new(fastrand::f32(), fastrand::f32(), fastrand::f32()) * 2.0 - 1.0).normalize_or(Vec3::Y)
+}
+
+fn spark(vel: Vec3) -> Line {
+	let p = vel * 0.5 + rand_dir() * (0.08 + fastrand::f32() * 0.28);
+	// this is where the spark burns out, `fly` gets it there
+	line_from_points(vec![p * 0.85, p])
+		.color(rgba_linear!(1.0, 0.5 + 0.5 * fastrand::f32(), 0.25, 0.0))
+		.thickness(0.0)
 }
 
 #[allow(clippy::ptr_arg)]
@@ -630,13 +586,4 @@ fn corners() -> Vec<Line> {
 		}
 	}
 	corners
-}
-
-fn hash01(id: u64, k: u64, i: u64) -> f32 {
-	let mut x = id
-		.wrapping_mul(0x9E37_79B9_7F4A_7C15)
-		.wrapping_add(k << 32 | i);
-	x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-	x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-	((x ^ (x >> 31)) >> 40) as f32 / (1u64 << 24) as f32
 }
