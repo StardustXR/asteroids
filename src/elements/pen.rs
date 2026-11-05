@@ -222,7 +222,7 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 		inner
 			.draw_action
 			.update(&inner.input, &|i| match i.input() {
-				InputDataType::Hand { data: h } => h.pinch_strength() > self.hand_draw_threshold,
+				InputDataType::Hand { data: h } => index_thumb_pinch_strength(h) > self.hand_draw_threshold,
 				_ => i.datamap_f32("select") > self.tip_draw_threshold,
 			});
 
@@ -312,15 +312,13 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 			inner.erasing = false;
 			PenState::StoppedErasing
 		} else if match actor.input() {
-			// Scope draw to the *grab actor* only. draw_action.currently_acting() is any
-			// input in the queue, so the other hand's pinch could keep a stroke alive after
-			// the drawing hand unpinched.
-			InputDataType::Hand { data: h } => h.pinch_strength() > self.hand_draw_threshold,
+			// Scope draw to the *grab actor* only; index–thumb distance (not protocol
+			// pinch_strength, which stays high while grab fingers stay curled).
+			InputDataType::Hand { data: h } => index_thumb_pinch_strength(h) > self.hand_draw_threshold,
 			_ => actor.datamap_f32("select") > self.tip_draw_threshold,
 		} {
 			let pressure = match actor.input() {
-				InputDataType::Hand { data: h } => h
-					.pinch_strength()
+				InputDataType::Hand { data: h } => index_thumb_pinch_strength(h)
 					.map_range(self.hand_draw_threshold..1.0, 0.0..1.0),
 				_ => actor
 					.datamap_f32("select")
@@ -341,6 +339,23 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 
 		(self.update.0)(state, pen_state, pos.into(), rot.into());
 	}
+}
+
+
+/// Pinch strength from **index–thumb tip distance only**.
+///
+/// Protocol `Hand::pinch_strength` takes the min distance from thumb to *any* fingertip.
+/// While holding a pen, ring/little (and often middle) stay curled for the grab, so that
+/// min stays tiny and strength sticks at ~1.0 even after the user opens index+thumb to
+/// "release" the draw. Index–thumb alone matches the gesture users intend for draw.
+fn index_thumb_pinch_strength(h: &Hand) -> f32 {
+	let thumb = Vec3::from(h.thumb.tip.pose.position);
+	let index = Vec3::from(h.index.tip.pose.position);
+	let d = thumb.distance(index);
+	// Absolute metres (adult hand): 5cm → 0 (open), 1.5cm → 1 (pinched)
+	const D_OPEN: f32 = 0.050;
+	const D_PINCH: f32 = 0.015;
+	((D_OPEN - d) / (D_OPEN - D_PINCH)).clamp(0.0, 1.0)
 }
 
 // bounding box center rather than centroid, the fingers would drag a centroid off center
