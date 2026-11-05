@@ -227,6 +227,17 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 			});
 
 		let Some(actor) = inner.grab_action.actor().cloned() else {
+			// Hand/controller left or grab dropped: always end an in-progress stroke/erase
+			// before Floating. Skipping StoppedDrawing left clients mid-stroke with
+			// inner.drawing still true so the next grab continued the old stroke.
+			if inner.drawing {
+				inner.drawing = false;
+				(self.update.0)(state, PenState::StoppedDrawing, self.pos, self.rot);
+			}
+			if inner.erasing {
+				inner.erasing = false;
+				(self.update.0)(state, PenState::StoppedErasing, self.pos, self.rot);
+			}
 			if inner.grab_action.actor_stopped() {
 				(self.update.0)(state, PenState::Floating, self.pos, self.rot);
 			}
@@ -300,7 +311,13 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 		} else if inner.erasing {
 			inner.erasing = false;
 			PenState::StoppedErasing
-		} else if !inner.draw_action.currently_acting().is_empty() {
+		} else if match actor.input() {
+			// Scope draw to the *grab actor* only. draw_action.currently_acting() is any
+			// input in the queue, so the other hand's pinch could keep a stroke alive after
+			// the drawing hand unpinched.
+			InputDataType::Hand { data: h } => h.pinch_strength() > self.hand_draw_threshold,
+			_ => actor.datamap_f32("select") > self.tip_draw_threshold,
+		} {
 			let pressure = match actor.input() {
 				InputDataType::Hand { data: h } => h
 					.pinch_strength()
