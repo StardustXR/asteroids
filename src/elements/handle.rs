@@ -206,10 +206,10 @@ impl HandleInner {
 		self.grab_action.update(
 			false,
 			&self.input,
-			|i| i.distance() < 0.05,
+			|i| i.distance() < 0.01,
 			|i| match i.input() {
-				InputDataType::Hand { .. } => i.datamap_f32("pinch_strength") > 0.8,
-				_ => i.datamap_f32("grab") > 0.5,
+				InputDataType::Hand { .. } => i.datamap_f32("pinch_strength") > 0.9,
+				_ => i.datamap_f32("grab") > 0.8,
 			},
 		);
 
