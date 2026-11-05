@@ -160,6 +160,15 @@ impl DialInner {
 		if !self.input.handle_events() {
 			return decl.current_value;
 		}
+		let scroll: f32 = self
+			.input
+			.input()
+			.values()
+			.filter(|i| matches!(i.input(), InputDataType::Pointer { .. }) && i.distance() < 0.0)
+			.map(|i| i.datamap_vec2("scroll_discrete").y)
+			.sum();
+		let current_value = (decl.current_value + scroll * decl.turn_unit_amount * 0.1)
+			.clamp(decl.range.start, decl.range.end);
 		self.single_action.update(
 			false,
 			&self.input,
@@ -177,7 +186,7 @@ impl DialInner {
 			let _ = self
 				.lines
 				.set_lines(self.signifier_lines::<State>(None, decl, accent_color));
-			return decl.current_value;
+			return current_value;
 		};
 		if actor.distance() <= 0.0 {
 			self.last_vector.take();
@@ -208,7 +217,7 @@ impl DialInner {
 			// technically not the most efficient to use turns but like we need good UX
 			let delta_turns = delta_rad / TAU;
 			let delta = delta_turns * decl.turn_unit_amount;
-			let new_value = decl.current_value + delta;
+			let new_value = current_value + delta;
 
 			self.last_vector.replace(interact_point);
 			new_value.clamp(decl.range.start, decl.range.end)
@@ -216,7 +225,7 @@ impl DialInner {
 			if actor.distance() > 0.0 {
 				self.last_vector.replace(interact_point);
 			}
-			decl.current_value
+			current_value
 		};
 
 		let _ = self.lines.set_lines(self.signifier_lines::<State>(
