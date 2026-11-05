@@ -14,7 +14,7 @@ use stardust_xr_fusion::{
 		color::{AlphaColor, Rgb, color_space::LinearRgb, rgba_linear},
 	},
 };
-use stardust_xr_molecules::input_action::{InputQueue, SimpleAction, SingleAction};
+use stardust_xr_molecules::input_action::{InputQueue, SingleAction};
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -40,7 +40,6 @@ pub struct PenInner {
 	pointer_distance: f32,
 	input: InputQueue,
 	grab_action: SingleAction,
-	draw_action: SimpleAction,
 	drawing: bool,
 	erasing: bool,
 }
@@ -55,6 +54,7 @@ pub struct Pen<State: ValidState> {
 	/// lower than the grab threshold so tracking jitter doesn't drop the pen
 	pub hand_release_threshold: f32,
 	pub hand_grab_threshold: f32,
+	/// Index–thumb draw strength: 1 at 15 mm apart, 0 at 50 mm apart.
 	pub hand_draw_threshold: f32,
 	pub tip_draw_threshold: f32,
 	pub hand_erase_threshold: f32,
@@ -165,7 +165,6 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 			input,
 			pointer_distance: 0.0,
 			grab_action: Default::default(),
-			draw_action: Default::default(),
 			drawing: false,
 			erasing: false,
 		})
@@ -219,24 +218,12 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 			},
 		);
 
-		inner
-			.draw_action
-			.update(&inner.input, &|i| match i.input() {
-				InputDataType::Hand { data: h } => index_thumb_pinch_strength(h) > self.hand_draw_threshold,
-				_ => i.datamap_f32("select") > self.tip_draw_threshold,
-			});
-
 		let Some(actor) = inner.grab_action.actor().cloned() else {
-			// Hand/controller left or grab dropped: always end an in-progress stroke/erase
-			// before Floating. Skipping StoppedDrawing left clients mid-stroke with
-			// inner.drawing still true so the next grab continued the old stroke.
-			if inner.drawing {
-				inner.drawing = false;
-				(self.update.0)(state, PenState::StoppedDrawing, self.pos, self.rot);
-			}
-			if inner.erasing {
-				inner.erasing = false;
-				(self.update.0)(state, PenState::StoppedErasing, self.pos, self.rot);
+			for pen_state in stop_activity(&mut inner.drawing, &mut inner.erasing)
+				.into_iter()
+				.flatten()
+			{
+				(self.update.0)(state, pen_state, self.pos, self.rot);
 			}
 			if inner.grab_action.actor_stopped() {
 				(self.update.0)(state, PenState::Floating, self.pos, self.rot);
@@ -294,11 +281,7 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 			}
 		};
 
-		let pen_state = if !inner.grab_action.actor_acting() {
-			inner.drawing = false;
-			inner.erasing = false;
-			PenState::Floating
-		} else if erasing {
+		let pen_state = if erasing {
 			if inner.drawing {
 				inner.drawing = false;
 				PenState::StoppedDrawing
@@ -311,43 +294,60 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 		} else if inner.erasing {
 			inner.erasing = false;
 			PenState::StoppedErasing
-		} else if match actor.input() {
-			// Scope draw to the *grab actor* only; index–thumb distance (not protocol
-			// pinch_strength, which stays high while grab fingers stay curled).
-			InputDataType::Hand { data: h } => index_thumb_pinch_strength(h) > self.hand_draw_threshold,
-			_ => actor.datamap_f32("select") > self.tip_draw_threshold,
-		} {
-			let pressure = match actor.input() {
-				InputDataType::Hand { data: h } => index_thumb_pinch_strength(h)
-					.map_range(self.hand_draw_threshold..1.0, 0.0..1.0),
-				_ => actor
-					.datamap_f32("select")
-					.map_range(self.tip_draw_threshold..1.0, 0.0..1.0),
-			};
-			if !inner.drawing {
-				inner.drawing = true;
-				PenState::StartedDrawing(pressure)
-			} else {
-				PenState::Drawing(pressure)
-			}
-		} else if inner.drawing {
-			inner.drawing = false;
-			PenState::StoppedDrawing
 		} else {
-			PenState::Grabbed
+			drawing_state(
+				&mut inner.drawing,
+				draw_pressure(
+					actor.input(),
+					actor.datamap_f32("select"),
+					self.hand_draw_threshold,
+					self.tip_draw_threshold,
+				),
+			)
 		};
 
 		(self.update.0)(state, pen_state, pos.into(), rot.into());
 	}
 }
 
+// Stop events must precede Floating, and clearing both flags makes re-grabbing start fresh.
+fn stop_activity(drawing: &mut bool, erasing: &mut bool) -> [Option<PenState>; 2] {
+	[
+		std::mem::take(drawing).then_some(PenState::StoppedDrawing),
+		std::mem::take(erasing).then_some(PenState::StoppedErasing),
+	]
+}
 
-/// Pinch strength from **index–thumb tip distance only**.
-///
-/// Protocol `Hand::pinch_strength` takes the min distance from thumb to *any* fingertip.
-/// While holding a pen, ring/little (and often middle) stay curled for the grab, so that
-/// min stays tiny and strength sticks at ~1.0 even after the user opens index+thumb to
-/// "release" the draw. Index–thumb alone matches the gesture users intend for draw.
+fn drawing_state(drawing: &mut bool, pressure: Option<f32>) -> PenState {
+	match pressure {
+		Some(p) => {
+			if std::mem::replace(drawing, true) {
+				PenState::Drawing(p)
+			} else {
+				PenState::StartedDrawing(p)
+			}
+		}
+		None if std::mem::take(drawing) => PenState::StoppedDrawing,
+		None => PenState::Grabbed,
+	}
+}
+
+// Only the grab actor is considered, never other inputs in the queue.
+fn draw_pressure(
+	input: &InputDataType,
+	select: f32,
+	hand_threshold: f32,
+	tip_threshold: f32,
+) -> Option<f32> {
+	let (strength, threshold) = match input {
+		InputDataType::Hand { data: h } => (index_thumb_pinch_strength(h), hand_threshold),
+		_ => (select, tip_threshold),
+	};
+	(strength > threshold).then(|| strength.map_range(threshold..1.0, 0.0..1.0))
+}
+
+/// Index–thumb draw gesture, independent of the other fingers curled to hold the pen.
+/// `Hand::pinch_strength` instead accepts the nearest fingertip to the thumb.
 fn index_thumb_pinch_strength(h: &Hand) -> f32 {
 	let thumb = Vec3::from(h.thumb.tip.pose.position);
 	let index = Vec3::from(h.index.tip.pose.position);
@@ -385,6 +385,137 @@ fn fist_sphere(h: &Hand) -> (Vec3, f32) {
 		c,
 		joints.map(|(p, r)| p.distance(c) + r).fold(0.0, f32::max),
 	)
+}
+
+#[cfg(test)]
+mod pinch_tests {
+	use super::*;
+	use stardust_xr_fusion::{
+		suis::{Chirality, Joint, Thumb},
+		types::Posef,
+	};
+
+	fn joint(x: f32) -> Joint {
+		Joint {
+			pose: Posef {
+				position: [x, 0.0, 0.0].into(),
+				orientation: Quat::IDENTITY.into(),
+			},
+			radius: 0.005,
+			distance: 0.0,
+		}
+	}
+
+	fn finger(tip_x: f32) -> Finger {
+		Finger {
+			tip: joint(tip_x),
+			distal: joint(0.01),
+			intermediate: joint(0.0),
+			proximal: joint(0.0),
+			metacarpal: joint(-0.06),
+		}
+	}
+
+	fn hand(index_distance: f32) -> Hand {
+		Hand {
+			chirality: Chirality::Right,
+			thumb: Thumb {
+				tip: joint(0.0),
+				distal: joint(0.0),
+				proximal: joint(0.0),
+				metacarpal: joint(-0.06),
+			},
+			index: finger(index_distance),
+			middle: finger(0.005),
+			ring: finger(0.005),
+			little: finger(0.005),
+			palm: joint(0.0),
+			wrist: joint(0.0),
+			elbow: None,
+		}
+	}
+
+	#[test]
+	fn open_index_releases_even_with_curled_grab_fingers() {
+		let h = hand(0.04);
+		assert_eq!(
+			h.pinch_strength(),
+			1.0,
+			"old any-finger signal stays pinched"
+		);
+		assert!(index_thumb_pinch_strength(&h) < 0.3);
+		let actor = InputDataType::Hand { data: h };
+		assert!(draw_pressure(&actor, 1.0, 0.6928417, 0.1).is_none());
+	}
+
+	#[test]
+	fn index_thumb_distance_mapping_is_bounded() {
+		for (distance, expected) in [
+			(0.0, 1.0),
+			(0.015, 1.0),
+			(0.0325, 0.5),
+			(0.05, 0.0),
+			(0.1, 0.0),
+		] {
+			assert!((index_thumb_pinch_strength(&hand(distance)) - expected).abs() < 1e-6);
+		}
+	}
+
+	#[test]
+	fn another_pinched_hand_cannot_keep_the_grab_actor_drawing() {
+		let actor = InputDataType::Hand { data: hand(0.04) };
+		let other = InputDataType::Hand { data: hand(0.015) };
+		assert!(draw_pressure(&other, 0.0, 0.7, 0.1).is_some());
+		assert!(draw_pressure(&actor, 0.0, 0.7, 0.1).is_none());
+	}
+
+	#[test]
+	fn drawing_stops_once_then_regrab_starts_fresh() {
+		let (mut drawing, mut erasing) = (false, false);
+		assert!(matches!(
+			drawing_state(&mut drawing, Some(1.0)),
+			PenState::StartedDrawing(_)
+		));
+		assert!(matches!(
+			drawing_state(&mut drawing, Some(1.0)),
+			PenState::Drawing(_)
+		));
+		let [stop, erase] = stop_activity(&mut drawing, &mut erasing);
+		assert!(matches!(stop, Some(PenState::StoppedDrawing)));
+		assert!(erase.is_none());
+		assert!(!drawing);
+		assert!(
+			stop_activity(&mut drawing, &mut erasing)
+				.iter()
+				.all(Option::is_none)
+		);
+		assert!(matches!(
+			drawing_state(&mut drawing, Some(1.0)),
+			PenState::StartedDrawing(_)
+		));
+	}
+
+	#[test]
+	fn unpinch_stops_then_returns_to_grabbed() {
+		let mut drawing = true;
+		assert!(matches!(
+			drawing_state(&mut drawing, None),
+			PenState::StoppedDrawing
+		));
+		assert!(matches!(
+			drawing_state(&mut drawing, None),
+			PenState::Grabbed
+		));
+	}
+
+	#[test]
+	fn tracking_loss_also_clears_erase_activity() {
+		let (mut drawing, mut erasing) = (false, true);
+		let [stop, erase] = stop_activity(&mut drawing, &mut erasing);
+		assert!(stop.is_none());
+		assert!(matches!(erase, Some(PenState::StoppedErasing)));
+		assert!(!erasing);
+	}
 }
 
 #[tokio::test]
