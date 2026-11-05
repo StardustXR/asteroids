@@ -66,6 +66,18 @@ impl<State: ValidState> Dial<State> {
 			segment_length_range: 0.01..0.02,
 		}
 	}
+	// cylinders are centered but the lines start at the front face, so shift back half a thickness
+	fn field_shape(&self) -> Shape {
+		Shape::Transform {
+			shape: Box::new(Shape::Cylinder {
+				radius: self.radius,
+				length: self.thickness,
+			}),
+			transform: (Mat4::from_translation(vec3(0.0, 0.0, self.thickness * 0.5))
+				* Mat4::from_rotation_x(FRAC_PI_2))
+			.into(),
+		}
+	}
 }
 
 impl<State: ValidState> AnimatedElement<State> for Dial<State> {
@@ -81,13 +93,7 @@ impl<State: ValidState> AnimatedElement<State> for Dial<State> {
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
 			&info.child_space,
-			Shape::Transform {
-				shape: Box::new(Shape::Cylinder {
-					radius: self.radius,
-					length: self.thickness,
-				}),
-				transform: Mat4::from_rotation_x(FRAC_PI_2).into(),
-			},
+			self.field_shape(),
 		)
 		.await?;
 		let input = InputQueue::new(
@@ -119,13 +125,7 @@ impl<State: ValidState> AnimatedElement<State> for Dial<State> {
 	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
 		self.apply_transform(old, &inner.spatial);
 		if self.radius != old.radius || self.thickness != old.thickness {
-			let _ = inner.field.set_shape(Shape::Transform {
-				shape: Box::new(Shape::Cylinder {
-					radius: self.radius,
-					length: self.thickness,
-				}),
-				transform: Mat4::from_rotation_x(FRAC_PI_2).into(),
-			});
+			let _ = inner.field.set_shape(self.field_shape());
 		}
 	}
 
