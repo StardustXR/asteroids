@@ -8,7 +8,7 @@ use stardust_xr_fusion::{
 	drawable::{Line, LinePoint, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
 	spatial::{Spatial, SpatialExt, Transform},
-	suis::InputDataType,
+	suis::{Finger, Hand, InputDataType},
 	types::{
 		QuatF, Vec3F,
 		color::{AlphaColor, Rgb, color_space::LinearRgb, rgba_linear},
@@ -25,6 +25,10 @@ pub enum PenState {
 	StartedDrawing(f32),
 	Drawing(f32),
 	StoppedDrawing,
+	/// radius of a sphere around the whole fist, none for tips and pointers
+	StartedErasing(Option<f32>),
+	Erasing(Option<f32>),
+	StoppedErasing,
 }
 
 pub struct PenInner {
@@ -38,6 +42,7 @@ pub struct PenInner {
 	grab_action: SingleAction,
 	draw_action: SimpleAction,
 	drawing: bool,
+	erasing: bool,
 }
 
 #[derive(Setters, Animatable)]
@@ -47,8 +52,13 @@ pub struct Pen<State: ValidState> {
 	pub length: f32,
 	pub thickness: f32,
 	pub grab_distance: f32,
+	/// lower than the grab threshold so tracking jitter doesn't drop the pen
+	pub hand_release_threshold: f32,
+	pub hand_grab_threshold: f32,
 	pub hand_draw_threshold: f32,
 	pub tip_draw_threshold: f32,
+	pub hand_erase_threshold: f32,
+	pub button_erase_threshold: f32,
 	pub color: AlphaColor<f32, Rgb<f32, LinearRgb>>,
 	pub pos: Vec3F,
 	pub rot: QuatF,
@@ -66,8 +76,12 @@ impl<State: ValidState> Pen<State> {
 			length: 0.075,
 			thickness: 0.0025,
 			grab_distance: 0.05,
+			hand_release_threshold: 0.4,
+			hand_grab_threshold: 0.75,
 			hand_draw_threshold: 0.75,
 			tip_draw_threshold: 0.1,
+			hand_erase_threshold: 0.75,
+			button_erase_threshold: 0.5,
 			color: rgba_linear!(1.0, 1.0, 1.0, 1.0),
 			pos: pos.into(),
 			rot: rot.into(),
@@ -153,6 +167,7 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 			grab_action: Default::default(),
 			draw_action: Default::default(),
 			drawing: false,
+			erasing: false,
 		})
 	}
 
@@ -186,13 +201,19 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 			return;
 		}
 
+		let holder = inner.grab_action.actor().map(|a| a.method.clone());
 		inner.grab_action.update(
 			false,
 			&inner.input,
 			|i| i.distance() < self.grab_distance,
 			|i| match i.input() {
 				InputDataType::Hand { data: h } => {
-					(h.finger_curl(&h.ring) + h.finger_curl(&h.little)) / 2.0 > 0.75
+					(h.finger_curl(&h.ring) + h.finger_curl(&h.little)) / 2.0
+						> if holder.as_ref() == Some(&i.method) {
+							self.hand_release_threshold
+						} else {
+							self.hand_grab_threshold
+						}
 				}
 				_ => i.datamap_f32("grab") > 0.90,
 			},
@@ -222,11 +243,30 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 			}
 		}
 
+		// the grab already needs ring and little curled, so only index and middle make a fist
+		let erasing = match actor.input() {
+			InputDataType::Hand { data: h } => {
+				(h.finger_curl(&h.index) + h.finger_curl(&h.middle)) / 2.0
+					> self.hand_erase_threshold
+			}
+			InputDataType::Tip { .. } => actor.datamap_f32("context") > self.button_erase_threshold,
+			InputDataType::Pointer { .. } => {
+				actor.datamap_f32("middle") > self.button_erase_threshold
+			}
+		};
+
+		let mut radius = None;
 		let (pos, rot) = match actor.input() {
-			InputDataType::Hand { data: h } => (
-				Vec3::from(h.predicted_pinch_position()),
-				Quat::from(h.palm.pose.orientation),
-			),
+			InputDataType::Hand { data: h } => {
+				let rot = Quat::from(h.palm.pose.orientation);
+				if erasing {
+					let (center, r) = fist_sphere(h);
+					radius = Some(r);
+					(center, rot)
+				} else {
+					(Vec3::from(h.predicted_pinch_position()), rot)
+				}
+			}
 			InputDataType::Tip { data: t } => (
 				Vec3::from(t.pose.position),
 				Quat::from(t.pose.orientation) * Quat::from_rotation_x(FRAC_PI_2),
@@ -244,7 +284,22 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 		};
 
 		let pen_state = if !inner.grab_action.actor_acting() {
+			inner.drawing = false;
+			inner.erasing = false;
 			PenState::Floating
+		} else if erasing {
+			if inner.drawing {
+				inner.drawing = false;
+				PenState::StoppedDrawing
+			} else if !inner.erasing {
+				inner.erasing = true;
+				PenState::StartedErasing(radius)
+			} else {
+				PenState::Erasing(radius)
+			}
+		} else if inner.erasing {
+			inner.erasing = false;
+			PenState::StoppedErasing
 		} else if !inner.draw_action.currently_acting().is_empty() {
 			let pressure = match actor.input() {
 				InputDataType::Hand { data: h } => h
@@ -269,6 +324,35 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 
 		(self.update.0)(state, pen_state, pos.into(), rot.into());
 	}
+}
+
+// bounding box center rather than centroid, the fingers would drag a centroid off center
+fn fist_sphere(h: &Hand) -> (Vec3, f32) {
+	let f = |f: &Finger| [f.tip, f.distal, f.intermediate, f.proximal, f.metacarpal];
+	let joints = [
+		h.thumb.tip,
+		h.thumb.distal,
+		h.thumb.proximal,
+		h.thumb.metacarpal,
+		h.palm,
+		h.wrist,
+	]
+	.into_iter()
+	.chain(
+		[&h.index, &h.middle, &h.ring, &h.little]
+			.into_iter()
+			.flat_map(f),
+	)
+	.map(|j| (Vec3::from(j.pose.position), j.radius));
+	let (min, max) = joints.clone().fold(
+		(Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)),
+		|(min, max), (p, r)| (min.min(p - r), max.max(p + r)),
+	);
+	let c = (min + max) / 2.0;
+	(
+		c,
+		joints.map(|(p, r)| p.distance(c) + r).fold(0.0, f32::max),
+	)
 }
 
 #[tokio::test]
@@ -346,6 +430,12 @@ async fn asteroids_pen_test() {
 						}
 						PenState::StoppedDrawing => {
 							rgba_linear!(1.0, 0.1, 0.1, 1.0)
+						}
+						PenState::StartedErasing(_) | PenState::Erasing(_) => {
+							rgba_linear!(1.0, 0.1, 1.0, 1.0)
+						}
+						PenState::StoppedErasing => {
+							rgba_linear!(0.5, 0.0, 0.5, 1.0)
 						}
 					})
 					.length(0.1)
