@@ -164,7 +164,11 @@ impl DialInner {
 			.input
 			.input()
 			.values()
-			.filter(|i| matches!(i.input(), InputDataType::Pointer { .. }) && i.distance() < 0.0)
+			.filter(|i| {
+				matches!(i.input(), InputDataType::Pointer { .. })
+					&& i.distance() < 0.0
+					&& i.semantic.order == 0
+			})
 			.map(|i| i.datamap_vec2("scroll_discrete").y)
 			.sum();
 		let current_value = (decl.current_value + scroll * decl.turn_unit_amount * 0.1)
