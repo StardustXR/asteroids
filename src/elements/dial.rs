@@ -39,6 +39,8 @@ pub struct Dial<State: ValidState> {
 	thickness: f32,
 	/// how much is 1 turn in units?
 	turn_unit_amount: f32,
+	/// how much one wheel notch turns the dial in units, defaults to a tenth of a turn
+	scroll_discrete_amount: Option<f32>,
 	/// the limits of the dial. what's its max and min?
 	range: Range<f32>,
 	/// what amount of divisions should the dial snap to? first one is innermost, all others go outward
@@ -59,6 +61,7 @@ impl<State: ValidState> Dial<State> {
 			radius: 0.015,
 			thickness: 0.075,
 			turn_unit_amount: 1.0,
+			scroll_discrete_amount: None,
 			precisions: Vec::new(),
 			segment_length_range: 0.01..0.02,
 		}
@@ -171,8 +174,11 @@ impl DialInner {
 			})
 			.map(|i| i.datamap_vec2("scroll_discrete").y)
 			.sum();
-		let current_value = (decl.current_value + scroll * decl.turn_unit_amount * 0.1)
-			.clamp(decl.range.start, decl.range.end);
+		let step = decl
+			.scroll_discrete_amount
+			.unwrap_or(decl.turn_unit_amount * 0.1);
+		let current_value =
+			(decl.current_value + scroll * step).clamp(decl.range.start, decl.range.end);
 		self.single_action.update(
 			false,
 			&self.input,
@@ -363,6 +369,7 @@ async fn asteroids_dial_element() {
 					.thickness(0.01)
 					.current_value(self.value)
 					.turn_unit_amount(12.0 * 60.0)
+					.scroll_discrete_amount(60.0)
 					.range(0.0..(24.0 * 60.0))
 					.build(),
 				)
@@ -374,6 +381,7 @@ async fn asteroids_dial_element() {
 					.thickness(0.005)
 					.current_value(self.value)
 					.turn_unit_amount(60.0)
+					.scroll_discrete_amount(1.0)
 					.range(0.0..(24.0 * 60.0))
 					.build(),
 				)
