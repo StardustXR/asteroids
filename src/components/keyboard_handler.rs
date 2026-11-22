@@ -150,7 +150,8 @@ async fn asteroids_keyboard_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			Entity::new(Shape::Sphere { radius: 0.5 })
 				.component(KeyboardHandler::new().on_key(Self::key_press))
@@ -162,7 +163,7 @@ async fn asteroids_keyboard_element() {
 							.map(|key| format!("Latest key: {:?}", key.keycode))
 							.unwrap_or_default(),
 					)
-					.character_height(0.05)
+					.character_height(0.05_f32)
 					.build(),
 				)
 		}

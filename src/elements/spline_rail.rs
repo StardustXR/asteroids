@@ -646,7 +646,7 @@ async fn asteroids_spline_rail_element() {
 				)
 				.child(
 					Text::new(format!("Δ{:.3}m", self.total_displacement_distance))
-						.character_height(0.005)
+						.character_height(0.005_f32)
 						.pos([0.0, 0.06, 0.0])
 						.build(),
 				)

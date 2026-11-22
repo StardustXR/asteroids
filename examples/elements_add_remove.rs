@@ -74,8 +74,8 @@ impl Reify for State {
 				LabeledButton::new(|state: &mut State| {
 					state.list.push(format!("List item {}", state.list.len()));
 				})
-				.height(0.01)
-				.padding(0.0025)
+				.height(0.01_f32)
+				.padding(0.0025_f32)
 				.label("add")
 				.pos([
 					-0.03, 0.02, 0.0,
@@ -86,8 +86,8 @@ impl Reify for State {
 				LabeledButton::new(|state: &mut State| {
 					state.list.pop();
 				})
-				.height(0.01)
-				.padding(0.0025)
+				.height(0.01_f32)
+				.padding(0.0025_f32)
 				.label("remove")
 				.pos([0.03, 0.02, 0.0])
 				.build(),

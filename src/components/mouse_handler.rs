@@ -367,7 +367,8 @@ async fn asteroids_mouse_element() {
 		fn reify(
 			&self,
 			_context: &Context,
-			_tasks: impl Tasker<Self>, _props: (),
+			_tasks: impl Tasker<Self>,
+			_props: (),
 		) -> impl crate::Element<Self> {
 			Entity::new(Shape::Sphere { radius: 0.5 })
 				.component(
@@ -385,7 +386,7 @@ async fn asteroids_mouse_element() {
 						self.latest_scroll_discrete,
 						self.latest_scroll_continuous
 					))
-					.character_height(0.05)
+					.character_height(0.05_f32)
 					.build())
 		}
 	}

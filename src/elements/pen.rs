@@ -446,8 +446,8 @@ async fn asteroids_pen_test() {
 							rgba_linear!(0.5, 0.0, 0.5, 1.0)
 						}
 					})
-					.length(0.1)
-					.thickness(0.01)
+					.length(0.1_f32)
+					.thickness(0.01_f32)
 					.build(),
 				)
 		}

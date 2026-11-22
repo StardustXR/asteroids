@@ -368,11 +368,11 @@ async fn asteroids_dial_element() {
 					Dial::create(self.value, |state: &mut TestState, value| {
 						state.value = value;
 					})
-					.radius(0.02)
-					.thickness(0.01)
+					.radius(0.02_f32)
+					.thickness(0.01_f32)
 					.current_value(self.value)
-					.turn_unit_amount(12.0 * 60.0)
-					.scroll_discrete_amount(60.0)
+					.turn_unit_amount(12.0 * 60.0_f32)
+					.scroll_discrete_amount(60.0_f32)
 					.range(0.0..(24.0 * 60.0))
 					.build(),
 				)
@@ -380,11 +380,11 @@ async fn asteroids_dial_element() {
 					Dial::create(self.value, |state: &mut TestState, value| {
 						state.value = value;
 					})
-					.radius(0.025)
-					.thickness(0.005)
+					.radius(0.025_f32)
+					.thickness(0.005_f32)
 					.current_value(self.value)
-					.turn_unit_amount(60.0)
-					.scroll_discrete_amount(1.0)
+					.turn_unit_amount(60.0_f32)
+					.scroll_discrete_amount(1.0_f32)
 					.range(0.0..(24.0 * 60.0))
 					.build(),
 				)
@@ -392,7 +392,7 @@ async fn asteroids_dial_element() {
 					crate::elements::Text::new(format!(
 						"{formatted_hours:02.0}:{minutes:02.0} {period}",
 					))
-					.character_height(0.005)
+					.character_height(0.005_f32)
 					.pos([0.0, 0.0, 0.01])
 					.align_x(XAlign::Center)
 					.align_y(YAlign::Center)

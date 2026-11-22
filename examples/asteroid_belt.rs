@@ -414,7 +414,7 @@ impl Belt {
 				})
 				.grab_start(|s: &mut Self| s.run.ship_grabbed = true)
 				.grab_stop(|s: &mut Self| s.run.ship_grabbed = false)
-				.max_distance(0.08)
+				.max_distance(0.08_f32)
 				.pointer_mode(PointerMode::Align),
 			)
 			.component(Derezzable::program_stopper(context))
@@ -474,7 +474,7 @@ impl Reify for Belt {
 			.child(LineSet::new(corners()).build())
 			.child(
 				Text::new(format!("SCORE {:05}    WAVE {}", self.score, self.wave))
-					.character_height(0.035)
+					.character_height(0.035_f32)
 					.align_x(XAlign::Center)
 					.color(rgba_linear!(0.6, 0.95, 1.0, 1.0))
 					.pos(CENTER + Vec3::Y * (HALF.y + 0.08))
@@ -483,7 +483,7 @@ impl Reify for Belt {
 			)
 			.maybe_child((self.time - self.wave_started < 2.5).then(|| {
 				Text::new(format!("WAVE {}", self.wave))
-					.character_height(0.09)
+					.character_height(0.09_f32)
 					.align_x(XAlign::Center)
 					.pos(CENTER)
 					.build()

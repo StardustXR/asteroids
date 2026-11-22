@@ -113,7 +113,7 @@ impl Reify for State {
 							.pos([0.0, -0.3, 0.0])
 							.align_x(XAlign::Center)
 							.align_y(YAlign::Bottom)
-							.character_height(0.05)
+							.character_height(0.05_f32)
 							.build()
 							.appear(|a| {
 								a.transform(

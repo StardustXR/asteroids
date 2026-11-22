@@ -212,8 +212,8 @@ async fn asteroids_field_viz_element() {
 						.into(),
 				})
 				.grid_size([11, 11, 11])
-				.sample_size(0.025)
-				.normal_length(0.01)
+				.sample_size(0.025_f32)
+				.normal_length(0.01_f32)
 				.build()
 		}
 	}
