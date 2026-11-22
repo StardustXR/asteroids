@@ -7,7 +7,7 @@ use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, LinePoint, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
-	spatial::{Spatial, SpatialExt, Transform},
+	spatial::{Spatial, SpatialExt, SpatialRef, Transform},
 	suis::{Finger, Hand, InputDataType},
 	types::{
 		QuatF, Vec3F,
@@ -33,6 +33,8 @@ pub enum PenState {
 
 pub struct PenInner {
 	content_root: Spatial,
+	parent: SpatialRef,
+	content_root_ref: SpatialRef,
 	pen_visuals: Lines,
 	// the field straddles the shaft, so it lives on a spatial offset to the shaft's midpoint
 	field_root: Spatial,
@@ -119,8 +121,10 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		let content_root = info.child_space;
-		content_root
-			.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot))?;
+		content_root.set_relative_transform(
+			info.parent_space.clone(),
+			Transform::from_translation_rotation(self.pos, self.rot),
+		)?;
 
 		let pen_visuals = Lines::new(
 			&context.stardust_client,
@@ -159,6 +163,8 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 
 		Ok(PenInner {
 			content_root,
+			parent: info.parent_space,
+			content_root_ref,
 			pen_visuals,
 			field_root,
 			field,
@@ -173,9 +179,10 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 
 	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.pos != old.pos || self.rot != old.rot {
-			let _ = inner
-				.content_root
-				.set_local_transform(Transform::from_translation_rotation(self.pos, self.rot));
+			let _ = inner.content_root.set_relative_transform(
+				inner.parent.clone(),
+				Transform::from_translation_rotation(self.pos, self.rot),
+			);
 		}
 
 		if self.thickness != old.thickness || self.length != old.length || self.color != old.color {
@@ -184,9 +191,10 @@ impl<State: ValidState> AnimatedElement<State> for Pen<State> {
 				length: self.length,
 				radius: self.thickness,
 			});
-			let _ = inner
-				.field_root
-				.set_local_transform(Transform::from_translation([0.0, self.length * 0.5, 0.0]));
+			let _ = inner.field_root.set_relative_transform(
+				inner.content_root_ref.clone(),
+				Transform::from_translation([0.0, self.length * 0.5, 0.0]),
+			);
 		}
 	}
 

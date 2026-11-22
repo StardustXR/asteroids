@@ -7,7 +7,7 @@ use derive_setters::Setters;
 use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error,
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	types::Vec2F,
 };
 use stardust_xr_molecules::{DebugSettings, UIElement, VisualDebug, button::ButtonVisualSettings};
@@ -57,7 +57,7 @@ impl<State: ValidState> Button<State> {
 	}
 }
 impl<State: ValidState> AnimatedElement<State> for Button<State> {
-	type Inner = (Spatial, stardust_xr_molecules::button::Button);
+	type Inner = (Spatial, stardust_xr_molecules::button::Button, SpatialRef);
 	type Error = Error;
 
 	async fn create_inner(
@@ -82,11 +82,11 @@ impl<State: ValidState> AnimatedElement<State> for Button<State> {
 		button.set_debug(self.debug);
 		info.child_space
 			.set_parent(button.touch_plane().root().spatial_ref().await?)?;
-		Ok((info.child_space, button))
+		Ok((info.child_space, button, info.parent_space))
 	}
 
 	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old, inner.1.touch_plane().root());
+		self.apply_transform(old, inner.1.touch_plane().root(), &inner.2);
 		if self.size != old.size {
 			inner.1.set_size(self.size);
 		}

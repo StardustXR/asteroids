@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use stardust_xr_fusion::{
 	Error,
 	drawable::{TextBounds, TextExt, TextStyle, XAlign, YAlign},
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	types::{Color, Resource, rgba_linear},
 };
 use std::fmt::Debug;
@@ -40,7 +40,7 @@ impl Text {
 	}
 }
 impl<State: ValidState> AnimatedElement<State> for Text {
-	type Inner = (Spatial, stardust_xr_fusion::drawable::Text);
+	type Inner = (Spatial, SpatialRef, stardust_xr_fusion::drawable::Text);
 	type Error = Error;
 
 	async fn create_inner(
@@ -49,7 +49,8 @@ impl<State: ValidState> AnimatedElement<State> for Text {
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
 		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform)?;
+			info.child_space
+				.set_relative_transform(info.parent_space.clone(), self.transform)?;
 		}
 		let text = stardust_xr_fusion::drawable::Text::new(
 			&context.stardust_client,
@@ -65,15 +66,15 @@ impl<State: ValidState> AnimatedElement<State> for Text {
 			},
 		)
 		.await?;
-		Ok((info.child_space, text))
+		Ok((info.child_space, info.parent_space, text))
 	}
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, &inner.0);
+		self.apply_transform(old_self, &inner.0, &inner.1);
 		if self.text != old_self.text {
-			let _ = inner.1.set_text(&self.text);
+			let _ = inner.2.set_text(&self.text);
 		}
 		if self.character_height != old_self.character_height {
-			let _ = inner.1.set_character_height(self.character_height);
+			let _ = inner.2.set_character_height(self.character_height);
 		}
 	}
 }

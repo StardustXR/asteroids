@@ -73,9 +73,9 @@ impl<Signature: Send + Sync + ?Sized> Clone for CloneFnWrapper<Signature> {
 pub trait Transformable: Sized {
 	fn transform(&self) -> &Transform;
 	fn transform_mut(&mut self) -> &mut Transform;
-	fn apply_transform(&self, other: &Self, spatial: &Spatial) {
+	fn apply_transform(&self, other: &Self, spatial: &Spatial, parent: &SpatialRef) {
 		if self.transform() != other.transform() {
-			let _ = spatial.set_local_transform(*self.transform());
+			let _ = spatial.set_relative_transform(parent.clone(), *self.transform());
 		}
 	}
 

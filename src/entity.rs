@@ -530,7 +530,7 @@ impl<State: ValidState, C: Component<State>> AnimatedElement<State> for Entity<S
 			.set_parent(anchor_space.clone())
 			.map_err(BoxError::new)?;
 		spatial
-			.set_local_transform(self.transform)
+			.set_relative_transform(anchor_space.clone(), self.transform)
 			.map_err(BoxError::new)?;
 
 		let (field, _field_ref) =
@@ -576,9 +576,7 @@ impl<State: ValidState, C: Component<State>> AnimatedElement<State> for Entity<S
 	}
 
 	fn diff(&self, old_self: &Self, context: &Context, inner: &mut Self::Inner) {
-		if self.transform != old_self.transform {
-			let _ = inner.spatial.set_local_transform(self.transform);
-		}
+		self.apply_transform(old_self, &inner.spatial, &inner.anchor_space);
 		if self.field_shape != old_self.field_shape {
 			let _ = inner.field.set_shape(self.field_shape.clone());
 		}

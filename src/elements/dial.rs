@@ -9,7 +9,7 @@ use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	suis::InputDataType,
 	types::{Color, rgba_linear},
 };
@@ -88,7 +88,8 @@ impl<State: ValidState> AnimatedElement<State> for Dial<State> {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform)?;
+			info.child_space
+				.set_relative_transform(info.parent_space.clone(), self.transform)?;
 		}
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
@@ -108,6 +109,7 @@ impl<State: ValidState> AnimatedElement<State> for Dial<State> {
 
 		let inner = DialInner {
 			spatial: info.child_space,
+			parent: info.parent_space,
 			lines,
 			input,
 			single_action: SingleAction::default(),
@@ -123,7 +125,7 @@ impl<State: ValidState> AnimatedElement<State> for Dial<State> {
 	}
 
 	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old, &inner.spatial);
+		self.apply_transform(old, &inner.spatial, &inner.parent);
 		if self.radius != old.radius || self.thickness != old.thickness {
 			let _ = inner.field.set_shape(self.field_shape());
 		}
@@ -152,6 +154,7 @@ impl<State: ValidState> Transformable for Dial<State> {
 }
 pub struct DialInner {
 	spatial: Spatial,
+	parent: SpatialRef,
 	lines: Lines,
 	input: InputQueue,
 	single_action: SingleAction,

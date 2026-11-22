@@ -12,7 +12,7 @@ use stardust_xr_fusion::{
 	drawable::{Line, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
 	query::{QueryableExt, QueryableObject},
-	spatial::{Spatial, SpatialExt, Transform},
+	spatial::{Spatial, SpatialExt, SpatialRef, Transform},
 	suis::InputDataType,
 };
 use stardust_xr_molecules::{
@@ -64,7 +64,8 @@ impl<State: ValidState> AnimatedElement<State> for GrabRing<State> {
 		.await?;
 		let content_root = info.child_space;
 		content_root.set_parent(anchor_space.clone())?;
-		content_root.set_local_transform(Transform::from_translation(self.pos))?;
+		content_root
+			.set_relative_transform(anchor_space.clone(), Transform::from_translation(self.pos))?;
 
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
@@ -103,8 +104,11 @@ impl<State: ValidState> AnimatedElement<State> for GrabRing<State> {
 		)
 		.await?;
 		// positions come back relative to the anchor, the same space pos already lives in
-		let mut transformable =
-			TransformableInner::new(&context.stardust_client, content_root.clone(), anchor_space);
+		let mut transformable = TransformableInner::new(
+			&context.stardust_client,
+			content_root.clone(),
+			anchor_space.clone(),
+		);
 		transformable.translatable(&queryable).await?;
 
 		let ring_line = circle(64, 0.0, self.radius).thickness(self.thickness);
@@ -125,6 +129,7 @@ impl<State: ValidState> AnimatedElement<State> for GrabRing<State> {
 			pointer_distance: 0.0,
 			old_interact_point: Vec3::ZERO,
 			content_root,
+			anchor_space,
 			ring_visual,
 			ring_line,
 		})
@@ -159,6 +164,7 @@ pub struct GrabRingInner {
 	old_interact_point: Vec3,
 	pointer_distance: f32,
 	content_root: Spatial,
+	anchor_space: SpatialRef,
 	ring_visual: Lines,
 	ring_line: Line,
 }
@@ -245,9 +251,10 @@ impl GrabRingInner {
 			.map(|transform| Vec3::from(transform.translation));
 		let new_pos = self.handle_grab(pos.into()).or(moved);
 		if let Some(new_pos) = new_pos.as_ref() {
-			let _ = self
-				.content_root
-				.set_local_transform(Transform::from_translation(*new_pos));
+			let _ = self.content_root.set_relative_transform(
+				self.anchor_space.clone(),
+				Transform::from_translation(*new_pos),
+			);
 		}
 
 		new_pos.map(Into::into)

@@ -9,7 +9,7 @@ use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
 	fields::{CubicBezierControlPoint, Field, FieldExt, Shape, cubic_bezier_to_line},
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	suis::InputDataType,
 	types::{Color, Vec3F, rgba_linear},
 };
@@ -83,13 +83,14 @@ impl<State: ValidState> AnimatedElement<State> for SplineRail<State> {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform)?;
+			info.child_space
+				.set_relative_transform(info.parent_space.clone(), self.transform)?;
 		}
 		SplineRailInner::create(context, info, &self.spline).await
 	}
 
 	fn diff(&self, old: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old, &inner.root);
+		self.apply_transform(old, &inner.root, &inner.parent);
 		if self.spline != old.spline {
 			let _ = inner.field.set_shape(self.spline.to_shape());
 			inner.resample(&self.spline);
@@ -112,6 +113,7 @@ const MAX_SEARCH_WINDOW: f32 = 0.1;
 
 pub struct SplineRailInner {
 	root: Spatial,
+	parent: SpatialRef,
 	field: Field,
 	input: InputQueue,
 	graphics: Lines,
@@ -154,6 +156,7 @@ impl SplineRailInner {
 
 		Ok(Self {
 			root,
+			parent: info.parent_space,
 			field,
 			input,
 			graphics,

@@ -15,7 +15,7 @@ use stardust_xr_fusion::{
 	drawable::{Line, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
 	query::{QueryableExt, QueryableObject},
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	suis::InputDataType,
 	types::{Vec3F, rgba_linear},
 };
@@ -67,7 +67,10 @@ impl<State: ValidState> AnimatedElement<State> for Handle<State> {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		let content_root = info.child_space;
-		content_root.set_local_transform(Transform::from_translation(self.root_pos))?;
+		content_root.set_relative_transform(
+			info.parent_space.clone(),
+			Transform::from_translation(self.root_pos),
+		)?;
 
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
@@ -118,6 +121,7 @@ impl<State: ValidState> AnimatedElement<State> for Handle<State> {
 			pointer_distance: 0.0,
 			last_grab_pos: self.root_pos,
 			content_root,
+			parent: info.parent_space,
 			octahedron,
 			lines,
 		};
@@ -128,9 +132,10 @@ impl<State: ValidState> AnimatedElement<State> for Handle<State> {
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
 		if self.root_pos != old_self.root_pos {
 			// Update the position of the handle
-			let _ = inner
-				.content_root
-				.set_local_transform(Transform::from_translation(self.root_pos));
+			let _ = inner.content_root.set_relative_transform(
+				inner.parent.clone(),
+				Transform::from_translation(self.root_pos),
+			);
 		}
 
 		if self.head_offset != old_self.head_offset {
@@ -168,6 +173,7 @@ pub struct HandleUpdate {
 
 pub struct HandleInner {
 	content_root: Spatial,
+	parent: SpatialRef,
 	field: Field,
 	input: InputQueue,
 	_queryable: QueryableObject,

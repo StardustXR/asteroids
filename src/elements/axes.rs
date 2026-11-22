@@ -4,7 +4,7 @@ use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error,
 	drawable::{Line, Lines, LinesExt},
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	types::rgba_linear,
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
@@ -26,7 +26,7 @@ impl Default for Axes {
 	}
 }
 impl<State: ValidState> AnimatedElement<State> for Axes {
-	type Inner = (Lines, Spatial);
+	type Inner = (Lines, Spatial, SpatialRef);
 	type Error = Error;
 
 	async fn create_inner(
@@ -42,11 +42,12 @@ impl<State: ValidState> AnimatedElement<State> for Axes {
 			)
 			.await?,
 			info.child_space,
+			info.parent_space,
 		))
 	}
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, &inner.1);
+		self.apply_transform(old_self, &inner.1, &inner.2);
 		if self.length != old_self.length || self.thickness != old_self.thickness {
 			let _ = inner.0.set_lines(axes(self.length, self.thickness));
 		}

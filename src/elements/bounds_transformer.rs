@@ -2,7 +2,7 @@ use crate::{Context, CreateInnerInfo, ValidState, custom::CustomElement};
 use stardust_xr_fusion::{
 	Error,
 	client::FrameInfo,
-	spatial::{BoundingBox, Spatial, Transform},
+	spatial::{BoundingBox, Spatial, SpatialRef, Transform},
 	types::Vec3F,
 };
 use tokio::sync::watch;
@@ -17,6 +17,8 @@ impl<F: Fn(BoundingBox) -> Transform + Clone + Send + Sync + 'static> Constrain 
 
 pub struct BoundsTransformerInner {
 	spatial: Spatial,
+	spatial_ref: SpatialRef,
+	parent: SpatialRef,
 	/// The last bounds we acted on, so we only push a new transform when they change.
 	last_bounds: watch::Sender<Option<BoundingBox>>,
 }
@@ -78,15 +80,22 @@ impl<State: ValidState, F: Constrain> CustomElement<State> for BoundsTransformer
 		let last_bounds = watch::Sender::new(None);
 
 		// Apply an initial transform from whatever the children measure right now.
-		if let Ok(bounds) = info.child_space.get_local_bounding_box().await {
+		let spatial_ref = info.child_space.spatial_ref().await?;
+		if let Ok(Ok(bounds)) = info
+			.child_space
+			.get_relative_bounding_box(spatial_ref.clone())
+			.await
+		{
 			let _ = info
 				.child_space
-				.set_local_transform((self.constrain)(bounds));
+				.set_relative_transform(info.parent_space.clone(), (self.constrain)(bounds));
 			last_bounds.send_replace(Some(bounds));
 		}
 
 		Ok(BoundsTransformerInner {
 			spatial: info.child_space,
+			spatial_ref,
+			parent: info.parent_space,
 			last_bounds,
 		})
 	}
@@ -105,12 +114,18 @@ impl<State: ValidState, F: Constrain> CustomElement<State> for BoundsTransformer
 		inner: &mut Self::Inner,
 	) {
 		let spatial = inner.spatial.clone();
+		let spatial_ref = inner.spatial_ref.clone();
+		let parent = inner.parent.clone();
 		let last_bounds = inner.last_bounds.clone();
 		let constrain = self.constrain.clone();
 		let timeout_duration = Duration::from_secs_f32(info.delta * 2.0);
 
 		tokio::spawn(async move {
-			let Ok(Ok(bounds)) = timeout(timeout_duration, spatial.get_local_bounding_box()).await
+			let Ok(Ok(Ok(bounds))) = timeout(
+				timeout_duration,
+				spatial.get_relative_bounding_box(spatial_ref),
+			)
+			.await
 			else {
 				return;
 			};
@@ -126,7 +141,7 @@ impl<State: ValidState, F: Constrain> CustomElement<State> for BoundsTransformer
 				}
 			});
 			if changed {
-				let _ = spatial.set_local_transform((constrain)(bounds));
+				let _ = spatial.set_relative_transform(parent, (constrain)(bounds));
 			}
 		});
 	}

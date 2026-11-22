@@ -11,7 +11,7 @@ use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{Line, Lines, LinesExt},
 	fields::Shape,
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	types::{Color, rgba_linear},
 };
 use stardust_xr_molecules::lines::{LineExt, line_from_points};
@@ -123,6 +123,7 @@ impl FieldViz {
 
 pub struct FieldVizInner {
 	content_root: Spatial,
+	parent: SpatialRef,
 	lines: Lines,
 }
 
@@ -132,7 +133,7 @@ impl<State: ValidState> AnimatedElement<State> for FieldViz {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		let content_root = info.child_space;
-		content_root.set_local_transform(self.transform)?;
+		content_root.set_relative_transform(info.parent_space.clone(), self.transform)?;
 
 		let lines = Lines::new(
 			&context.stardust_client,
@@ -143,6 +144,7 @@ impl<State: ValidState> AnimatedElement<State> for FieldViz {
 
 		Ok(FieldVizInner {
 			content_root,
+			parent: info.parent_space,
 			lines,
 		})
 	}
@@ -157,7 +159,7 @@ impl<State: ValidState> AnimatedElement<State> for FieldViz {
 			let _ = inner.lines.set_lines(self.compute_lines());
 		}
 
-		self.apply_transform(old, &inner.content_root);
+		self.apply_transform(old, &inner.content_root, &inner.parent);
 	}
 }
 

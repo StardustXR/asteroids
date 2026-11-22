@@ -5,7 +5,7 @@ use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error, Result,
 	drawable::{MaterialParameter, ModelExt},
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 	types::Resource,
 };
 use std::{fmt::Debug, hash::Hash, path::Path};
@@ -13,13 +13,19 @@ use tokio::sync::mpsc;
 
 pub struct ModelInner {
 	spatial: Spatial,
+	parent: SpatialRef,
 	model: stardust_xr_fusion::drawable::Model,
 	model_parts: FxHashMap<String, stardust_xr_fusion::drawable::ModelPart>,
 	pending_parts_tx: mpsc::UnboundedSender<(String, stardust_xr_fusion::drawable::ModelPart)>,
 	pending_parts_rx: mpsc::UnboundedReceiver<(String, stardust_xr_fusion::drawable::ModelPart)>,
 }
 impl ModelInner {
-	pub async fn create(context: &Context, spatial: Spatial, decl: &Model) -> Result<Self> {
+	pub async fn create(
+		context: &Context,
+		spatial: Spatial,
+		parent: SpatialRef,
+		decl: &Model,
+	) -> Result<Self> {
 		let model = stardust_xr_fusion::drawable::Model::new(
 			&context.stardust_client,
 			&spatial,
@@ -37,6 +43,7 @@ impl ModelInner {
 		let (pending_parts_tx, pending_parts_rx) = mpsc::unbounded_channel();
 		Ok(ModelInner {
 			spatial,
+			parent,
 			model,
 			model_parts,
 			pending_parts_tx,
@@ -92,9 +99,10 @@ impl<State: ValidState> AnimatedElement<State> for Model {
 
 	async fn create_inner(&self, context: &Context, info: CreateInnerInfo) -> Result<Self::Inner> {
 		if self.transform != Transform::IDENTITY {
-			info.child_space.set_local_transform(self.transform)?;
+			info.child_space
+				.set_relative_transform(info.parent_space.clone(), self.transform)?;
 		}
-		ModelInner::create(context, info.child_space, self).await
+		ModelInner::create(context, info.child_space, info.parent_space, self).await
 	}
 	fn frame(
 		&self,
@@ -108,7 +116,7 @@ impl<State: ValidState> AnimatedElement<State> for Model {
 		}
 	}
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, &inner.spatial);
+		self.apply_transform(old_self, &inner.spatial, &inner.parent);
 		if self.resource != old_self.resource {
 			// TODO: resource changes require full element recreation
 		}

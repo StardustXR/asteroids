@@ -3,7 +3,7 @@ use stardust_xr_asteroids_derive::Animatable;
 use stardust_xr_fusion::{
 	Error,
 	drawable::{Line, LinesExt},
-	spatial::{Spatial, Transform},
+	spatial::{Spatial, SpatialRef, Transform},
 };
 use std::fmt::Debug;
 
@@ -23,7 +23,7 @@ impl Lines {
 	}
 }
 impl<State: ValidState> AnimatedElement<State> for Lines {
-	type Inner = (Spatial, stardust_xr_fusion::drawable::Lines);
+	type Inner = (Spatial, SpatialRef, stardust_xr_fusion::drawable::Lines);
 	type Error = Error;
 
 	async fn create_inner(
@@ -31,20 +31,21 @@ impl<State: ValidState> AnimatedElement<State> for Lines {
 		context: &Context,
 		info: CreateInnerInfo,
 	) -> Result<Self::Inner, Self::Error> {
-		info.child_space.set_local_transform(self.transform)?;
+		info.child_space
+			.set_relative_transform(info.parent_space.clone(), self.transform)?;
 		let lines = stardust_xr_fusion::drawable::Lines::new(
 			&context.stardust_client,
 			&info.child_space,
 			self.lines.clone(),
 		)
 		.await?;
-		Ok((info.child_space, lines))
+		Ok((info.child_space, info.parent_space, lines))
 	}
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, &inner.0);
+		self.apply_transform(old_self, &inner.0, &inner.1);
 		if self.lines != old_self.lines {
-			let _ = inner.1.set_lines(self.lines.clone());
+			let _ = inner.2.set_lines(self.lines.clone());
 		}
 	}
 }

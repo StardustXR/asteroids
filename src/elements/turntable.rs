@@ -13,7 +13,7 @@ use stardust_xr_fusion::{
 	drawable::{Line, LinePoint, Lines, LinesExt},
 	fields::{Field, FieldExt, Shape},
 	query::{QueryableExt as _, QueryableObject},
-	spatial::{PartialTransform, Spatial, SpatialExt, Transform},
+	spatial::{PartialTransform, Spatial, SpatialExt, SpatialRef, Transform},
 	suis::InputDataType,
 	types::rgba_linear,
 };
@@ -62,9 +62,10 @@ impl<State: ValidState> AnimatedElement<State> for Turntable<State> {
 		// the content parent only ever spins, so children ride on the platter
 		let content_parent = info.child_space;
 		content_parent.set_parent(root_spatial_ref.clone())?;
-		content_parent.set_local_transform(PartialTransform::from_rotation(
-			Quat::from_rotation_y(self.rotation),
-		))?;
+		content_parent.set_relative_transform(
+			root_spatial_ref.clone(),
+			PartialTransform::from_rotation(Quat::from_rotation_y(self.rotation)),
+		)?;
 
 		let (field, _field_ref) = Field::new(
 			&context.stardust_client,
@@ -90,7 +91,7 @@ impl<State: ValidState> AnimatedElement<State> for Turntable<State> {
 		let mut transformable = TransformableInner::new(
 			&context.stardust_client,
 			content_parent.clone(),
-			root_spatial_ref,
+			root_spatial_ref.clone(),
 		);
 		transformable.rotatable(&queryable).await?;
 
@@ -98,6 +99,8 @@ impl<State: ValidState> AnimatedElement<State> for Turntable<State> {
 
 		Ok(TurntableInner {
 			root: root_spatial,
+			root_ref: root_spatial_ref,
+			parent: info.parent_space,
 			content_parent,
 			grip,
 			// start "lit" so the first frame sends the proximity-colored lines,
@@ -115,7 +118,7 @@ impl<State: ValidState> AnimatedElement<State> for Turntable<State> {
 	}
 
 	fn diff(&self, old_self: &Self, _context: &Context, inner: &mut Self::Inner) {
-		self.apply_transform(old_self, &inner.root);
+		self.apply_transform(old_self, &inner.root, &inner.parent);
 		let size_changed =
 			self.inner_radius != old_self.inner_radius || self.height != old_self.height;
 		if size_changed {
@@ -257,6 +260,8 @@ fn interact_angle(input: &InputSnapshot) -> Option<f32> {
 
 pub struct TurntableInner {
 	root: Spatial,
+	root_ref: SpatialRef,
+	parent: SpatialRef,
 	content_parent: Spatial,
 	grip: Lines,
 	grip_lit: bool,
@@ -309,9 +314,10 @@ impl TurntableInner {
 		rotation += angle;
 		let _ = self
 			.content_parent
-			.set_local_transform(PartialTransform::from_rotation(Quat::from_rotation_y(
-				rotation,
-			)));
+			.set_relative_transform(
+				self.root_ref.clone(),
+				PartialTransform::from_rotation(Quat::from_rotation_y(rotation)),
+			);
 		(on_rotate.0)(state, rotation);
 	}
 	pub fn update<State: ValidState>(
