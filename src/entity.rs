@@ -140,17 +140,15 @@ use tokio::task::JoinHandle;
 /// every component gets this in `create_inner` and `diff`
 #[derive(Clone, Copy)]
 pub struct ComponentCreateInfo<'a> {
-	/// the space the entity is placed in
 	pub parent_space: &'a SpatialRef,
 	/// sits between `parent_space` and `spatial`. `Containable` moves this one,
 	/// so the entity's own transform never has to change
 	pub anchor: &'a Spatial,
 	pub anchor_space: &'a SpatialRef,
-	/// the entity's spatial. its transform is the entity's transform
 	pub spatial: &'a Spatial,
-	/// the entity's field
+	/// the field's shape
+	pub shape: &'a Shape,
 	pub field: &'a Field,
-	/// the entity's queryable. call `add_interface` on it to expose a protocol
 	pub queryable: &'a QueryableObject,
 	/// the entity's transform, relative to `anchor`
 	pub transform: &'a Transform,
@@ -352,13 +350,14 @@ pub struct EntityInner<State: ValidState, C: Component<State>> {
 	anchor: Spatial,
 	anchor_space: SpatialRef,
 	spatial: Spatial,
+	shape: Shape,
 	field: Field,
 	queryable: QueryableObject,
 	component_inners: ComponentInners<State, C>,
 }
 impl<State: ValidState, C: Component<State>> EntityInner<State, C> {
 	/// borrow the server objects for the components, and the components' inners, at the same time
-	fn split<'a>(
+	fn view<'a>(
 		&'a mut self,
 		transform: &'a Transform,
 	) -> (ComponentCreateInfo<'a>, &'a mut ComponentInners<State, C>) {
@@ -367,6 +366,7 @@ impl<State: ValidState, C: Component<State>> EntityInner<State, C> {
 			anchor: &self.anchor,
 			anchor_space: &self.anchor_space,
 			spatial: &self.spatial,
+			shape: &self.shape,
 			field: &self.field,
 			queryable: &self.queryable,
 			transform,
@@ -416,6 +416,7 @@ impl<State: ValidState, C: Component<State>> AnimatedElement<State> for Entity<S
 			anchor: &anchor,
 			anchor_space: &anchor_space,
 			spatial: &spatial,
+			shape: &self.field_shape,
 			field: &field,
 			queryable: &queryable,
 			transform: &self.transform,
@@ -428,6 +429,7 @@ impl<State: ValidState, C: Component<State>> AnimatedElement<State> for Entity<S
 			anchor,
 			anchor_space,
 			spatial,
+			shape: self.field_shape.clone(),
 			field,
 			queryable,
 			component_inners: ComponentInners::new(tuple),
@@ -438,8 +440,9 @@ impl<State: ValidState, C: Component<State>> AnimatedElement<State> for Entity<S
 		self.apply_transform(old_self, &inner.spatial, &inner.anchor_space);
 		if self.field_shape != old_self.field_shape {
 			let _ = inner.field.set_shape(self.field_shape.clone());
+			inner.shape = self.field_shape.clone();
 		}
-		let (info, component_inners) = inner.split(&self.transform);
+		let (info, component_inners) = inner.view(&self.transform);
 		self.components.diff(
 			&old_self.components,
 			context,
@@ -626,6 +629,7 @@ impl<State: ValidState, C: Component<State> + Clone> PendingCreation<State, C> {
 		let anchor = info.anchor.clone();
 		let anchor_space = info.anchor_space.clone();
 		let spatial = info.spatial.clone();
+		let shape = info.shape.clone();
 		let field = info.field.clone();
 		let queryable = info.queryable.clone();
 		let transform = *info.transform;
@@ -635,6 +639,7 @@ impl<State: ValidState, C: Component<State> + Clone> PendingCreation<State, C> {
 				anchor: &anchor,
 				anchor_space: &anchor_space,
 				spatial: &spatial,
+				shape: &shape,
 				field: &field,
 				queryable: &queryable,
 				transform: &transform,
